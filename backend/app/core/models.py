@@ -387,3 +387,20 @@ class UserQuota(Base):
     last_doubt_reset = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_playground_reset = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+
+class SimulationRecord(Base):
+    __tablename__ = "simulation_records"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    simulation_id = Column(String(64), unique=True, index=True, nullable=False)
+    prompt = Column(Text, nullable=True)
+    spec_json = Column(JSON, nullable=True)
+    html = Column(Text, nullable=False, default="")
+    validation_json = Column(JSON, nullable=True)
+    quality_score = Column(Integer, nullable=False, default=0)
+    assessments_json = Column(JSON, nullable=True)
+    phase = Column(String(32), nullable=False, default="pending")
+    error = Column(Text, nullable=True)
+    duration_ms = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+

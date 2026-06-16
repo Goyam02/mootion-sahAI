@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Home as HomeIcon, CheckSquare, Compass, User as UserIcon,
-  Flame, ArrowRight, HelpCircle, Sparkles, Plus, BookOpen, AlertCircle, RefreshCw
+  Flame, ArrowRight, HelpCircle, Sparkles, Plus, BookOpen, AlertCircle, RefreshCw, Sliders
 } from 'lucide-react';
 import { api } from '../../api';
 import { ClassInfo, User, StudentTask } from '../../types';
@@ -247,13 +247,22 @@ export const StudentHome: React.FC<StudentHomeProps> = ({ user, onLogout }) => {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => navigate('/student/playground')}
-                      className="btn-primary py-3 px-6 bg-gradient-to-r from-cyan-500 to-violet-500 border-none flex-shrink-0 font-bold"
-                    >
-                      <span>Enter Playground</span>
-                      <Sparkles size={16} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate('/student/simulate')}
+                        className="btn-primary py-3 px-6 bg-gradient-to-r from-violet-500 to-indigo-600 border-none flex-shrink-0 font-bold"
+                      >
+                        <Sliders size={16} />
+                        <span>Simulation Lab</span>
+                      </button>
+                      <button
+                        onClick={() => navigate('/student/playground')}
+                        className="btn-primary py-3 px-6 bg-gradient-to-r from-cyan-500 to-violet-500 border-none flex-shrink-0 font-bold"
+                      >
+                        <Sparkles size={16} />
+                        <span>Enter Playground</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

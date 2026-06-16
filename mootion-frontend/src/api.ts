@@ -3,7 +3,7 @@ import {
   DoubtEntry, ClassAnalytics, ChapterAnalytics, StudentAnalytics, StudentTask, Language
 } from './types';
 
-const API_BASE = 'http://localhost:8000'; // Default backend location
+export const API_BASE = 'http://localhost:8000'; // Default backend location
 
 // Helper to get headers
 function getHeaders() {

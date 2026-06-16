@@ -22,6 +22,7 @@ import { ActivitySession } from './pages/student/ActivitySession';
 import { DoubtFlow } from './pages/student/DoubtFlow';
 import { StudentExplore } from './pages/student/StudentExplore';
 import { PlaygroundMode } from './pages/student/PlaygroundMode';
+import { SimulationGenerator } from './pages/student/SimulationGenerator';
 import { StudentProfile } from './pages/student/StudentProfile';
 
 const App: React.FC = () => {
@@ -198,6 +199,10 @@ const App: React.FC = () => {
         <Route 
           path="/student/playground" 
           element={user?.role === 'student' ? <PlaygroundMode /> : <Navigate to="/" replace />} 
+        />
+        <Route 
+          path="/student/simulate" 
+          element={user?.role === 'student' ? <SimulationGenerator /> : <Navigate to="/" replace />} 
         />
         <Route 
           path="/student/profile" 
