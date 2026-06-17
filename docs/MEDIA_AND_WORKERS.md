@@ -11,13 +11,13 @@ Instead:
 - the backend creates a generation job
 - Redis carries the job to a worker
 - the worker calls the Manim service
-- the worker uploads the rendered video to MinIO
-- the backend serves the stored video from a stable media URL
+- the worker uploads the rendered video to private object storage
+- the backend stores a direct signed playback URL in chapter responses and also exposes an explicit signed-URL endpoint
 
 ## Runtime Pieces
 
 - Redis for queued job delivery
-- MinIO for persistent media storage
+- private S3-compatible object storage, currently MinIO locally and R2 later
 - one or more backend worker processes
 - the external `animation-engine` service for Manim rendering
 
@@ -29,9 +29,11 @@ Instead:
 4. A worker picks up the job.
 5. The worker calls `POST /explain` on the animation engine.
 6. The worker downloads the rendered MP4 from the engine's `/video/{video_id}` endpoint.
-7. The worker uploads the MP4 to MinIO.
+7. The worker uploads the MP4 to private object storage.
 8. The worker stores the MinIO object key on the asset row.
 9. The backend exposes the asset through `GET /media/assets/{asset_id}`.
+10. The backend also exposes `GET /media/assets/{asset_id}/signed-url`.
+11. Chapter responses can carry a direct signed playback URL, while the signed-url endpoint returns the URL on demand.
 
 ## Why This Is Better Than Frontend Fetches
 
@@ -47,11 +49,17 @@ Generated assets return a backend media URL in chapter detail responses:
 
 - `GET /teachers/classes/{class_id}/chapters/{chapter_id}`
 
-If the asset has been stored in MinIO, the `external_url` field points to:
+If the asset has been stored in object storage, the `external_url` field points to:
 
 - `GET /media/assets/{asset_id}`
 
-That endpoint streams the MP4 from MinIO.
+The chapter response `external_url` is a direct signed playback URL.
+
+The explicit signed-url endpoint returns the same kind of signed playback URL on demand.
+
+If the frontend wants the signed URL explicitly, it should call:
+
+- `GET /media/assets/{asset_id}/signed-url`
 
 ## Worker Command
 
@@ -68,3 +76,17 @@ Run 2 to 3 copies of that process to increase throughput.
 - queued jobs are re-enqueued from the database at backend startup
 - stale `processing` jobs are reset to `queued` and re-enqueued
 - the database remains the source of truth for job state
+
+## Storage Variables
+
+Use these environment variables for object storage:
+
+- `OBJECT_STORAGE_ENDPOINT`
+- `OBJECT_STORAGE_ACCESS_KEY`
+- `OBJECT_STORAGE_SECRET_KEY`
+- `OBJECT_STORAGE_REGION`
+- `OBJECT_STORAGE_SECURE`
+- `OBJECT_STORAGE_BUCKET`
+- `OBJECT_STORAGE_SIGNED_URL_EXPIRY_MINUTES`
+
+For local MinIO, the existing `MINIO_*` variables still work as aliases.

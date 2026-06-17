@@ -137,7 +137,7 @@ That means:
 - bootstrap creates structure
 - assignment creates content demand
 - the Redis queue fills in the content asynchronously
-- rendered videos are stored in MinIO and served back through the backend media URL
+- rendered videos are stored in private object storage and served back through the backend media URL, which redirects to a signed URL
 
 This is deliberate so the system does not generate content before it is needed.
 

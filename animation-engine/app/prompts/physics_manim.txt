@@ -25,10 +25,10 @@ CORRECT EXAMPLES:
 - MathTex(r"\left(\vec{{F}}_1 + \vec{{F}}_2\right) = m \vec{{a}}")
 
 WRONG EXAMPLES:
-❌ MathTex("F = m a")  # Missing r prefix
-❌ MathTex("\vec{v}")  # Don't double backslash
-❌ MathTex(r"\frac{{{{m}}}}{{{{v}}}}")  # Don't use quadruple braces
-❌ MathTex(r"F = m", "+", r"a")  # Delimiters split
+❌ MathTex("F = m a")  # missing r prefix
+❌ MathTex("\\vec{v}")  # double backslash instead of a raw string
+❌ MathTex(r"\frac{{m}}{{v}}")  # double braces instead of single
+❌ MathTex(r"\left(\vec{F}_1", "+", r"\vec{F}_2\right) = m \vec{a}")  # \left/\right split across arguments
 
 MANDATORY RULES:
 

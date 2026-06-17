@@ -22,6 +22,7 @@ def enqueue_media_generation_job(job_id: str) -> bool:
 
     try:
         redis.lpush(QUEUE_KEY, job_id)
+        print(f"[media-queue] enqueued {job_id} -> {QUEUE_KEY}")
         return True
     except Exception:
         redis.delete(marker_key)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import signal
+import sys
 
 from sqlalchemy import select
 
@@ -16,13 +17,19 @@ _should_stop = False
 
 
 def process_media_generation_job(job_id: str) -> None:
+    print(f"[media-worker] picked job {job_id}", file=sys.stderr, flush=True)
     db = SessionLocal()
     try:
         job = db.get(ChapterAssetGenerationJob, job_id)
         if not job:
+            print(f"[media-worker] job not found in DB: {job_id}", file=sys.stderr, flush=True)
             return
 
+        print(f"[media-worker] found job {job_id} status={job.status} attempt={job.attempt_count}", file=sys.stderr, flush=True)
+
         process_generation_job(db, job)
+
+        print(f"[media-worker] finished processing {job_id} status={job.status} attempt={job.attempt_count}", file=sys.stderr, flush=True)
 
         assignment = db.scalar(select(Assignment).where(Assignment.id == job.assignment_id))
         if assignment:
@@ -48,13 +55,16 @@ def run_worker() -> None:
 
         _, raw_job_id = item
         job_id = raw_job_id.decode("utf-8") if isinstance(raw_job_id, bytes) else str(raw_job_id)
+        print(f"[media-worker] brpop -> {job_id}", file=sys.stderr, flush=True)
         try:
             process_media_generation_job(job_id)
         except Exception:
             # Keep the worker alive; the DB job row records the failure.
+            print(f"[media-worker] error while processing {job_id}", file=sys.stderr, flush=True)
             continue
         finally:
             acknowledge_media_generation_job(job_id)
+            print(f"[media-worker] acknowledged {job_id}", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":

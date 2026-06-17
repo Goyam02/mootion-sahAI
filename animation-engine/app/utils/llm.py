@@ -1,34 +1,46 @@
 import os
-from openai import AzureOpenAI
+
 from dotenv import load_dotenv
-import json
-import re
+from openai import AzureOpenAI
+
 load_dotenv()
 
-api_version = os.getenv("AZURE_OPENAI_API_VERSION")  # e.g., "2025-04-14"
-endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")  # e.g., "https://subscription_key = os.getenv("AZURE_API_KEY")  # your API key
-subscription_key = os.getenv("AZURE_API_KEY")  # your API key
+api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-14")
+endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+api_key = os.getenv("AZURE_OPENAI_API_KEY") or os.getenv("AZURE_API_KEY")
+deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+
+if not endpoint:
+    raise RuntimeError("AZURE_OPENAI_ENDPOINT is required")
+
+if not api_key:
+    raise RuntimeError("AZURE_OPENAI_API_KEY is required")
+
+if not deployment_name:
+    raise RuntimeError("AZURE_OPENAI_DEPLOYMENT is required")
+
 client = AzureOpenAI(
     api_version=api_version,
     azure_endpoint=endpoint,
-    api_key=subscription_key,
+    api_key=api_key,
 )
 
-deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT")  # your deployment name
 
-
-# --------------------------
-# Azure OpenAI config
-# --------------------------
-  # e.g., "https://YOUR_RESOURCE_NAME.openai.azure.com/"
-  # latest supported version
-
-
-def call_llm(prompt: str, temperature=0):
+def call_llm(prompt: str, temperature: float = 0):
     response = client.chat.completions.create(
         model=deployment_name,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=temperature,
     )
-    return response.choices[0].message.content
 
+    content = response.choices[0].message.content
+
+    if not content:
+        raise RuntimeError("LLM returned an empty response")
+
+    return content.strip()

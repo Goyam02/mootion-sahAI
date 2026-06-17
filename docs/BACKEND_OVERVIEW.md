@@ -27,7 +27,7 @@ The intent is to keep the product easy to reason about while still leaving room 
 - A hidden default school is created internally at startup.
 - The public product does not expose school selection or school metadata.
 - A Redis-backed worker process handles queued media generation jobs.
-- MinIO stores generated media so the backend can serve stable playback URLs.
+- private object storage stores generated media, and the backend serves stable playback URLs via signed redirects.
 
 ## Domain Areas
 
@@ -63,7 +63,7 @@ The intent is to keep the product easy to reason about while still leaving room 
 - Assignments are class-wide.
 - The teacher chooses one activity type.
 - Activity generation is queued lazily when the assignment is created.
-- Manim stays a remote call, but the rendered media is persisted in MinIO.
+- Manim stays a remote call, but the rendered media is persisted in private object storage.
 - Model-finder is copied in-process from the bloop-core logic.
 
 ## Execution Model
@@ -85,7 +85,7 @@ The intent is to keep the product easy to reason about while still leaving room 
 4. Redis delivers the job to a worker process.
 5. Manim jobs call the external Manim service.
 6. Model-finder jobs query Sketchfab and rank candidates locally.
-7. The worker uploads the media to MinIO when applicable.
+7. The worker uploads the media to private object storage when applicable.
 8. The asset record is updated with generation results or failure metadata.
 
 ## Important Design Rules

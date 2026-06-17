@@ -37,8 +37,8 @@ This is where content generation is triggered, so the backend only does expensiv
 - The assignment is attached to one chapter.
 - The backend queues any generation needed for that assignment type.
 - Generation happens asynchronously.
-- Rendered videos are stored in MinIO.
-- The backend returns stable media URLs that stream from stored objects.
+- Rendered videos are stored in private object storage.
+- The backend returns stable media URLs that redirect to short-lived signed URLs.
 
 ## Assignment Types
 
@@ -127,8 +127,8 @@ Request example:
 
 - uses the Manim service
 - downloads the rendered MP4 from the animation engine
-- uploads the MP4 to MinIO
-- updates the chapter asset with MinIO storage metadata
+- uploads the MP4 to private object storage
+- updates the chapter asset with storage metadata
 
 ### 3D model
 
@@ -149,7 +149,7 @@ Once a video asset is ready, chapter detail responses point `external_url` to:
 
 - `GET /media/assets/{asset_id}`
 
-That backend route streams the stored MP4 from MinIO so the browser can play it directly.
+That backend route redirects the browser to a signed object-storage URL so the browser can play it directly without the backend proxying bytes.
 
 ## Statuses
 

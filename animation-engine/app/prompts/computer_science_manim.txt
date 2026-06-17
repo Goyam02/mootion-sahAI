@@ -26,6 +26,7 @@ WRONG EXAMPLES:
 ❌ MathTex("T(n) = O(n^2)")  # Missing r prefix
 ❌ MathTex("\\sum_{{i=0}}^n i")  # Don't double backslash
 ❌ MathTex(r"\sum{{i=0}}^n i")  # Don't use double braces
+❌ MathTex(r"\sum_{i=0}^n", "i")  # \sum_{}^{} delimiters split across arguments
 
 MANDATORY RULES:
 1. Put r before EVERY string containing backslash or LaTeX commands: r"\sum_{{i=0}}^n i"

@@ -109,6 +109,36 @@ List classes the student belongs to.
 
 Set student language preference and mark onboarding complete.
 
+### `POST /chat-with-ai/chats`
+
+Create a private student AI chat thread.
+
+Optional context can inherit the current class, chapter, or assignment.
+
+### `GET /chat-with-ai/chats`
+
+List the current student's AI chat threads.
+
+### `GET /chat-with-ai/chats/{chat_id}`
+
+Fetch one AI chat thread and its context.
+
+### `GET /chat-with-ai/chats/{chat_id}/messages`
+
+Fetch the ordered message history for a thread.
+
+### `POST /chat-with-ai/chats/{chat_id}/messages`
+
+Send a message to the AI tutor.
+
+The backend can autonomously use tools such as explanation video generation, 3D model lookup, quiz generation, and simulation generation when the request is complex or explicitly asks for them.
+
+### `DELETE /chat-with-ai/chats/{chat_id}`
+
+Delete a private AI chat thread.
+
+This chat system is student-only and is separate from the teacher-facing doubt workflow.
+
 ## Curriculum
 
 ### `POST /teachers/classes/{class_id}/curriculum`
@@ -177,9 +207,17 @@ Fetch one student-visible assignment for a class.
 
 ### `GET /media/assets/{asset_id}`
 
-Stream a generated media asset from MinIO through the backend.
+Compatibility playback endpoint that redirects to a short-lived signed object-storage URL.
 
 Use it when a chapter asset has been generated and you need a stable browser-playable URL.
+
+### `GET /media/assets/{asset_id}/signed-url`
+
+Return a signed object-storage URL for the asset.
+
+Use this when the frontend wants to fetch the signed delivery URL explicitly and manage playback itself.
+
+Current chapter responses point `external_url` at a direct signed playback URL.
 
 ## Worker Runtime
 
