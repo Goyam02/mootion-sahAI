@@ -169,19 +169,31 @@ export function InteractiveQuizCard({ payload }: InteractiveQuizCardProps) {
           </div>
           <div>
             <h4 className="text-sm font-black uppercase tracking-wider text-[#1800ad] font-montserrat">{payload.title}</h4>
-            <p className="text-[10px] text-[#1800ad]/70 font-semibold font-montserrat">10-Second Speed Assessment</p>
+            <p className="text-[10px] text-[#1800ad]/70 font-semibold font-montserrat">10-Second Speed Quiz</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {!isCompleted && !showsFeedback && (
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black flex items-center gap-1 font-montserrat ${timeLeft <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-400 text-[#1800ad]'}`}>
-              {timeLeft}s Left
+        {/* Circular countdown only */}
+        {!isCompleted && !showsFeedback && (
+          <div className="relative w-9 h-9 shrink-0">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#1800ad" strokeOpacity="0.1" strokeWidth="3" />
+              <circle
+                cx="18" cy="18" r="15" fill="none"
+                stroke={timeLeft <= 3 ? '#ef4444' : '#f59e0b'}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={`${(timeLeft / 10) * 94.2} 94.2`}
+                className="transition-all duration-1000"
+              />
+            </svg>
+            <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-black font-montserrat ${timeLeft <= 3 ? 'text-red-500' : 'text-[#1800ad]'}`}>
+              {timeLeft}
             </span>
-          )}
-          <span className="text-[10px] px-2.5 py-1 bg-[#1800ad]/15 text-[#1800ad] rounded-full font-bold font-montserrat">
-            {isCompleted ? "Completed" : `Question ${currentIdx + 1} of ${questions.length}`}
-          </span>
-        </div>
+          </div>
+        )}
+        {isCompleted && (
+          <span className="text-[9px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-black uppercase tracking-wide font-montserrat">Done</span>
+        )}
       </div>
 
       {!isCompleted ? (
@@ -275,6 +287,16 @@ export function InteractiveQuizCard({ payload }: InteractiveQuizCardProps) {
     </div>
   );
 }
+
+const cleanText = (text: string): string => {
+  if (!text) return "";
+  // Strip emojis (using Unicode Extended Pictographic and basic emoji ranges)
+  let cleaned = text.replace(/\p{Extended_Pictographic}/gu, '');
+  cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]/gu, '');
+  // Strip asterisks
+  cleaned = cleaned.replace(/\*/g, '');
+  return cleaned.trim();
+};
 
 export function StudentPlaygroundPage() {
   const navigate = useNavigate();
@@ -550,7 +572,7 @@ export function StudentPlaygroundPage() {
         {
           id: loadingMsgId,
           sender: 'mootion',
-          text: '💭 Deep thinking state active...',
+          text: '...',
           timestamp: 'Just now'
         }
       ]);
@@ -583,7 +605,83 @@ export function StudentPlaygroundPage() {
       return;
     }
 
-    // Generate responsive AI response
+    // Quiz: async Gemini fetch — handle separately with early return
+    if (isQuiz) {
+      const loadingMsgId = `msg-quiz-loading-${Date.now()}`;
+      setMessages(prev => [
+        ...prev,
+        {
+          id: loadingMsgId,
+          sender: 'mootion',
+          text: '...',
+          timestamp: 'Just now'
+        }
+      ]);
+
+      let topic = "General Science";
+      if (userInput.startsWith('/quiz ')) {
+        topic = userInput.substring(6).trim();
+      } else if (normalizedInput.includes('quiz')) {
+        topic = userInput.replace(/quiz/gi, '').replace(/practice/gi, '').replace(/assessment/gi, '').replace(/\//g, '').trim() || "General Science";
+      }
+
+      fetch('/api/quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: 'Science', topic: topic, questionCount: 5 })
+      })
+      .then(res => res.json())
+      .then(data => {
+        const rawQs = data.questions || [];
+        const mappedQs = rawQs.slice(0, 5).map((q: any, i: number) => ({
+          id: i + 1,
+          question: q.questionText || q.question || `Question ${i + 1}`,
+          options: q.options || [],
+          correctAnswerIdx: q.options ? q.options.indexOf(q.correctAnswer) : 0,
+          feedbackCorrect: q.explanation || 'Correct!',
+          feedbackIncorrect: q.explanation || 'Not quite — review this concept!'
+        }));
+
+        const quizMsg: ChatMessage = {
+          id: `msg-quiz-${Date.now()}`,
+          sender: 'mootion',
+          text: `Your 5-question quiz on **${topic}** is ready. You have 10 seconds per question:`,
+          timestamp: 'Just now',
+          payload: {
+            type: 'quiz',
+            title: `${topic} Quiz`,
+            quiz: { currentQuestionIdx: 0, score: 0, isCompleted: false, questions: mappedQs }
+          }
+        };
+        setMessages(prev => prev.map(m => m.id === loadingMsgId ? quizMsg : m));
+      })
+      .catch(() => {
+        const fallbackMsg: ChatMessage = {
+          id: `msg-quiz-${Date.now()}`,
+          sender: 'mootion',
+          text: `Your quiz on **${topic}** is ready:`,
+          timestamp: 'Just now',
+          payload: {
+            type: 'quiz',
+            title: `${topic} Quiz`,
+            quiz: {
+              currentQuestionIdx: 0, score: 0, isCompleted: false,
+              questions: [
+                { id: 1, question: 'If all net external forces on a moving object cancel to zero, what happens?', options: ['It stops immediately.', 'It continues at constant velocity.', 'It accelerates.', 'It reverses direction.'], correctAnswerIdx: 1, feedbackCorrect: 'Correct! Newton\'s First Law.', feedbackIncorrect: 'Recall Newton\'s First Law: no net force = constant velocity.' },
+                { id: 2, question: 'Which quantity is directly proportional to acceleration (F=ma)?', options: ['Friction', 'Drag', 'Net Force', 'Viscosity'], correctAnswerIdx: 2, feedbackCorrect: 'Correct! F = ma.', feedbackIncorrect: 'Net Force is proportional to acceleration by F = ma.' },
+                { id: 3, question: 'What is the unit of force in SI?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], correctAnswerIdx: 2, feedbackCorrect: 'Correct! Force is measured in Newtons.', feedbackIncorrect: 'Force is measured in Newtons (N).' },
+                { id: 4, question: 'Objects submerged in fluid experience which upward force?', options: ['Gravity', 'Buoyancy', 'Tension', 'Normal'], correctAnswerIdx: 1, feedbackCorrect: 'Correct! Buoyancy = Archimedes principle.', feedbackIncorrect: 'Buoyancy is the upward force in fluids.' },
+                { id: 5, question: 'An object with density greater than water will?', options: ['Float', 'Hover', 'Sink', 'Dissolve'], correctAnswerIdx: 2, feedbackCorrect: 'Correct! Denser objects sink.', feedbackIncorrect: 'Objects denser than water sink.' }
+              ]
+            }
+          }
+        };
+        setMessages(prev => prev.map(m => m.id === loadingMsgId ? fallbackMsg : m));
+      });
+      return;
+    }
+
+    // Generate responsive AI response (video, simulation, universe)
     setTimeout(() => {
       let aiResponse: ChatMessage;
 
@@ -631,57 +729,6 @@ export function StudentPlaygroundPage() {
               objectDensity: 450,
               fluidDensity: 1000,
               objectVolume: 0.15
-            }
-          }
-        };
-      } 
-      else if (isQuiz) {
-        let topic = "Laws of Motion & Forces";
-        if (userInput.startsWith('/quiz ')) {
-          topic = userInput.substring(6).trim();
-        } else if (normalizedInput.includes('quiz')) {
-          topic = userInput.replace(/quiz/gi, '').replace(/\//g, '').trim() || "Laws of Motion & Forces";
-        }
-        aiResponse = {
-          id: `msg-ai-${Date.now()}`,
-          sender: 'mootion',
-          text: `⏱️ Prepare your mind! I've custom generated an interactive practice speed assessment on **${topic}**. You have exactly **10 seconds** per question to unlock your review badge:`,
-          timestamp: 'Just now',
-          payload: {
-            type: 'quiz',
-            title: `${topic} Assessment`,
-            quiz: {
-              currentQuestionIdx: 0,
-              score: 0,
-              isCompleted: false,
-              questions: [
-                {
-                  id: 1,
-                  question: `Regarding "${topic}", if all net external forces on a moving container cancel out to exactly zero, what occurs?`,
-                  options: [
-                    "It immediately stops moving.",
-                    "It continues at the exact same constant velocity.",
-                    "It continuously accelerates at a decelerating rate.",
-                    "It reverses course direction due to kinetic friction."
-                  ],
-                  correctAnswerIdx: 1,
-                  feedbackCorrect: "Brilliant! According to inertia rules, objects in motion stay in motion at the same speed unless a external net force interferes.",
-                  feedbackIncorrect: "Remember Newton's First Law: the lack of a net external force keeps velocity perfectly constant."
-                },
-                {
-                  id: 2,
-                  question: `Which variable in "${topic}" is directly proportional to the acceleration experienced by an object?`,
-                  options: [
-                    "Total Static Friction Threshold",
-                    "Net Drag Coefficient",
-                    "Net External Applied Force",
-                    "Total Inline Viscosity"
-                  ],
-                  correctAnswerIdx: 2,
-                  feedbackCorrect: "Correct! Newton's Second Law defines force as directly proportional to the acceleration (F = ma).",
-                  feedbackIncorrect: "Recall the equation F = ma. Acceleration is directly proportional to Net Force, and inversely to Mass."
-                }
-              ]
             }
           }
         };
@@ -826,7 +873,7 @@ export function StudentPlaygroundPage() {
         </div>
 
         <div className="text-[11px] text-[#1800ad]/80 font-medium leading-relaxed bg-[#1800ad]/5 p-3 rounded-xl border border-[#1800ad]/15 font-montserrat">
-          **Topic Storyboard Concept**: This visual presentation highlights key steps of *{topicTitle}*. Play the interactive video timeline to watch the illustrated scientific guide!
+          {cleanText(`Topic Storyboard Concept: This visual presentation highlights key steps of ${topicTitle}. Play the interactive video timeline to watch the illustrated scientific guide!`)}
         </div>
       </div>
     );
@@ -973,7 +1020,7 @@ export function StudentPlaygroundPage() {
         </div>
 
         <div className="text-[10px] text-[#1800ad]/75 font-medium leading-relaxed bg-[#1800ad]/5 p-2.5 rounded-xl border border-[#1800ad]/15 font-montserrat">
-          Click and interact directly in the sandbox to run variables simulations in real-time. Use full-screen toggle to enlarge!
+          {cleanText("Click and interact directly in the sandbox to run variables simulations in real-time. Use full-screen toggle to enlarge!")}
         </div>
       </div>
     );
@@ -1234,20 +1281,45 @@ export function StudentPlaygroundPage() {
   };
 
   return (
-    <div className="flex flex-col w-full h-[100dvh] bg-[#f6f4ee] font-montserrat text-[#1800ad] overflow-hidden relative select-none">
+    <div className="flex flex-1 w-full h-[100dvh] bg-[#f6f4ee] font-montserrat text-[#1800ad] overflow-hidden relative select-none">
       
-      {/* 1. Unified Header - Web View toggle removed */}
-      <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-[#f6f4ee] shrink-0 select-none mb-0.5">
+      {/* Desktop Left Sidebar - same as other student pages */}
+      <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
+        </div>
+        <nav className="flex flex-col gap-6 w-full items-center my-auto">
+          <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
+          <NavItem icon={<CheckSquare size={24} />} onClick={() => navigate('/student/tasks')} />
+          <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
+          <NavItem icon={<Gamepad2 size={24} />} active onClick={() => navigate('/student/playground')} />
+        </nav>
+        <div className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
+          <span className="text-[#1800ad] font-bold text-lg">P</span>
+        </div>
+      </aside>
+
+      {/* Main content wrapper - offset for desktop sidebar */}
+      <div className="flex flex-col flex-1 md:ml-[80px] lg:ml-[100px] h-[100dvh] overflow-hidden">
+
+      {/* 1. Top Header bar */}
+      <header className="h-14 flex items-center justify-between px-4 sm:px-6 bg-[#f6f4ee] shrink-0 select-none border-b border-[#1800ad]/10">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => navigate('/student/home')}
-            className="w-9 h-9 rounded-full border border-[#1800ad] flex items-center justify-center hover:bg-[#1800ad]/10 text-[#1800ad] hover:scale-105 active:scale-95 transition-all mr-1"
+            className="w-8 h-8 rounded-full border border-[#1800ad] flex items-center justify-center hover:bg-[#1800ad]/10 text-[#1800ad] hover:scale-105 active:scale-95 transition-all"
             title="Go Back"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={15} />
           </button>
-          <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => navigate('/student/home')}>
-            <span className="text-[#1800ad] font-black text-sm sm:text-lg tracking-widest font-montserrat uppercase">Interactive Playground</span>
+          <span className="text-[#1800ad] font-black text-sm sm:text-base tracking-widest font-montserrat uppercase">Interactive Playground</span>
+        </div>
+        <div className="flex flex-col items-end gap-0.5 select-none">
+          <div className="text-[9px] font-black uppercase tracking-wider font-montserrat text-[#1800ad]">
+            Quota: <span className="font-black text-[#1800ad]">{quota}/10</span>
+          </div>
+          <div className="w-16 bg-[#1800ad]/10 h-1 rounded-full overflow-hidden border border-[#1800ad]/15">
+            <div className="h-full bg-[#1800ad] rounded-full" style={{ width: `${(quota / 10) * 100}%` }}></div>
           </div>
         </div>
       </header>
@@ -1320,7 +1392,7 @@ export function StudentPlaygroundPage() {
       </AnimatePresence>
 
       {/* 3. Three-Column Main Arena */}
-      <div className="flex-1 flex gap-6 overflow-hidden pt-1 px-4 pb-4 lg:pt-1.5 lg:px-6 lg:pb-6 bg-[#f6f4ee] relative">
+      <div className="flex-1 flex gap-4 overflow-hidden pt-1 px-3 pb-3 lg:pt-1.5 lg:px-5 lg:pb-5 bg-[#f6f4ee] relative">
         
         {/* ========================================================
             COLUMN 1 (LHS): Previous Sessions List & Controls
@@ -1383,33 +1455,18 @@ export function StudentPlaygroundPage() {
         <section className="flex-1 flex flex-col border-2 border-[#1800ad] rounded-[28px] bg-[#f6f4ee] p-4 h-full overflow-hidden relative justify-between font-montserrat">
           
           {/* Active Header inside Sandbox Compartment wrapper */}
-          <div className="border-b border-[#1800ad]/20 pb-3 flex justify-between items-center bg-[#f6f4ee] font-montserrat">
-            <div className="flex flex-col font-montserrat">
-              <div className="flex items-center gap-2 font-montserrat">
-                <button 
-                  onClick={() => setIsMobileHistoryOpen(!isMobileHistoryOpen)}
-                  className="lg:hidden p-1.5 text-[#1800ad] hover:bg-[#1800ad]/10 transition-all flex items-center justify-center mr-1"
-                  title="Toggle Sessions History"
-                >
-                  <Menu size={14} />
-                </button>
-                <span className="font-black text-xs text-[#1800ad] uppercase tracking-widest font-montserrat">Workspace Feed</span>
-                <span className="text-[8px] bg-[#1800ad]/10 text-[#1800ad] font-bold tracking-widest uppercase py-0.5 px-2 rounded-full border border-[#1800ad]/20 font-montserrat">
-                  Live
-                </span>
-              </div>
-              <span className="text-[10px] text-[#1800ad]/60 font-semibold mt-0.5 font-montserrat">Unlocked Curriculum Labs (Physics, Chem, Math, Bio)</span>
-            </div>
-
-            {/* Small usage feedback */}
-            <div className="flex flex-col items-end gap-1 select-none font-montserrat">
-              <div className="text-[9px] font-black uppercase tracking-wider font-montserrat text-[#1800ad]">
-                Quota: <span className="font-black text-[#1800ad]">{quota}/10</span>
-              </div>
-              <div className="w-20 bg-[#1800ad]/10 h-1.5 rounded-full overflow-hidden border border-[#1800ad]/15">
-                <div className="h-full bg-[#1800ad] rounded-full" style={{ width: `${(quota / 10) * 100}%` }}></div>
-              </div>
-            </div>
+          <div className="border-b border-[#1800ad]/20 pb-3 flex items-center bg-[#f6f4ee] font-montserrat gap-2">
+            <button 
+              onClick={() => setIsMobileHistoryOpen(!isMobileHistoryOpen)}
+              className="lg:hidden p-1.5 text-[#1800ad] hover:bg-[#1800ad]/10 transition-all flex items-center justify-center mr-1"
+              title="Toggle Sessions History"
+            >
+              <Menu size={14} />
+            </button>
+            <span className="font-black text-xs text-[#1800ad] uppercase tracking-widest font-montserrat">Workspace Feed</span>
+            <span className="text-[8px] bg-[#1800ad]/10 text-[#1800ad] font-bold tracking-widest uppercase py-0.5 px-2 rounded-full border border-[#1800ad]/20 font-montserrat">
+              Live
+            </span>
           </div>
 
           {/* Active Homework Alert Banner */}
@@ -1472,7 +1529,13 @@ export function StudentPlaygroundPage() {
                         ? 'bg-[#1800ad] text-[#f6f4ee] rounded-tr-none' 
                         : 'bg-[#f6f4ee] text-[#1800ad] rounded-tl-none border-2 border-[#1800ad]/30'
                     }`}>
-                      {m.text}
+                      {m.text === '...' ? (
+                        <span className="flex items-center gap-1 py-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#1800ad]/50 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#1800ad]/50 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#1800ad]/50 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                        </span>
+                      ) : cleanText(m.text)}
                     </div>
 
                     {m.payload && (
@@ -1632,11 +1695,11 @@ export function StudentPlaygroundPage() {
           {/* 2x2 grid selector cards from mockup */}
           <div className="grid grid-cols-2 gap-4 my-auto select-none font-montserrat">
             
-            {/* Cell 1: Storyboard */}
+          {/* Cell 1: Storyboard */}
             <button
               onClick={() => {
-                setTextInput("/video Explain electromagnetic induction");
-                setTimeout(() => handleSendMessage(), 100);
+                setTextInput('/video');
+                chatInputRef.current?.focus();
               }}
               className="aspect-square border border-[#1800ad]/20 rounded-3xl bg-transparent hover:bg-[#1800ad]/5 flex flex-col items-center justify-center p-3 text-center transition-all group relative duration-300 hover:scale-[1.02] font-montserrat"
             >
@@ -1649,7 +1712,7 @@ export function StudentPlaygroundPage() {
             {/* Cell 2: Interactive Quiz */}
             <button
               onClick={() => {
-                setTextInput("/quiz Force dynamics laws of motion practice assessments");
+                setTextInput('/quiz');
                 setTimeout(() => handleSendMessage(), 100);
               }}
               className="aspect-square border border-[#1800ad]/20 rounded-3xl bg-transparent hover:bg-[#1800ad]/5 flex flex-col items-center justify-center p-3 text-center transition-all group relative duration-300 hover:scale-[1.02] font-montserrat"
@@ -1663,8 +1726,8 @@ export function StudentPlaygroundPage() {
             {/* Cell 3: Playground */}
             <button
               onClick={() => {
-                setTextInput("/universe Solar system atomic orbitals");
-                setTimeout(() => handleSendMessage(), 100);
+                setTextInput('/simulation');
+                chatInputRef.current?.focus();
               }}
               className="aspect-square border border-[#1800ad]/20 rounded-3xl bg-transparent hover:bg-[#1800ad]/5 flex flex-col items-center justify-center p-3 text-center transition-all group relative duration-300 hover:scale-[1.02] font-montserrat"
             >
@@ -1677,7 +1740,8 @@ export function StudentPlaygroundPage() {
             {/* Cell 4: Universe */}
             <button
               onClick={() => {
-                startSpeechSimulation();
+                setTextInput('/universe');
+                chatInputRef.current?.focus();
               }}
               className="aspect-square border border-[#1800ad]/20 rounded-3xl bg-transparent hover:bg-[#1800ad]/5 flex flex-col items-center justify-center p-3 text-center transition-all group relative duration-300 hover:scale-[1.02] font-montserrat"
             >
@@ -1689,31 +1753,11 @@ export function StudentPlaygroundPage() {
  
           </div>
 
-          {/* Real-time Ask Teacher Command Box */}
-          <div className="border-t-2 border-dashed border-[#1800ad]/20 pt-5 mt-4">
-            <button
-              onClick={() => {
-                setTextInput("/ask_teacher ");
-                chatInputRef.current?.focus();
-              }}
-              className="w-full py-4.5 px-4 bg-[#1800ad] hover:opacity-90 text-[#f6f4ee] rounded-2xl flex items-center justify-between transition-all shadow hover:scale-[1.01] active:scale-95"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-[#f6f4ee]">
-                  <MessageSquare size={18} />
-                </div>
-                <div className="text-left font-montserrat">
-                  <span className="block text-[11px] font-black uppercase tracking-wider leading-none">Ask My Teacher</span>
-                  <span className="text-[9px] opacity-85 mt-0.5 block leading-none font-semibold">Submit direct curriculum doubts</span>
-                </div>
-              </div>
-              <ChevronRight size={16} className="bg-white/10 rounded-full p-0.5 text-[#f6f4ee]" />
-            </button>
-          </div>
-
         </section>
 
       </div>
+
+      </div>{/* end main content wrapper */}
 
     </div>
   );

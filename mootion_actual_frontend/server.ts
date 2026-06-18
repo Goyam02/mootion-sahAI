@@ -12,6 +12,16 @@ const PORT = 3000;
 
 app.use(express.json());
 
+function cleanText(text: string): string {
+  if (!text) return "";
+  // Remove emojis using Extended_Pictographic and basic emoji ranges
+  let cleaned = text.replace(/\p{Extended_Pictographic}/gu, '');
+  cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]/gu, '');
+  // Remove asterisks
+  cleaned = cleaned.replace(/\*/g, '');
+  return cleaned.trim();
+}
+
 const geminiApiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" ? process.env.GEMINI_API_KEY : "AIzaSyDummyKeyPlaceholderToPreventADCFallback";
 
 const ai = new GoogleGenAI({ 
@@ -30,9 +40,9 @@ async function generateContentWithFallback(params: {
   responseMimeType?: string;
 }): Promise<{ text: string | undefined }> {
   const models = [
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
     "gemini-2.5-pro",
     "gemini-2.0-flash",
     "gemini-1.5-flash"
@@ -76,7 +86,7 @@ app.post("/api/chat", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
       return res.json({ 
-        text: "👋 Hello! I'm Mootion, your science study partner! To unlock my real-time AI capabilities, please configure a valid `GEMINI_API_KEY` in the Secrets panel under Settings in AI Studio. In the meantime, I'm ready to run local tools, drawing exercises, and custom simulations for you!" 
+        text: cleanText("Hello! I'm Mootion, your science study partner! To unlock my real-time AI capabilities, please configure a valid `GEMINI_API_KEY` in the Secrets panel under Settings in AI Studio. In the meantime, I'm ready to run local tools, drawing exercises, and custom simulations for you!") 
       });
     }
 
@@ -88,26 +98,28 @@ app.post("/api/chat", async (req, res) => {
       systemInstruction,
     });
 
-    res.json({ text: response.text });
+    res.json({ text: cleanText(response.text || "") });
   } catch (error: any) {
     console.error("Chat API Error:", error);
     res.json({ 
-      text: "👋 I'm having a brief connection issue, but don't worry! Ensure your GEMINI_API_KEY is configured in the Secrets panel of your AI Studio. Feel free to use the interactive simulation, drawing board, and tasks workspace in the meantime!" 
+      text: cleanText("I'm having a brief connection issue, but don't worry! Ensure your GEMINI_API_KEY is configured in the Secrets panel of your AI Studio. Feel free to use the interactive simulation, drawing board, and tasks workspace in the meantime!") 
     });
   }
 });
 
 app.post("/api/quiz", async (req, res) => {
   try {
-    const { subject, topic } = req.body;
+    const { subject, topic, questionCount } = req.body;
     if (!subject || !topic) {
       return res.status(400).json({ error: "Subject and topic are required" });
     }
 
+    const numQuestions = questionCount ? parseInt(questionCount) : 5;
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
       // Return beautiful default local science quiz
-      return res.json({
+      const localQuiz = {
         questions: [
           {
             id: "q1",
@@ -149,11 +161,19 @@ app.post("/api/quiz", async (req, res) => {
             explanation: "Buoyant force is equal to the weight of the displaced fluid (density * displaced volume * gravity). Since honey has a higher density than water, the buoyant force is significantly higher."
           }
         ]
-      });
+      };
+      localQuiz.questions = localQuiz.questions.map((q: any) => ({
+        ...q,
+        questionText: cleanText(q.questionText || ""),
+        options: Array.isArray(q.options) ? q.options.map((o: any) => cleanText(o || "")) : [],
+        explanation: cleanText(q.explanation || ""),
+        correctAnswer: cleanText(q.correctAnswer || "")
+      }));
+      return res.json(localQuiz);
     }
 
     const prompt = `Generate a short quiz for the subject: ${subject}, topic: ${topic}. 
-It should include exactly 3 questions. 
+It should include exactly ${numQuestions} questions. 
 All questions MUST be of Multiple Choice (MCQ) type. Each question must have exactly 4 options.
 Wait, format it as a pure JSON object containing an array of 'questions'.
 Each question should be an object containing:
@@ -172,11 +192,20 @@ Ensure the response is valid JSON, do not include markdown blocks like \`\`\`jso
     });
 
     const quizData = JSON.parse(response.text || "{}");
+    if (quizData.questions && Array.isArray(quizData.questions)) {
+      quizData.questions = quizData.questions.map((q: any) => ({
+        ...q,
+        questionText: cleanText(q.questionText || ""),
+        options: Array.isArray(q.options) ? q.options.map((o: any) => cleanText(o || "")) : [],
+        explanation: cleanText(q.explanation || ""),
+        correctAnswer: cleanText(q.correctAnswer || "")
+      }));
+    }
     res.json(quizData);
   } catch (error) {
     console.error("Quiz API Error:", error);
     // Return high quality fallback on error as well
-    res.json({
+    const fallbackQuiz = {
       questions: [
         {
           id: "q1",
@@ -192,7 +221,15 @@ Ensure the response is valid JSON, do not include markdown blocks like \`\`\`jso
           explanation: "Archimedes principle states that the upward buoyant force exerted on a body immersed in a fluid is equal to the weight of the fluid that the body displaces."
         }
       ]
-    });
+    };
+    fallbackQuiz.questions = fallbackQuiz.questions.map((q: any) => ({
+      ...q,
+      questionText: cleanText(q.questionText || ""),
+      options: Array.isArray(q.options) ? q.options.map((o: any) => cleanText(o || "")) : [],
+      explanation: cleanText(q.explanation || ""),
+      correctAnswer: cleanText(q.correctAnswer || "")
+    }));
+    res.json(fallbackQuiz);
   }
 });
 
@@ -206,7 +243,7 @@ app.post("/api/task-chat", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
       return res.json({ 
-        text: "👋 I'm here to help with your task! Please set your `GEMINI_API_KEY` in Settings > Secrets to enable tailored AI answers. Meanwhile, strive to complete the interactive worksheet, adjust the virtual parameters, or use the drawing tools to learn!" 
+        text: cleanText("I'm here to help with your task! Please set your `GEMINI_API_KEY` in Settings > Secrets to enable tailored AI answers. Meanwhile, strive to complete the interactive worksheet, adjust the virtual parameters, or use the drawing tools to learn!") 
       });
     }
 
@@ -225,11 +262,11 @@ Provide helpful, encouraging, and concise answers related to their current task.
       systemInstruction,
     });
 
-    res.json({ text: response.text });
+    res.json({ text: cleanText(response.text || "") });
   } catch (error) {
     console.error("Task Chat API Error:", error);
     res.json({ 
-      text: "👋 I'm here to support you! Review the task diagram or try different answers to see the physics simulation update live." 
+      text: cleanText("I'm here to support you! Review the task diagram or try different answers to see the physics simulation update live.") 
     });
   }
 });
@@ -247,9 +284,9 @@ app.post("/api/evaluate-session", async (req, res) => {
         understandingScore: 88,
         expressionScore: 92,
         reasoningScore: 85,
-        strengths: ["Highly active participant", "Understood volume and density correlation"],
-        gaps: ["Can explore buoyant forces in deeper levels"],
-        feedback: "Wow! You explained the physics concepts so clearly to me! I loved acting as your 10-year-old student. Thank you for teaching me so much about buoyancy today!",
+        strengths: ["Highly active participant", "Understood volume and density correlation"].map(s => cleanText(s)),
+        gaps: ["Can explore buoyant forces in deeper levels"].map(g => cleanText(g)),
+        feedback: cleanText("Wow! You explained the physics concepts so clearly to me! I loved acting as your 10-year-old student. Thank you for teaching me so much about buoyancy today!"),
         predictionAccuracy: "Correct"
       });
     }
@@ -285,6 +322,9 @@ Make sure that you strictly output the JSON structure without any formatting pre
     });
 
     const val = JSON.parse(response.text || "{}");
+    if (val.feedback) val.feedback = cleanText(val.feedback);
+    if (Array.isArray(val.strengths)) val.strengths = val.strengths.map((s: string) => cleanText(s));
+    if (Array.isArray(val.gaps)) val.gaps = val.gaps.map((g: string) => cleanText(g));
     res.json(val);
   } catch (error) {
     console.error("Evaluation API Error:", error);
@@ -292,9 +332,9 @@ Make sure that you strictly output the JSON structure without any formatting pre
       understandingScore: 85,
       expressionScore: 90,
       reasoningScore: 88,
-      strengths: ["Engaged beautifully in explaining concepts"],
-      gaps: ["Could formalize the buoyancy equation definitions"],
-      feedback: "That was incredible! Your scientific breakdown was so easy for a kid like me to understand. Thanks for explaining buoyancy to me!",
+      strengths: ["Engaged beautifully in explaining concepts"].map(s => cleanText(s)),
+      gaps: ["Could formalize the buoyancy equation definitions"].map(g => cleanText(g)),
+      feedback: cleanText("That was incredible! Your scientific breakdown was so easy for a kid like me to understand. Thanks for explaining buoyancy to me!"),
       predictionAccuracy: "Correct"
     });
   }
@@ -398,7 +438,7 @@ async function startServer() {
               modelText += anyMsg.outputTranscription.transcription;
             }
             if (modelText) {
-              clientWs.send(JSON.stringify({ modelTranscript: modelText }));
+              clientWs.send(JSON.stringify({ modelTranscript: cleanText(modelText) }));
             }
           },
         },

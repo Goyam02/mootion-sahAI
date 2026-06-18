@@ -75,24 +75,20 @@ export function TeacherClassViewPage() {
         
         <div className="w-full">
           
-          {/* Back Action Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <button 
-              onClick={() => {
-                if (selectedChapterId) {
-                  setSelectedChapterId(null);
-                } else {
-                  navigate('/teacher/home');
-                }
-              }}
-              className="p-2 border-2 border-[#1800ad] rounded-full text-[#1800ad] hover:bg-[#1800ad]/10 transition-colors"
-            >
-              <ArrowLeft size={16} className="stroke-[3]" />
-            </button>
-            <span className="text-xs font-bold uppercase tracking-wider opacity-85">
-              {selectedChapterId ? 'Back to Chapters' : 'Classroom Index'}
-            </span>
-          </div>
+          {/* Back Action Header - only shows when inside a chapter's topics */}
+          {selectedChapterId && (
+            <div className="flex items-center gap-3 mb-6">
+              <button 
+                onClick={() => setSelectedChapterId(null)}
+                className="p-2 border-2 border-[#1800ad] rounded-full text-[#1800ad] hover:bg-[#1800ad]/10 transition-colors"
+              >
+                <ArrowLeft size={16} className="stroke-[3]" />
+              </button>
+              <span className="text-xs font-bold uppercase tracking-wider opacity-85">
+                Back to Chapters
+              </span>
+            </div>
+          )}
 
           {/* Classroom Header Area */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-[#1800ad]/15 pb-6 mb-8">

@@ -90,6 +90,16 @@ const DEFAULT_MOCK_DOUBTS: Doubt[] = [
   }
 ];
 
+const cleanText = (text: string): string => {
+  if (!text) return "";
+  // Strip emojis (using Unicode Extended Pictographic and basic emoji ranges)
+  let cleaned = text.replace(/\p{Extended_Pictographic}/gu, '');
+  cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]/gu, '');
+  // Strip asterisks
+  cleaned = cleaned.replace(/\*/g, '');
+  return cleaned.trim();
+};
+
 export function TeacherDoubtsPage() {
   const navigate = useNavigate();
   const [doubts, setDoubts] = useState<Doubt[]>([]);
@@ -260,12 +270,8 @@ export function TeacherDoubtsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-[330px_1fr] gap-6 flex-1 h-[calc(100%-80px)] overflow-hidden">
             
-            {/* LHS: Live Doubts List Selector */}
+            {/* LHS: Live Doubts List Selector - Desktop only */}
             <div className="hidden lg:flex flex-col gap-3 h-full overflow-y-auto pr-1">
-              <h2 className="text-xs font-black uppercase tracking-wider text-[#1800ad]/70 pl-1 font-montserrat">
-                Student Inquiries ({doubts.length})
-              </h2>
-
               <div className="flex flex-col gap-2.5">
                 {doubts.map((item) => {
                   const isSelected = selectedDoubtId === item.id;
@@ -314,37 +320,41 @@ export function TeacherDoubtsPage() {
               </div>
             </div>
 
-            {/* RHS: LIVE CONVERSATION CHAT SCREEN */}
+            {/* RHS: LIVE CONVERSATION CHAT SCREEN - visible on all sizes */}
             {activeDoubt ? (
-              <div className="lg:mt-[34px] bg-white rounded-[28px] border-2 border-[#1800ad] flex flex-col h-full overflow-hidden shadow">
+              <div className="bg-white rounded-[28px] border-2 border-[#1800ad] flex flex-col h-full overflow-hidden shadow">
                 
                 {/* Chat Header */}
-                <div className="px-4 sm:px-6 py-4 border-b border-[#1800ad]/15 bg-[#1800ad]/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5 sm:gap-3">
-                    {/* MOBILE TOGGLE DOUBLE PILL BUTTON */}
-                    <button
-                      onClick={() => setIsMobileListOpen(true)}
-                      className="lg:hidden px-2.5 py-1.5 rounded-xl bg-[#1800ad] text-[#f6f4ee] hover:opacity-90 active:scale-95 transition-all flex items-center gap-1 font-black text-[9px] uppercase tracking-wider font-mono shadow-md whitespace-nowrap"
-                    >
-                      <Menu size={12} className="stroke-[3]" />
-                      <span>Inquiries</span>
-                      <span className="bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[8px] font-black leading-none animate-pulse">
-                        {doubts.filter(d => d.status === 'pending').length}
-                      </span>
-                    </button>
-
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#1800ad] text-white flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
-                      {activeDoubt.studentName.charAt(0)}
-                    </div>
-                    <div className="truncate">
-                      <h4 className="text-[8px] sm:text-xs font-black uppercase tracking-widest text-[#1800ad]/50 font-mono leading-none">Curriculum Doubt</h4>
-                      <h3 className="text-sm sm:text-base font-black text-[#1800ad] font-montserrat mt-0.5 sm:mt-1 truncate">{activeDoubt.studentName}</h3>
-                    </div>
-                  </div>
+                <div className="px-4 sm:px-5 py-3 border-b border-[#1800ad]/15 bg-[#1800ad]/5 flex flex-col gap-2">
                   
-                  <div className="text-right shrink-0">
-                    <span className="text-[8px] sm:text-[10px] font-black uppercase bg-[#1800ad] text-[#f6f4ee] px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">{activeDoubt.grade} • {activeDoubt.subject}</span>
-                    <p className="text-[8px] sm:text-[9px] font-semibold text-[#1800ad]/60 mt-1 sm:mt-1.5 uppercase tracking-wide truncate max-w-[120px] sm:max-w-[200px]">Topic: {activeDoubt.topicTitle}</p>
+                  {/* Mobile Student Toggle Row - scrollable pill switcher */}
+                  <div className="flex lg:hidden items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {doubts.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedDoubtId(item.id)}
+                        className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all border ${
+                          selectedDoubtId === item.id
+                            ? 'bg-[#1800ad] text-[#f6f4ee] border-[#1800ad]'
+                            : 'bg-white text-[#1800ad] border-[#1800ad]/20 hover:border-[#1800ad]/60'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${
+                          item.status === 'pending' ? 'bg-red-500' : 'bg-emerald-500'
+                        }`}></span>
+                        {item.studentName.split(' ')[0]}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Name and class badge row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-black text-[#1800ad] font-montserrat">{activeDoubt.studentName}</h3>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[8px] sm:text-[10px] font-black uppercase bg-[#1800ad] text-[#f6f4ee] px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">{activeDoubt.grade} • {activeDoubt.subject}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -354,21 +364,16 @@ export function TeacherDoubtsPage() {
                   <div className="flex flex-col items-start max-w-[85%] self-start gap-1">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-[#1800ad]/50 pl-1">{activeDoubt.studentName} • original doubt</span>
                     <div className="p-4 rounded-2xl rounded-tl-none bg-[#f6f4ee] border border-[#1800ad]/10 text-xs font-semibold leading-relaxed text-[#1800ad]">
-                      "{activeDoubt.doubtText}"
+                      "{cleanText(activeDoubt.doubtText)}"
                     </div>
                   </div>
 
                   {/* AI Suggested Answer if present (as a proposed card) */}
                   {activeDoubt.generatedAnswer && (
                     <div className="flex flex-col items-start max-w-[85%] self-start gap-1">
-                      <span className="text-[9.5px] font-bold text-indigo-600 block pl-1 uppercase flex items-center gap-1">
-                        <Sparkles size={11} /> Mootion AI Suggested Guidance
-                      </span>
-                      <div className="p-4.5 bg-indigo-50/70 border border-indigo-150 rounded-2xl rounded-tl-none text-xs leading-relaxed text-indigo-900 font-bold shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-1 bg-indigo-500/10 pointer-events-none rounded-bl-xl">
-                          <Sparkles size={14} className="text-indigo-400 rotate-12" />
-                        </div>
-                        {activeDoubt.generatedAnswer}
+                      <span className="text-[9.5px] font-bold text-indigo-600 block pl-1 uppercase">AI Suggested Guidance</span>
+                      <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl rounded-tl-none text-xs leading-relaxed text-indigo-900 font-semibold">
+                        {cleanText(activeDoubt.generatedAnswer)}
                       </div>
 
                       {activeDoubt.status === 'pending' && (
@@ -376,7 +381,7 @@ export function TeacherDoubtsPage() {
                           onClick={handleApproveAIResponse}
                           className="mt-1.5 ml-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-[9px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5"
                         >
-                          <Check size={10} className="stroke-[3]" /> Approve & Send AI suggested answer
+                          <Check size={10} className="stroke-[3]" /> Approve & Send AI answer
                         </button>
                       )}
                     </div>
@@ -399,7 +404,7 @@ export function TeacherDoubtsPage() {
                             ? 'bg-[#1800ad] text-[#f6f4ee] rounded-tr-none' 
                             : 'bg-white text-[#1800ad] border border-[#1800ad]/15 rounded-tl-none'
                         }`}>
-                          {msg.text}
+                          {cleanText(msg.text)}
                         </div>
                       </div>
                     );
@@ -450,7 +455,7 @@ export function TeacherDoubtsPage() {
                             handleSendReply();
                           }
                         }}
-                        placeholder={`Type a custom text reply back to ${activeDoubt.studentName}...`}
+                        placeholder={`Reply to ${activeDoubt.studentName}...`}
                         className="w-full bg-transparent text-xs text-[#1800ad] placeholder:text-[#1800ad]/40 focus:outline-none font-semibold font-montserrat"
                       />
                     </div>
@@ -468,21 +473,35 @@ export function TeacherDoubtsPage() {
 
               </div>
             ) : (
-              <div className="lg:mt-[34px] bg-white rounded-[28px] border-2 border-[#1800ad]/15 flex items-center justify-center p-8 sm:p-12 text-center text-[#1800ad]/35 h-full flex-col">
+              <div className="bg-white rounded-[28px] border-2 border-[#1800ad]/15 flex items-center justify-center p-8 sm:p-12 text-center text-[#1800ad]/35 h-full flex-col">
                 <div className="flex flex-col gap-2 max-w-sm">
                   <MessageSquare size={42} className="mx-auto" />
                   <span className="font-extrabold uppercase text-xs font-montserrat tracking-widest text-[#1800ad]/60">No Active Doubt Selected</span>
-                  <p className="text-xs font-semibold leading-relaxed">Select a student doubt from the list on the left to resolve and chat back in real-time!</p>
+                  <p className="text-xs font-semibold leading-relaxed">Select a student doubt from the list to resolve and chat back in real-time!</p>
                 </div>
                 
-                {/* On mobile: view trigger dropdown/drawer */}
-                <button
-                  onClick={() => setIsMobileListOpen(true)}
-                  className="lg:hidden mt-6 px-5 py-3 bg-[#1800ad] text-[#f6f4ee] font-black uppercase text-xs tracking-widest rounded-xl hover:opacity-90 active:scale-95 transition-all shadow flex items-center gap-2"
-                >
-                  <Menu size={14} />
-                  <span>Choose an Inquiry ({doubts.length})</span>
-                </button>
+                {doubts.length > 0 && (
+                  <div className="mt-6 flex flex-col gap-2 w-full max-w-xs">
+                    {doubts.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedDoubtId(item.id)}
+                        className="flex items-center gap-3 p-3 rounded-xl border border-[#1800ad]/15 bg-[#f6f4ee] hover:bg-[#1800ad]/5 transition-all text-left"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-[#1800ad] text-[#f6f4ee] flex items-center justify-center font-black text-sm shrink-0">
+                          {item.studentName.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-extrabold text-xs text-[#1800ad] truncate">{item.studentName}</p>
+                          <p className="text-[10px] text-[#1800ad]/60 truncate">{item.doubtText}</p>
+                        </div>
+                        <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase ${
+                          item.status === 'pending' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>{item.status}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
