@@ -6,8 +6,16 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_teacher, require_teacher_or_student
-from app.schemas.chapter import ChapterAssetGenerateRequest, ChapterAssetGenerateResponse, ChapterBootstrapResponse, ChapterListItem, ChapterResponse
-from app.services.chapter_service import bootstrap_chapters_from_curriculum, generate_chapter_asset, get_class_chapter, list_class_chapters
+from app.schemas.chapter import (
+    ChapterAssetGenerateRequest,
+    ChapterAssetGenerateResponse,
+    ChapterBootstrapResponse,
+    ChapterListItem,
+    ChapterResponse,
+    ChapterTopicAssetGenerateRequest,
+    ChapterTopicAssetGenerateResponse,
+)
+from app.services.chapter_service import bootstrap_chapters_from_curriculum, generate_chapter_asset, generate_topic_asset, get_class_chapter, list_class_chapters
 
 
 router = APIRouter(prefix="/teachers/classes/{class_id}/chapters", tags=["chapters"])
@@ -45,5 +53,18 @@ def generate_asset(
     request: ChapterAssetGenerateRequest,
     user=Depends(require_teacher),
     db: Session = Depends(get_db),
-):
+): 
     return generate_chapter_asset(db, user, class_id, chapter_id, asset_id, request)
+
+
+@router.post("/{chapter_id}/topics/{topic_id}/assets/{asset_id}/generate", response_model=ChapterTopicAssetGenerateResponse)
+def generate_topic_asset_route(
+    class_id: str,
+    chapter_id: str,
+    topic_id: str,
+    asset_id: str,
+    request: ChapterTopicAssetGenerateRequest,
+    user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return generate_topic_asset(db, user, class_id, chapter_id, topic_id, asset_id, request)

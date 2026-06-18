@@ -283,12 +283,57 @@ class Chapter(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    topics = relationship("ChapterTopic", backref="chapter", cascade="all, delete-orphan")
+
 
 class ChapterAsset(Base):
     __tablename__ = "chapter_assets"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_type = Column(String(32), nullable=False)
+    provider = Column(String(32), nullable=False, default="placeholder")
+    integration_target = Column(String(64), nullable=False, default="placeholder")
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    payload_json = Column(JSON, nullable=False)
+    generation_status = Column(String(20), nullable=False, default="placeholder")
+    external_url = Column(String(500), nullable=True)
+    storage_bucket = Column(String(128), nullable=True)
+    storage_key = Column(String(512), nullable=True)
+    last_generated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ChapterTopic(Base):
+    __tablename__ = "chapter_topics"
+
+    __table_args__ = (
+        UniqueConstraint("chapter_id", "sequence_number", name="uq_chapter_topic_sequence"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_node_id = Column(String(255), nullable=True)
+    sequence_number = Column(Integer, nullable=False, default=0)
+    title = Column(String(255), nullable=False)
+    source_text = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="unset")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    assets = relationship("ChapterTopicAsset", backref="topic", cascade="all, delete-orphan")
+
+
+class ChapterTopicAsset(Base):
+    __tablename__ = "chapter_topic_assets"
+
+    __table_args__ = (
+        UniqueConstraint("topic_id", "asset_type", name="uq_topic_asset_type"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey("chapter_topics.id", ondelete="CASCADE"), nullable=False, index=True)
     asset_type = Column(String(32), nullable=False)
     provider = Column(String(32), nullable=False, default="placeholder")
     integration_target = Column(String(64), nullable=False, default="placeholder")

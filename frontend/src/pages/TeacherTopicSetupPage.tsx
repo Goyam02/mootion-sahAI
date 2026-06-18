@@ -23,6 +23,9 @@ export function TeacherTopicSetupPage() {
   const state = location.state as { payload_json?: any, external_url?: string } | null;
 
   const [resolvedChapter, setResolvedChapter] = useState<any | null>(null);
+  const [activeTopic, setActiveTopic] = useState<any | null>(null);
+  const [topicAssets, setTopicAssets] = useState<any[]>([]);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [isLoadingChapter, setIsLoadingChapter] = useState(true);
   const [activeAsset, setActiveAsset] = useState<any | null>(() => {
     // If state is passed via navigate, initialize activeAsset immediately for smoother transitions
@@ -48,8 +51,23 @@ export function TeacherTopicSetupPage() {
         const data = await api.get(`/teachers/classes/${classId}/chapters/${chapterId}`);
         setResolvedChapter(data);
         console.log("Fetched chapter details in activity subpage:", data);
-        if (data && data.assets) {
+        const topic = data?.topics?.find((t: any) => t.topic_id === topicId);
+        if (topic) {
+          setActiveTopic(topic);
+          const assets = [...(topic.assets || [])].sort((a: any, b: any) => {
+            const order = ['concept_video', 'simulation', 'three_d_model'];
+            return order.indexOf(a.asset_type) - order.indexOf(b.asset_type);
+          });
+          setTopicAssets(assets);
+          const initialAsset = assets[0] || null;
+          setSelectedAssetId(initialAsset?.asset_id || null);
+          setActiveAsset(initialAsset);
+          console.log("Fetched active topic details in activity subpage:", topic);
+        } else if (data && data.assets) {
           const asset = data.assets.find((a: any) => a.asset_id === topicId);
+          setActiveTopic(null);
+          setTopicAssets([]);
+          setSelectedAssetId(asset?.asset_id || null);
           setActiveAsset(asset);
           console.log("Fetched active asset details in activity subpage:", asset);
         }
@@ -69,22 +87,66 @@ export function TeacherTopicSetupPage() {
 
   const activeChapterName = resolvedChapter ? resolvedChapter.title : 'Loading...';
   const activeChapterNumber = resolvedChapter ? `Ch-${resolvedChapter.sequence_number}` : 'Ch-01';
-  const activeTopicTitle = activeAsset ? activeAsset.title : 'Loading...';
-  const activeTopicNumber = activeAsset ? activeAsset.asset_type.replace('_', ' ') : '01';
+  const activeTopicTitle = activeTopic ? activeTopic.title : (activeAsset ? activeAsset.title : 'Loading...');
+  const activeTopicNumber = activeTopic ? `Topic ${activeTopic.sequence_number + 1}` : (activeAsset ? activeAsset.asset_type.replace('_', ' ') : '01');
 
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [assignedItemTitle, setAssignedItemTitle] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [assignmentDeadline, setAssignmentDeadline] = useState('2026-06-25');
+  const [regenText, setRegenText] = useState('');
+  const [generationEndsAt, setGenerationEndsAt] = useState<number | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const isGenerating = generationEndsAt !== null;
+  const selectedAsset = activeAsset;
 
   // Check if payload_json is empty or minimal (scaffolding only)
   const isMinimalOrPlaceholder = 
-    !activeAsset ||
+    !activeTopic && (!activeAsset ||
     !activeAsset.payload_json ||
     Object.keys(activeAsset.payload_json).length === 0 ||
     (activeAsset.generation_status !== 'ready' && activeAsset.payload_json.placeholder === true) ||
     (activeAsset.asset_type === 'quiz' && !activeAsset.payload_json.questions && !activeAsset.payload_json.quiz) ||
-    (['explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && !activeAsset.payload_json.instructions);
+    (['explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && !activeAsset.payload_json.instructions));
+
+  const updateTopicAsset = (nextAsset: any) => {
+    setSelectedAssetId(nextAsset.asset_id);
+    setActiveAsset(nextAsset);
+    setGenerationEndsAt(null);
+    setGenerationError(null);
+    if (activeTopic) {
+      setTopicAssets(prev => prev.map(asset => asset.asset_id === nextAsset.asset_id ? nextAsset : asset));
+    }
+  };
+
+  const handleGenerateSelectedAsset = async () => {
+    if (!activeTopic || !selectedAsset || !classId || !chapterId) return;
+
+    setGenerationError(null);
+    const estimatedSeconds = selectedAsset.asset_type === 'concept_video' ? 180 : selectedAsset.asset_type === 'simulation' ? 75 : 45;
+    setGenerationEndsAt(Date.now() + estimatedSeconds * 1000);
+
+    try {
+      const response = await api.post(`/teachers/classes/${classId}/chapters/${chapterId}/topics/${activeTopic.topic_id}/assets/${selectedAsset.asset_id}/generate`, {
+        instructions: regenText.trim() || null,
+      });
+      const generatedAsset = response.asset || response;
+      updateTopicAsset(generatedAsset);
+      setRegenText('');
+      setGenerationEndsAt(null);
+    } catch (err: any) {
+      console.error('Failed to generate topic asset:', err);
+      setGenerationError(err?.detail || err?.message || 'Generation failed.');
+      setGenerationEndsAt(null);
+    }
+  };
 
   return (
     <div className="flex flex-1 w-full h-[100dvh] bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
@@ -140,6 +202,27 @@ export function TeacherTopicSetupPage() {
           </div>
         </div>
 
+        {activeTopic && topicAssets.length > 0 && (
+          <div className="mb-6 flex flex-col gap-3">
+            <span className="text-xs font-black uppercase tracking-widest text-[#1800ad]/65">Topic Resources</span>
+            <div className="flex flex-wrap gap-2">
+              {topicAssets.map((asset) => (
+                <button
+                  key={asset.asset_id}
+                  onClick={() => updateTopicAsset(asset)}
+                  className={`px-3.5 py-2 rounded-full border text-[11px] font-black uppercase tracking-wider transition-all ${
+                    selectedAssetId === asset.asset_id
+                      ? 'bg-[#1800ad] text-[#f6f4ee] border-[#1800ad]'
+                      : 'bg-white text-[#1800ad] border-[#1800ad]/20 hover:bg-[#1800ad]/5'
+                  }`}
+                >
+                  {asset.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {isLoadingChapter || !activeAsset ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] text-[#1800ad] flex-1">
             <Loader2 className="w-12 h-12 animate-spin mb-4" />
@@ -178,6 +261,45 @@ export function TeacherTopicSetupPage() {
               <h3 className="text-sm font-black uppercase tracking-widest text-[#1800ad] border-b border-[#1800ad]/10 pb-2">
                 Content
               </h3>
+
+              {activeTopic && selectedAsset && (
+                <div className="bg-[#1800ad]/5 p-4 rounded-[24px] border border-[#1800ad]/10 flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60">Generation Workspace</div>
+                      <div className="text-sm font-black text-[#1800ad]">{selectedAsset.title}</div>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${selectedAsset.generation_status === 'ready' ? 'bg-emerald-100 text-emerald-800' : isGenerating ? 'bg-amber-100 text-amber-800 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
+                      {selectedAsset.generation_status === 'ready' ? 'Ready' : isGenerating ? 'Generating...' : 'Not set up yet'}
+                    </span>
+                  </div>
+
+                  <textarea
+                    value={regenText}
+                    onChange={(e) => setRegenText(e.target.value)}
+                    rows={3}
+                    placeholder="Optional: add teacher notes, examples, or style guidance..."
+                    className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
+                  />
+
+                  {generationError && (
+                    <div className="text-[11px] font-bold text-rose-600">{generationError}</div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                      {isGenerating ? `Expected time left: ${Math.max(0, Math.ceil((generationEndsAt! - now) / 1000))}s` : 'Generation ETA depends on asset type'}
+                    </div>
+                    <button
+                      onClick={handleGenerateSelectedAsset}
+                      disabled={isGenerating}
+                      className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {isMinimalOrPlaceholder ? (
                 <p className="text-xs sm:text-sm text-[#1800ad]/60 font-semibold italic">

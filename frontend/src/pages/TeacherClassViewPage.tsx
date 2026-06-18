@@ -158,6 +158,9 @@ export function TeacherClassViewPage() {
   };
 
   const selectedChapter = chapters.find(ch => ch.chapter_id === selectedChapterId);
+  const chapterTopics = selectedChapterDetails?.topics || [];
+  const chapterAssets = selectedChapterDetails?.assets || [];
+  const usingTopicWorkspace = chapterTopics.length > 0;
 
   return (
     <div className="flex flex-1 w-full h-[100dvh] bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
@@ -301,7 +304,7 @@ export function TeacherClassViewPage() {
                             Chapter {chapter.sequence_number}
                           </span>
                           <span className="text-[11px] font-semibold text-[#f6f4ee]/90 flex items-center gap-1 bg-[#f6f4ee]/15 px-2 py-0.5 rounded-full">
-                            {chapter.asset_count} Assets
+                            {chapter.topic_count || chapter.asset_count} Topics
                           </span>
                         </div>
 
@@ -349,11 +352,11 @@ export function TeacherClassViewPage() {
                       <BookMarked size={12} />
                       ACTIVE FOCUS
                     </span>
-                    <h2 className="text-xl font-extrabold text-[#1800ad] leading-tight">
+                <h2 className="text-xl font-extrabold text-[#1800ad] leading-tight">
                       Chapter {selectedChapter?.sequence_number} • {selectedChapter?.title}
                     </h2>
                     <p className="text-xs text-[#1800ad]/70 font-semibold mt-1">
-                      All constituent subtopics and assets are listed below as modular containers.
+                      {usingTopicWorkspace ? 'All NCERT topics and their generated resources are listed below.' : 'All constituent subtopics and assets are listed below as modular containers.'}
                     </p>
                   </div>
                   
@@ -367,7 +370,7 @@ export function TeacherClassViewPage() {
 
                 {/* Topics Container Title */}
                 <h3 className="text-lg font-extrabold text-[#1800ad] uppercase tracking-wide mt-2">
-                  Interactive Topic Modules ({selectedChapterDetails?.assets?.length || 0} loaded)
+                  {usingTopicWorkspace ? `Interactive Topics (${chapterTopics.length} loaded)` : `Interactive Topic Modules (${chapterAssets?.length || 0} loaded)`}
                 </h3>
 
                 {/* Grid of topic cards - compact blue cards exactly matching chapter cards size */}
@@ -377,42 +380,48 @@ export function TeacherClassViewPage() {
                       <div className="w-8 h-8 border-4 border-[#1800ad]/20 border-t-[#1800ad] rounded-full animate-spin"></div>
                       <span className="text-xs font-bold text-[#1800ad]/60 animate-pulse">Loading topic modules...</span>
                     </div>
-                  ) : !selectedChapterDetails || !selectedChapterDetails.assets || selectedChapterDetails.assets.length === 0 ? (
+                  ) : !selectedChapterDetails || (usingTopicWorkspace ? chapterTopics.length === 0 : chapterAssets.length === 0) ? (
                     <div className="col-span-full py-8 text-center text-[#1800ad]/60 font-semibold text-sm">
-                      No interactive topic modules exist for this chapter.
+                      {usingTopicWorkspace ? 'No interactive topics exist for this chapter.' : 'No interactive topic modules exist for this chapter.'}
                     </div>
                   ) : (
-                    selectedChapterDetails.assets.map((asset: any, index: number) => {
+                    (usingTopicWorkspace ? chapterTopics : chapterAssets).map((item: any, index: number) => {
+                      const isTopic = usingTopicWorkspace;
+                      const itemId = isTopic ? item.topic_id : item.asset_id;
+                      const resourceCount = isTopic ? (item.assets?.length || 0) : 0;
+                      const readyCount = isTopic
+                        ? (item.assets || []).filter((asset: any) => asset.generation_status === 'ready').length
+                        : 0;
                       return (
                         <motion.div
-                          key={asset.asset_id}
+                          key={itemId}
                           initial={{ opacity: 0, scale: 0.97 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.2, delay: index * 0.03 }}
-                          onClick={() => navigate(`/teacher/topic-setup/${id}/${selectedChapterId}/${asset.asset_id}`)}
+                          onClick={() => navigate(`/teacher/topic-setup/${id}/${selectedChapterId}/${itemId}`)}
                           className="h-[148px] bg-[#1800ad] text-[#f6f4ee] p-5 rounded-[22px] border-[2px] border-[#1800ad] hover:scale-[1.02] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
                         >
                           {/* Compact Top Header */}
                           <div className="flex justify-between items-center">
                             <span className="text-[10px] font-black uppercase tracking-wider text-[#f6f4ee]/80">
-                              Chapter {selectedChapterDetails.sequence_number} • {asset.asset_type}
+                              {isTopic ? `Topic ${selectedChapterDetails.sequence_number + 1}.${index + 1}` : `Chapter ${selectedChapterDetails.sequence_number} • ${item.asset_type}`}
                             </span>
                             <span className="text-[9px] font-bold bg-[#f6f4ee]/15 px-2 py-0.5 rounded-md text-[#f6f4ee]/90 uppercase tracking-wider">
-                              Interactive
+                              {isTopic ? `${resourceCount} resources` : 'Interactive'}
                             </span>
                           </div>
 
                           {/* Title - Elegant Montserrat */}
                           <div className="my-1">
                             <h3 className="text-[14px] sm:text-[15px] font-extrabold leading-snug tracking-tight text-[#f6f4ee] group-hover:text-amber-300 transition-colors line-clamp-2">
-                              {asset.title}
+                              {item.title}
                             </h3>
                           </div>
 
                           {/* Compact Footer Status */}
                           <div className="border-t border-[#f6f4ee]/15 pt-2 flex items-center justify-between text-[10px] font-bold">
                             <span className="text-[#f6f4ee]/85 uppercase tracking-wide text-[9px] truncate max-w-[80%]">
-                              {selectedChapterDetails.title}
+                              {isTopic ? `${readyCount}/${resourceCount} ready` : selectedChapterDetails.title}
                             </span>
                             <span className="group-hover:translate-x-1.5 transition-transform text-xs font-black text-[#f6f4ee]">&rarr;</span>
                           </div>

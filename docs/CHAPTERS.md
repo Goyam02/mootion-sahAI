@@ -91,8 +91,9 @@ Use it when the teacher already has a curriculum and wants the backend to turn t
 1. The backend loads the class curriculum.
 2. It reads the curriculum root children.
 3. Each top-level child becomes a chapter.
-4. The chapter gets placeholder assets.
-5. Teachers can generate concept video, simulation, and 3D model assets directly from the chapter workspace.
+4. Each chapter child becomes a topic.
+5. Each topic gets placeholder concept video, simulation, and 3D model assets.
+6. Teachers can generate those assets directly from the topic workspace.
 
 ### How to use it
 
@@ -124,18 +125,19 @@ Request body:
 
 ### Important detail
 
-This endpoint does not generate Manim, model-finder, or quiz content yet.
+This endpoint now creates both chapter rows and nested topic rows.
 
-It only creates the scaffold.
+It also attaches topic-level placeholder assets for video, simulation, and 3D model generation.
 
 ## Assignment-Triggered Generation
 
-Real content generation now happens in the chapter workspace for the main media assets.
+Real content generation now happens in the topic workspace for the main media assets.
 
 That means:
 
 - bootstrap creates structure
-- the chapter workspace can generate the concept video, simulation, and 3D model directly
+- the chapter workspace lists topics
+- the topic workspace can generate the concept video, simulation, and 3D model directly
 - generated videos are stored in private object storage and served back through the backend media URL, which redirects to a signed URL
 
 Assignments still exist for classroom delivery and assessment workflows.

@@ -12,6 +12,7 @@ import {
   CheckSquare, 
   Calendar, 
   Check, 
+  ArrowRight,
   BookOpen, 
   LayoutDashboard, 
   BarChart2, 
@@ -97,8 +98,33 @@ export function TeacherChapterSetupPage() {
         const data = await api.get(`/teachers/classes/${classId}/chapters/${chapterId}`);
         setResolvedChapter(data);
         console.log("Fetched chapter details on chapter detail page:", data);
-        if (data && data.assets) {
-          // Map to activities sorted by target order
+        if (data && data.topics && data.topics.length > 0) {
+          setActivities(data.topics.map((topic: any) => {
+            const assets = [...(topic.assets || [])].sort((a: any, b: any) => {
+              return ASSET_TYPES_ORDER.indexOf(a.asset_type) - ASSET_TYPES_ORDER.indexOf(b.asset_type);
+            });
+            const readyCount = assets.filter((asset: any) => asset.generation_status === 'ready').length;
+            return {
+              id: topic.topic_id,
+              asset_type: 'topic',
+              title: topic.title,
+              desc: topic.source_text || `Topic in ${data.title}.`,
+              previewText: `${readyCount}/${assets.length} resources ready`,
+              generation_status: readyCount === assets.length && assets.length > 0 ? 'ready' : 'placeholder',
+              external_url: null,
+              payload_json: {
+                topic_id: topic.topic_id,
+                chapter_id: topic.chapter_id,
+                chapter_title: data.title,
+                topic_title: topic.title,
+                topic_source_text: topic.source_text,
+                assets,
+              },
+              showRegenPrompt: false,
+              active: true
+            };
+          }));
+        } else if (data && data.assets) {
           const orderedAssets = [...data.assets].sort((a: any, b: any) => {
             return ASSET_TYPES_ORDER.indexOf(a.asset_type) - ASSET_TYPES_ORDER.indexOf(b.asset_type);
           });
@@ -345,6 +371,7 @@ export function TeacherChapterSetupPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activities.map((act) => {
                     console.log("Rendering asset card:", act);
+                    const isTopicCard = act.asset_type === 'topic';
                     const isReady = act.generation_status === 'ready';
                     const isDirectGeneratable = DIRECT_GENERATION_TYPES.has(act.asset_type);
                     const endsAt = generationEndsAt[act.id];
@@ -355,7 +382,7 @@ export function TeacherChapterSetupPage() {
                       <div 
                         key={act.id}
                         onClick={() => {
-                          if (isReady) {
+                          if (isTopicCard || isReady) {
                             navigate(`/teacher/topic-setup/${classId}/${chapterId}/${act.id}`, {
                               state: {
                                 payload_json: act.payload_json,
@@ -365,7 +392,7 @@ export function TeacherChapterSetupPage() {
                           }
                         }}
                         className={`border-2 rounded-[24px] p-5.5 flex flex-col justify-between transition-all bg-[#f6f4ee] shadow-sm ${
-                          isReady 
+                          isTopicCard || isReady 
                             ? 'border-[#1800ad] cursor-pointer hover:shadow-md hover:scale-[1.01]' 
                             : 'border-[#1800ad]/15 opacity-60 cursor-not-allowed'
                         }`}
@@ -378,6 +405,7 @@ export function TeacherChapterSetupPage() {
                                 {act.asset_type === 'concept_video' && <Film size={18} />}
                                 {act.asset_type === 'simulation' && <Beaker size={18} />}
                                 {act.asset_type === 'three_d_model' && <Layers size={18} />}
+                                {act.asset_type === 'topic' && <BookOpen size={18} />}
                                 {act.asset_type === 'quiz' && <HelpCircle size={18} />}
                                 {act.asset_type === 'explain_it' && <HelpCircle size={18} />}
                                 {act.asset_type === 'predict_it' && <Sliders size={18} />}
@@ -399,7 +427,7 @@ export function TeacherChapterSetupPage() {
 
                           {/* Expandable Preview Section */}
                           <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-2xl p-4.5 mb-4 text-xs font-semibold leading-snug">
-                            <div className="text-[9px] font-black uppercase tracking-wider text-[#1800ad] mb-1">Preview outline</div>
+                            <div className="text-[9px] font-black uppercase tracking-wider text-[#1800ad] mb-1">{isTopicCard ? 'Topic outline' : 'Preview outline'}</div>
                             {act.previewText}
                             {isDirectGeneratable && (
                               <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${isGenerating ? 'bg-amber-100 text-amber-800' : 'bg-[#1800ad]/8 text-[#1800ad]/65'}`}>
@@ -422,9 +450,27 @@ export function TeacherChapterSetupPage() {
                           </div>
                         </div>
 
-                        {/* Item Bottom Actions */}
-                        <div className="flex flex-col gap-2 border-t border-[#1800ad]/10 pt-3.5 mt-auto">
-                          {act.showRegenPrompt ? (
+                          {/* Item Bottom Actions */}
+                          <div className="flex flex-col gap-2 border-t border-[#1800ad]/10 pt-3.5 mt-auto">
+                          {isTopicCard ? (
+                            <div className="flex justify-end gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/teacher/topic-setup/${classId}/${chapterId}/${act.id}`, {
+                                    state: {
+                                      payload_json: act.payload_json,
+                                      external_url: act.external_url
+                                    }
+                                  });
+                                }}
+                                className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black flex items-center gap-1 leading-none transition-all hover:bg-[#1800ad]/90"
+                              >
+                                Open workspace <ArrowRight size={12} />
+                              </button>
+                            </div>
+                          ) : act.showRegenPrompt ? (
                             <div className="flex flex-col gap-2 mt-1">
                                 <textarea 
                                 placeholder={isDirectGeneratable ? "Optional: add teacher notes, style guidance, or examples..." : "e.g. Include real-world car braking friction scenarios..."}

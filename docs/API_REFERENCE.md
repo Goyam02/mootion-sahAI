@@ -1207,7 +1207,8 @@ Success response:
 {
   "class_id": "4e474d04-bc15-4dd8-8f1f-4966d86f0d9d",
   "curriculum_id": "6b9a7d9a-4d8f-4c43-9a54-8f67ed0f8c1d",
-  "created_chapters": 4
+  "created_chapters": 4,
+  "created_topics": 24
 }
 ```
 
@@ -1236,6 +1237,7 @@ Chapter list fields:
 | `title` | string | Chapter title |
 | `status` | string | Usually `unset`, `generated`, `active`, or `data_ready` |
 | `asset_count` | integer | Number of assets attached to the chapter |
+| `topic_count` | integer | Number of topics attached to the chapter |
 
 ### `GET /teachers/classes/{class_id}/chapters/{chapter_id}`
 
@@ -1265,6 +1267,71 @@ Chapter asset fields:
 | `generation_status` | string | `placeholder`, `queued`, `processing`, `ready`, `failed` |
 | `external_url` | string or null | Signed playback URL or external embed URL |
 | `payload_json` | object | Provider-specific metadata and generated content |
+
+Chapter topic fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `topic_id` | string | Topic ID |
+| `chapter_id` | string | Parent chapter ID |
+| `source_node_id` | string or null | Curriculum node ID |
+| `sequence_number` | integer | Topic order inside the chapter |
+| `title` | string | Topic title |
+| `source_text` | string or null | Raw topic text from the syllabus JSON |
+| `status` | string | Topic status |
+| `assets` | array | Topic asset cards |
+
+Chapter topic asset fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `asset_id` | string | Asset ID |
+| `asset_type` | string | `concept_video`, `simulation`, or `three_d_model` |
+| `provider` | string | Generation provider |
+| `integration_target` | string | Runtime integration target |
+| `title` | string | Asset title |
+| `description` | string or null | Asset description |
+| `generation_status` | string | `placeholder`, `queued`, `processing`, `ready`, or `failed` |
+| `external_url` | string or null | Signed playback URL or external embed URL |
+| `payload_json` | object | Provider-specific metadata and generated content |
+
+### `POST /teachers/classes/{class_id}/chapters/{chapter_id}/topics/{topic_id}/assets/{asset_id}/generate`
+
+Purpose:
+
+- generate a topic-level concept video, simulation, or 3D model
+
+Auth:
+
+- bearer token required
+- teacher role required
+
+Request body:
+
+| Field | Required | Type | Notes |
+|---|---:|---|---|
+| `instructions` | no | string or null | Optional teacher guidance for the topic asset |
+
+Success response:
+
+```json
+{
+  "chapter_id": "c1b37a56-ff54-4d33-a2cc-44f1d88ab211",
+  "topic_id": "topic-1",
+  "estimated_seconds": 180,
+  "asset": {
+    "asset_id": "a1088c13-a663-4b2c-850e-243f4d874dbc",
+    "asset_type": "concept_video",
+    "provider": "manim",
+    "integration_target": "manim_generator",
+    "title": "Concept Video",
+    "description": "AI-generated explainer video for this topic.",
+    "generation_status": "ready",
+    "external_url": "https://...",
+    "payload_json": { "generated": true }
+  }
+}
+```
 
 ### `POST /teachers/classes/{class_id}/chapters/{chapter_id}/assets/{asset_id}/generate`
 

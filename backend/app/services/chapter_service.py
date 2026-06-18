@@ -8,13 +8,19 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.models import Chapter, ChapterAsset, CurriculumPlan, User
+from app.core.models import Chapter, ChapterAsset, ChapterTopic, ChapterTopicAsset, CurriculumPlan, User
 from app.repositories.chapter_repository import (
     create_chapter,
     create_chapter_asset,
+    create_chapter_topic,
+    create_chapter_topic_asset,
+    get_assets_for_topic,
     get_assets_for_chapter,
     get_chapter,
     get_chapter_by_curriculum_node,
+    get_topic,
+    get_topic_asset_by_type,
+    get_topics_for_chapter,
     list_chapters_for_class,
 )
 from app.repositories.curriculum_repository import get_curriculum_plan
@@ -135,6 +141,44 @@ PLACEHOLDER_ASSETS = [
 ]
 
 
+TOPIC_PLACEHOLDER_ASSETS = [
+    {
+        "asset_type": "concept_video",
+        "provider": "manim",
+        "integration_target": "manim_generator",
+        "title": "Concept Video",
+        "description": "AI-generated explainer video for this topic.",
+        "payload_json": {
+            "pipeline": "manim",
+            "reference_lookup": "model_finder",
+            "render_mode": "video",
+        },
+    },
+    {
+        "asset_type": "simulation",
+        "provider": "simulation",
+        "integration_target": "simulation_engine",
+        "title": "Interactive Simulation",
+        "description": "Interactive simulation for this topic.",
+        "payload_json": {
+            "render_mode": "html_embed",
+            "simulation_source": "simulation_engine",
+        },
+    },
+    {
+        "asset_type": "three_d_model",
+        "provider": "model_finder",
+        "integration_target": "model_finder",
+        "title": "3D Model",
+        "description": "Interactive 3D model for this topic.",
+        "payload_json": {
+            "search_strategy": "model_finder",
+            "render_mode": "embed",
+        },
+    },
+]
+
+
 def _ensure_teacher_has_access(db: Session, user: User, class_id: str) -> None:
     membership = get_teacher_class_membership(db, str(user.id), class_id)
     if not membership:
@@ -154,6 +198,7 @@ def _ensure_user_has_access(db: Session, user: User, class_id: str) -> None:
 
 def _chapter_to_response(db: Session, chapter: Chapter) -> ChapterResponse:
     assets = get_assets_for_chapter(db, str(chapter.id))
+    topics = get_topics_for_chapter(db, str(chapter.id))
     return ChapterResponse(
         chapter_id=str(chapter.id),
         class_id=str(chapter.class_id),
@@ -176,6 +221,35 @@ def _chapter_to_response(db: Session, chapter: Chapter) -> ChapterResponse:
             )
             for asset in assets
         ],
+        topics=[_topic_to_response(db, topic) for topic in topics],
+    )
+
+
+def _topic_asset_to_response(asset: ChapterTopicAsset) -> ChapterTopicAssetResponse:
+    return ChapterTopicAssetResponse(
+        asset_id=str(asset.id),
+        asset_type=asset.asset_type,
+        provider=asset.provider,
+        integration_target=asset.integration_target,
+        title=asset.title,
+        description=asset.description,
+        generation_status=asset.generation_status,
+        external_url=resolve_asset_media_url(asset),
+        payload_json=asset.payload_json,
+    )
+
+
+def _topic_to_response(db: Session, topic: ChapterTopic) -> ChapterTopicResponse:
+    assets = get_assets_for_topic(db, str(topic.id))
+    return ChapterTopicResponse(
+        topic_id=str(topic.id),
+        chapter_id=str(topic.chapter_id),
+        source_node_id=topic.source_node_id,
+        sequence_number=topic.sequence_number,
+        title=topic.title,
+        source_text=topic.source_text,
+        status=topic.status,
+        assets=[_topic_asset_to_response(asset) for asset in assets],
     )
 
 
@@ -367,6 +441,105 @@ def generate_chapter_asset(
     )
 
 
+def _topic_asset_to_direct_response(asset: ChapterTopicAsset) -> ChapterTopicAssetResponse:
+    return ChapterTopicAssetResponse(
+        asset_id=str(asset.id),
+        asset_type=asset.asset_type,
+        provider=asset.provider,
+        integration_target=asset.integration_target,
+        title=asset.title,
+        description=asset.description,
+        generation_status=asset.generation_status,
+        external_url=resolve_asset_media_url(asset),
+        payload_json=asset.payload_json,
+    )
+
+
+def generate_topic_asset(
+    db: Session,
+    user: User,
+    class_id: str,
+    chapter_id: str,
+    topic_id: str,
+    asset_id: str,
+    request: ChapterTopicAssetGenerateRequest,
+) -> ChapterTopicAssetGenerateResponse:
+    _ensure_teacher_has_access(db, user, class_id)
+
+    chapter = get_chapter(db, chapter_id)
+    if not chapter or str(chapter.class_id) != class_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
+
+    topic = get_topic(db, topic_id)
+    if not topic or str(topic.chapter_id) != chapter_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found")
+
+    asset = db.get(ChapterTopicAsset, asset_id)
+    if not asset or str(asset.topic_id) != topic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic asset not found")
+
+    if asset.asset_type not in DIRECT_GENERATION_ASSET_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This asset type cannot be generated from the topic workspace.")
+
+    if asset.generation_status in {"queued", "processing"}:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Generation is already in progress for this asset.")
+
+    notes = (request.instructions or "").strip()
+    payload_json = {
+        **(asset.payload_json or {}),
+        "chapter_id": str(chapter.id),
+        "chapter_title": chapter.title,
+        "topic_id": str(topic.id),
+        "topic_title": topic.title,
+        "source_text": topic.source_text,
+        "asset_type": asset.asset_type,
+        "provider": asset.provider,
+        "integration_target": asset.integration_target,
+        "generation_prompt": topic.title,
+        "instructions": notes,
+        "teacher_notes": notes,
+    }
+
+    asset.generation_status = "processing"
+    asset.payload_json = {**asset.payload_json, "generation_prompt": topic.title, "teacher_notes": notes, "generation_status": "processing", "placeholder": True}
+    db.commit()
+
+    try:
+        if asset.asset_type == "concept_video":
+            result = _run_manim_generation(asset, payload_json)
+        elif asset.asset_type == "three_d_model":
+            result = _run_model_finder_generation(asset, payload_json)
+        elif asset.asset_type == "simulation":
+            sim_prompt = f"Teach me {topic.title}. {notes}".strip()
+            result = _generate_simulation_result(sim_prompt)
+        else:
+            raise RuntimeError(f"Unsupported asset type: {asset.asset_type}")
+
+        if asset.asset_type == "three_d_model" and isinstance(result, dict):
+            if result.get("error") or result.get("message") in {"No models found.", "No suitable model found."}:
+                raise RuntimeError(str(result.get("error") or result.get("message") or "No model found."))
+
+        if asset.asset_type == "simulation":
+            if getattr(result, "error", None) or getattr(getattr(result, "phase", None), "value", None) != "completed" or not getattr(result, "html", ""):
+                raise RuntimeError(str(getattr(result, "error", None) or "Simulation generation did not complete successfully."))
+
+        _apply_direct_generation_result(db, asset, result, prompt=topic.title)
+        db.commit()
+    except Exception as exc:
+        asset.generation_status = "failed"
+        asset.payload_json = {**asset.payload_json, "generated": False, "error": str(exc)}
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    db.refresh(asset)
+    return ChapterTopicAssetGenerateResponse(
+        chapter_id=str(chapter.id),
+        topic_id=str(topic.id),
+        estimated_seconds=_generation_estimate_seconds(asset.asset_type),
+        asset=_topic_asset_to_direct_response(asset),
+    )
+
+
 def _create_placeholder_asset(db: Session, chapter: Chapter, asset_config: dict) -> None:
     create_chapter_asset(
         db,
@@ -380,6 +553,33 @@ def _create_placeholder_asset(db: Session, chapter: Chapter, asset_config: dict)
             payload_json=asset_config["payload_json"] | {
                 "placeholder": True,
                 "chapter_id": str(chapter.id),
+                "asset_type": asset_config["asset_type"],
+                "provider": asset_config["provider"],
+                "integration_target": asset_config["integration_target"],
+            },
+            generation_status="placeholder",
+            external_url=None,
+        ),
+    )
+
+
+def _create_placeholder_topic_asset(db: Session, chapter: Chapter, topic: ChapterTopic, asset_config: dict) -> None:
+    create_chapter_topic_asset(
+        db,
+        ChapterTopicAsset(
+            topic_id=topic.id,
+            asset_type=asset_config["asset_type"],
+            provider=asset_config["provider"],
+            integration_target=asset_config["integration_target"],
+            title=asset_config["title"],
+            description=asset_config["description"],
+            payload_json=asset_config["payload_json"] | {
+                "placeholder": True,
+                "chapter_id": str(chapter.id),
+                "chapter_title": chapter.title,
+                "topic_id": str(topic.id),
+                "topic_title": topic.title,
+                "topic_source_text": topic.source_text,
                 "asset_type": asset_config["asset_type"],
                 "provider": asset_config["provider"],
                 "integration_target": asset_config["integration_target"],
@@ -404,59 +604,68 @@ def bootstrap_chapters_from_curriculum(db: Session, user: User, class_id: str, c
     root = curriculum_data.get("root") or {}
     children = root.get("children", []) or []
 
-    # Batch retrieve existing chapters for this curriculum to avoid SELECT in a loop
+    # Batch retrieve existing chapters/topics for this curriculum to avoid SELECT in a loop
     existing_chapters = db.scalars(
         select(Chapter).where(Chapter.curriculum_id == curriculum.id)
     ).all()
     existing_node_ids = {c.source_node_id for c in existing_chapters if c.source_node_id}
+    existing_topics = db.query(ChapterTopic).join(Chapter, ChapterTopic.chapter_id == Chapter.id).filter(Chapter.curriculum_id == curriculum.id).all()
 
     created = 0
+    created_topics = 0
     for index, child in enumerate(children):
         node_id = child.get("id")
         if node_id in existing_node_ids:
-            continue
-
-        chapter_id = uuid.uuid4()
-        chapter = Chapter(
-            id=chapter_id,
-            class_id=curriculum.class_id,
-            curriculum_id=curriculum.id,
-            source_node_id=node_id,
-            sequence_number=index,
-            title=child.get("title", f"Chapter {index + 1}"),
-            status="unset",
-        )
-        db.add(chapter)
-
-        for asset_config in PLACEHOLDER_ASSETS:
-            asset = ChapterAsset(
-                chapter_id=chapter_id,
-                asset_type=asset_config["asset_type"],
-                provider=asset_config["provider"],
-                integration_target=asset_config["integration_target"],
-                title=asset_config["title"],
-                description=asset_config["description"],
-                payload_json=asset_config["payload_json"] | {
-                    "placeholder": True,
-                    "chapter_id": str(chapter_id),
-                    "asset_type": asset_config["asset_type"],
-                    "provider": asset_config["provider"],
-                    "integration_target": asset_config["integration_target"],
-                },
-                generation_status="placeholder",
-                external_url=None,
+            chapter = next((c for c in existing_chapters if c.source_node_id == node_id), None)
+            if not chapter:
+                continue
+        else:
+            chapter_id = uuid.uuid4()
+            chapter = Chapter(
+                id=chapter_id,
+                class_id=curriculum.class_id,
+                curriculum_id=curriculum.id,
+                source_node_id=node_id,
+                sequence_number=index,
+                title=child.get("title", f"Chapter {index + 1}"),
+                status="unset",
             )
-            db.add(asset)
+            db.add(chapter)
+            created += 1
 
-        created += 1
+        topic_nodes = child.get("children", []) or []
+        for topic_index, topic_node in enumerate(topic_nodes):
+            topic_node_id = topic_node.get("id")
+            topic = next((t for t in existing_topics if t.source_node_id == topic_node_id), None)
 
-    if created > 0:
+            if not topic:
+                topic = ChapterTopic(
+                    id=uuid.uuid4(),
+                    chapter_id=chapter.id,
+                    source_node_id=topic_node_id,
+                    sequence_number=topic_index,
+                    title=topic_node.get("title", f"Topic {topic_index + 1}"),
+                    source_text=topic_node.get("metadata", {}).get("source_text") or topic_node.get("title"),
+                    status="unset",
+                )
+                db.add(topic)
+                db.flush()
+                existing_topics.append(topic)
+                created_topics += 1
+
+            for asset_config in TOPIC_PLACEHOLDER_ASSETS:
+                if get_topic_asset_by_type(db, str(topic.id), asset_config["asset_type"]):
+                    continue
+                _create_placeholder_topic_asset(db, chapter, topic, asset_config)
+
+    if created > 0 or created_topics > 0:
         db.commit()
 
     return ChapterBootstrapResponse(
         class_id=str(class_id),
         curriculum_id=str(curriculum_id),
         created_chapters=created,
+        created_topics=created_topics,
     )
 
 
@@ -476,6 +685,12 @@ def list_class_chapters(db: Session, user: User, class_id: str) -> list[ChapterL
         .group_by(ChapterAsset.chapter_id)
         .all()
     )
+    topic_counts = dict(
+        db.query(ChapterTopic.chapter_id, func.count(ChapterTopic.id))
+        .filter(ChapterTopic.chapter_id.in_(chapter_ids))
+        .group_by(ChapterTopic.chapter_id)
+        .all()
+    )
 
     return [
         ChapterListItem(
@@ -485,6 +700,7 @@ def list_class_chapters(db: Session, user: User, class_id: str) -> list[ChapterL
             title=chapter.title,
             status=chapter.status,
             asset_count=asset_counts.get(chapter.id, 0),
+            topic_count=topic_counts.get(chapter.id, 0),
         )
         for chapter in chapters
     ]
