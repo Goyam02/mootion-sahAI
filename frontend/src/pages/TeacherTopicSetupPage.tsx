@@ -493,74 +493,74 @@ export function TeacherTopicSetupPage() {
         {/* 4 INTERACTIVE MODULES TAB CONTAINER */}
         <div className="w-full flex-1 flex flex-col gap-8">
           
-          {/* Segment Selector for 4 modes */}
+          {/* Segment Selector for 4 modes - proper square containers */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             
             <button
               onClick={() => setActiveTab('storyboard')}
-              className={`p-4 rounded-full flex flex-col sm:flex-row items-center gap-3 font-montserrat transition-all relative ${
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 font-montserrat transition-all relative ${
                 activeTab === 'storyboard' 
                   ? 'bg-[#1800ad] text-[#f6f4ee] shadow-md scale-[1.02]' 
                   : 'bg-[#1800ad]/5 hover:bg-[#1800ad]/10 text-[#1800ad] border-2 border-[#1800ad]/10'
               }`}
             >
-              <div className={`p-2 rounded-full ${activeTab === 'storyboard' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
-                <Video size={20} className="stroke-[2.5]" />
+              <div className={`p-2.5 rounded-xl ${activeTab === 'storyboard' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
+                <Video size={22} className="stroke-[2.5]" />
               </div>
-              <div className="text-left">
+              <div className="text-center">
                 <span className="block text-xs font-black uppercase tracking-wider">Storyboard</span>
-                <span className="block text-[10px] opacity-85 leading-none mt-0.5">Video lessons</span>
+                <span className="block text-[10px] opacity-75 leading-none mt-0.5 hidden sm:block">Video lessons</span>
               </div>
             </button>
 
             <button
               onClick={() => setActiveTab('playground')}
-              className={`p-4 rounded-full flex flex-col sm:flex-row items-center gap-3 font-montserrat transition-all relative ${
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 font-montserrat transition-all relative ${
                 activeTab === 'playground' 
                   ? 'bg-[#1800ad] text-[#f6f4ee] shadow-md scale-[1.02]' 
                   : 'bg-[#1800ad]/5 hover:bg-[#1800ad]/10 text-[#1800ad] border-2 border-[#1800ad]/10'
               }`}
             >
-              <div className={`p-2 rounded-full ${activeTab === 'playground' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
-                <Sliders size={20} className="stroke-[2.5]" />
+              <div className={`p-2.5 rounded-xl ${activeTab === 'playground' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
+                <Sliders size={22} className="stroke-[2.5]" />
               </div>
-              <div className="text-left">
+              <div className="text-center">
                 <span className="block text-xs font-black uppercase tracking-wider">Playground</span>
-                <span className="block text-[10px] opacity-85 leading-none mt-0.5">Interactive physics Sim</span>
+                <span className="block text-[10px] opacity-75 leading-none mt-0.5 hidden sm:block">Interactive Sim</span>
               </div>
             </button>
 
             <button
               onClick={() => setActiveTab('universe')}
-              className={`p-4 rounded-full flex flex-col sm:flex-row items-center gap-3 font-montserrat transition-all relative ${
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 font-montserrat transition-all relative ${
                 activeTab === 'universe' 
                   ? 'bg-[#1800ad] text-[#f6f4ee] shadow-md scale-[1.02]' 
                   : 'bg-[#1800ad]/5 hover:bg-[#1800ad]/10 text-[#1800ad] border-2 border-[#1800ad]/10'
               }`}
             >
-              <div className={`p-2 rounded-full ${activeTab === 'universe' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
-                <Globe2 size={20} className="stroke-[2.5]" />
+              <div className={`p-2.5 rounded-xl ${activeTab === 'universe' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
+                <Globe2 size={22} className="stroke-[2.5]" />
               </div>
-              <div className="text-left">
+              <div className="text-center">
                 <span className="block text-xs font-black uppercase tracking-wider">Universe</span>
-                <span className="block text-[10px] opacity-85 leading-none mt-0.5">3D Cosmological map</span>
+                <span className="block text-[10px] opacity-75 leading-none mt-0.5 hidden sm:block">3D Cosmological map</span>
               </div>
             </button>
 
             <button
               onClick={() => setActiveTab('quiz')}
-              className={`p-4 rounded-full flex flex-col sm:flex-row items-center gap-3 font-montserrat transition-all relative ${
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 font-montserrat transition-all relative ${
                 activeTab === 'quiz' 
                   ? 'bg-[#1800ad] text-[#f6f4ee] shadow-md scale-[1.02]' 
                   : 'bg-[#1800ad]/5 hover:bg-[#1800ad]/10 text-[#1800ad] border-2 border-[#1800ad]/10'
               }`}
             >
-              <div className={`p-2 rounded-full ${activeTab === 'quiz' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
-                <Award size={20} className="stroke-[2.5]" />
+              <div className={`p-2.5 rounded-xl ${activeTab === 'quiz' ? 'bg-[#f6f4ee]/15 text-[#f6f4ee]' : 'bg-[#1800ad]/10 text-[#1800ad]'}`}>
+                <Award size={22} className="stroke-[2.5]" />
               </div>
-              <div className="text-left">
-                <span className="block text-xs font-black uppercase tracking-wider">Interactive Quiz</span>
-                <span className="block text-[10px] opacity-85 leading-none mt-0.5">Dynamic assessment</span>
+              <div className="text-center">
+                <span className="block text-xs font-black uppercase tracking-wider">Quiz</span>
+                <span className="block text-[10px] opacity-75 leading-none mt-0.5 hidden sm:block">Dynamic assessment</span>
               </div>
             </button>
 
@@ -731,14 +731,14 @@ export function TeacherTopicSetupPage() {
               </p>
 
               {/* SIMULATED WORKSPACE CANVAS ELEMENTS */}
-              <div className="flex flex-col gap-3 min-h-[480px] w-full mb-6">
-                <div className="w-full flex-1 bg-[#1800ad]/5 rounded-2xl overflow-hidden relative border-2 border-[#1800ad] shadow-inner" style={{ minHeight: '440px' }}>
+              <div className="w-full mb-6">
+                <div className="w-full bg-[#1800ad]/5 rounded-2xl overflow-hidden relative border-2 border-[#1800ad] shadow-inner" style={{ height: '400px', minHeight: '300px' }}>
                   <iframe
                     src={getPreviewIframeUrl()}
                     title="Simulation Viewport"
                     allowFullScreen
                     className="w-full h-full border-0"
-                    style={{ background: '#ffffff', minHeight: '440px' }}
+                    style={{ background: '#ffffff' }}
                   />
                 </div>
               </div>
@@ -748,7 +748,7 @@ export function TeacherTopicSetupPage() {
                   onClick={() => setIsPreviewing(null)}
                   className="flex-1 bg-[#1800ad]/10 hover:bg-[#1800ad]/20 text-[#1800ad] py-3.5 rounded-full text-xs font-black uppercase tracking-widest active:scale-95 transition-all text-center font-montserrat"
                 >
-                  Close Preview
+                  Close
                 </button>
                 <button
                   onClick={() => {
@@ -761,7 +761,7 @@ export function TeacherTopicSetupPage() {
                   }}
                   className="flex-1 bg-[#1800ad] hover:bg-indigo-900 text-[#f6f4ee] py-3.5 rounded-full text-xs font-black uppercase tracking-widest active:scale-95 transition-all text-center flex items-center justify-center gap-1.5 font-montserrat shadow-md"
                 >
-                  <CheckCircle2 size={13} className="stroke-[3]" /> Assign to Class
+                  <CheckCircle2 size={13} className="stroke-[3]" /> Assign
                 </button>
               </div>
 
