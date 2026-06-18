@@ -19,20 +19,36 @@ import {
   Play,
   RotateCcw,
   Send,
-  Eye
+  Eye,
+  Layers
 } from 'lucide-react';
 import { NavItem } from '../components/NavItem';
+import { api } from '../lib/api';
 
 interface ActivityItem {
   id: string;
-  type: 'video' | 'simulation' | 'explain' | 'predict' | 'spot' | 'connect';
+  asset_type: string;
   title: string;
   desc: string;
   previewText: string;
   lastPrompt?: string;
   showRegenPrompt: boolean;
   active: boolean;
+  generation_status: string;
+  external_url: string | null;
+  payload_json: any;
 }
+
+const ASSET_TYPES_ORDER = [
+  'concept_video',
+  'simulation',
+  'three_d_model',
+  'quiz',
+  'explain_it',
+  'predict_it',
+  'spot_it',
+  'connect_it'
+];
 
 export function TeacherChapterSetupPage() {
   const { classId, chapterId } = useParams<{ classId: string, chapterId: string }>();
@@ -44,74 +60,65 @@ export function TeacherChapterSetupPage() {
   const [specialNote, setSpecialNote] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [resolvedChapter, setResolvedChapter] = useState<any | null>(null);
 
   // Active custom regenerate instructions
   const [regenText, setRegenText] = useState<Record<string, string>>({});
 
-  const [activities, setActivities] = useState<ActivityItem[]>([
-    {
-      id: 'act-1',
-      type: 'video',
-      title: 'Concept Video',
-      desc: 'AI-generated 3D interactive lecture video with embedded checkpoints about Static Friction forces.',
-      previewText: 'A beautiful animated lesson structure on wet-surface adhesion, surface asperities under extreme zoom, and free body force balances.',
-      showRegenPrompt: false,
-      active: true
-    },
-    {
-      id: 'act-2',
-      type: 'simulation',
-      title: 'Interactive Simulation',
-      desc: 'Buoyancy & Force displacement widget with adjustable friction coefficients & mass blocks.',
-      previewText: 'A sandbox featuring blocks of Slate, Wood, and Copper where students drag force vectors to overcome friction threshold limits.',
-      showRegenPrompt: false,
-      active: true
-    },
-    {
-      id: 'act-3',
-      type: 'explain',
-      title: 'Explain It',
-      desc: 'Student reasoning checker asking to translate formulas into conversational analogies.',
-      previewText: 'Assesses explanation of: "Why rubber soles stick to mountain cliff walls better than pure plastic soles?"',
-      showRegenPrompt: false,
-      active: true
-    },
-    {
-      id: 'act-4',
-      type: 'predict',
-      title: 'Predict It',
-      desc: 'Dynamic outcome checker. Students predict block status on extreme inclines before clicking Play.',
-      previewText: 'Scenario: "With an incline angle of 35 degrees and dry wood on slate, does the block shift or stay stationary?"',
-      showRegenPrompt: false,
-      active: true
-    },
-    {
-      id: 'act-5',
-      type: 'spot',
-      title: 'Spot It (Misconception Checker)',
-      desc: 'Active error spotting module challenging students to identify falsified statements.',
-      previewText: 'A dialogue of 3 classmates where the student has to spot the scientific fallacy: "Friction always works opposite to any motion vector."',
-      showRegenPrompt: false,
-      active: true
-    },
-    {
-      id: 'act-6',
-      type: 'connect',
-      title: 'Connect It',
-      desc: 'Syllabus cross-link mapping real friction vectors to tire designs or bio-limbs.',
-      previewText: 'Interactive exploration: Formula translation connecting kinetic micro-bumping force coefficients to mechanical gear systems.',
-      showRegenPrompt: false,
-      active: true
-    }
-  ]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
 
-  // Simulate AI Generation on load
+  // Fetch chapter details and map assets
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!classId || !chapterId) return;
+    const fetchChapterDetails = async () => {
+      setIsLoading(true);
+      try {
+        const data = await api.get(`/teachers/classes/${classId}/chapters/${chapterId}`);
+        setResolvedChapter(data);
+        console.log("Fetched chapter details on chapter detail page:", data);
+        if (data && data.assets) {
+          // Map to activities sorted by target order
+          const orderedAssets = [...data.assets].sort((a: any, b: any) => {
+            return ASSET_TYPES_ORDER.indexOf(a.asset_type) - ASSET_TYPES_ORDER.indexOf(b.asset_type);
+          });
+
+          setActivities(orderedAssets.map((asset: any) => ({
+            id: asset.asset_id,
+            asset_type: asset.asset_type,
+            title: asset.title,
+            desc: asset.description || `Interactive ${asset.asset_type.replace('_', ' ')} module.`,
+            previewText: asset.payload_json?.instructions || asset.payload_json?.previewText || `Outline for ${asset.title}.`,
+            generation_status: asset.generation_status,
+            external_url: asset.external_url,
+            payload_json: asset.payload_json,
+            showRegenPrompt: false,
+            active: true
+          })));
+        }
+      } catch (err) {
+        console.error("Failed to fetch chapter details:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchChapterDetails();
+  }, [classId, chapterId]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider">Ready</span>;
+      case 'queued':
+      case 'processing':
+        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">Generating...</span>;
+      case 'placeholder':
+        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider">Not set up yet</span>;
+      case 'failed':
+        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black uppercase tracking-wider">Unavailable</span>;
+      default:
+        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider">{status}</span>;
+    }
+  };
 
   const handleToggleActive = (id: string) => {
     setActivities(prev => prev.map(act => act.id === id ? { ...act, active: !act.active } : act));
@@ -232,112 +239,142 @@ export function TeacherChapterSetupPage() {
                 <div className="border-b-2 border-[#1800ad]/15 pb-4 mb-4">
                   <span className="text-xs font-bold font-mono text-[#1800ad]/60 uppercase">NCERT Chapter Structure</span>
                   <h1 className="text-3xl font-black text-[#1800ad] tracking-tight mt-1">
-                    Static Friction & Forces Chapter Setup
+                    {resolvedChapter ? resolvedChapter.title : 'Loading...'} Chapter Setup
                   </h1>
                   <p className="text-sm font-semibold opacity-75 mt-1">
                     Review or regenerate activities. Customize student assessment logic with specific natural language prompts.
                   </p>
                 </div>
 
-                {/* Grid of the 6 activities */}
+                {/* Grid of the 8 activities */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {activities.map((act) => (
-                    <div 
-                      key={act.id}
-                      className={`border-2 rounded-[24px] p-5.5 flex flex-col justify-between transition-all bg-[#f6f4ee] shadow-sm ${
-                        act.active ? 'border-[#1800ad]' : 'border-[#1800ad]/15 opacity-60'
-                      }`}
-                    >
-                      <div>
-                        {/* Upper row: icon and selector */}
-                        <div className="flex items-center justify-between mb-3.5">
-                          <div className="flex items-center gap-2.5">
-                            <span className="p-2.5 bg-[#1800ad]/5 rounded-xl border border-[#1800ad]/15 text-[#1800ad]">
-                              {act.type === 'video' && <Film size={18} />}
-                              {act.type === 'simulation' && <Beaker size={18} />}
-                              {act.type === 'explain' && <HelpCircle size={18} />}
-                              {act.type === 'predict' && <Sliders size={18} />}
-                              {act.type === 'spot' && <AlertCircle size={18} />}
-                              {act.type === 'connect' && <BookOpen size={18} />}
-                            </span>
-                            <h3 className="font-black text-sm tracking-tight text-[#1800ad]">
-                              {act.title}
-                            </h3>
+                  {activities.map((act) => {
+                    console.log("Rendering asset card:", act);
+                    const isReady = act.generation_status === 'ready';
+                    return (
+                      <div 
+                        key={act.id}
+                        onClick={() => {
+                          if (isReady) {
+                            navigate(`/teacher/topic-setup/${classId}/${chapterId}/${act.id}`, {
+                              state: {
+                                payload_json: act.payload_json,
+                                external_url: act.external_url
+                              }
+                            });
+                          }
+                        }}
+                        className={`border-2 rounded-[24px] p-5.5 flex flex-col justify-between transition-all bg-[#f6f4ee] shadow-sm ${
+                          isReady 
+                            ? 'border-[#1800ad] cursor-pointer hover:shadow-md hover:scale-[1.01]' 
+                            : 'border-[#1800ad]/15 opacity-60 cursor-not-allowed'
+                        }`}
+                      >
+                        <div>
+                          {/* Upper row: icon and status badge */}
+                          <div className="flex items-center justify-between mb-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className="p-2.5 bg-[#1800ad]/5 rounded-xl border border-[#1800ad]/15 text-[#1800ad]">
+                                {act.asset_type === 'concept_video' && <Film size={18} />}
+                                {act.asset_type === 'simulation' && <Beaker size={18} />}
+                                {act.asset_type === 'three_d_model' && <Layers size={18} />}
+                                {act.asset_type === 'quiz' && <HelpCircle size={18} />}
+                                {act.asset_type === 'explain_it' && <HelpCircle size={18} />}
+                                {act.asset_type === 'predict_it' && <Sliders size={18} />}
+                                {act.asset_type === 'spot_it' && <AlertCircle size={18} />}
+                                {act.asset_type === 'connect_it' && <BookOpen size={18} />}
+                              </span>
+                              <h3 className="font-black text-sm tracking-tight text-[#1800ad]">
+                                {act.title}
+                              </h3>
+                            </div>
+
+                            {getStatusBadge(act.generation_status)}
                           </div>
 
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={act.active} 
-                              onChange={() => handleToggleActive(act.id)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-10 h-5.5 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[18px] after:w-[18px] after:transition-all peer-checked:bg-[#1800ad]"></div>
-                          </label>
+                          {/* Description */}
+                          <p className="text-xs font-semibold leading-relaxed text-[#1800ad]/80 mb-4">
+                            {act.desc}
+                          </p>
+
+                          {/* Expandable Preview Section */}
+                          <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-2xl p-4.5 mb-4 text-xs font-semibold leading-snug">
+                            <div className="text-[9px] font-black uppercase tracking-wider text-[#1800ad] mb-1">Preview outline</div>
+                            {act.previewText}
+                          </div>
                         </div>
 
-                        {/* Description */}
-                        <p className="text-xs font-semibold leading-relaxed text-[#1800ad]/80 mb-4">
-                          {act.desc}
-                        </p>
-
-                        {/* Expandable Preview Section */}
-                        <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-2xl p-4.5 mb-4 text-xs font-semibold leading-snug">
-                          <div className="text-[9px] font-black uppercase tracking-wider text-[#1800ad] mb-1">Preview outline</div>
-                          {act.previewText}
-                        </div>
-                      </div>
-
-                      {/* Item Bottom Actions */}
-                      <div className="flex flex-col gap-2 border-t border-[#1800ad]/10 pt-3.5 mt-auto">
-                        {act.showRegenPrompt ? (
-                          <div className="flex flex-col gap-2 mt-1">
-                            <textarea 
-                              placeholder="e.g. Include real-world car braking friction scenarios..."
-                              value={regenText[act.id] || ''}
-                              onChange={(e) => setRegenText(prev => ({ ...prev, [act.id]: e.target.value }))}
-                              className="w-full text-xs p-3 bg-[#f6f4ee] border border-[#1800ad]/35 rounded-xl font-semibold outline-none focus:border-[#1800ad] text-[#1800ad]"
-                              rows={2}
-                            />
-                            <div className="flex justify-end gap-2 text-[10px] font-black">
-                              <button 
-                                onClick={() => handleToggleRegenPrompt(act.id)}
-                                className="px-3.5 py-1.5 rounded-full border border-[#1800ad]/30"
+                        {/* Item Bottom Actions */}
+                        <div className="flex flex-col gap-2 border-t border-[#1800ad]/10 pt-3.5 mt-auto">
+                          {act.showRegenPrompt ? (
+                            <div className="flex flex-col gap-2 mt-1">
+                              <textarea 
+                                placeholder="e.g. Include real-world car braking friction scenarios..."
+                                value={regenText[act.id] || ''}
+                                onChange={(e) => setRegenText(prev => ({ ...prev, [act.id]: e.target.value }))}
+                                className="w-full text-xs p-3 bg-[#f6f4ee] border border-[#1800ad]/35 rounded-xl font-semibold outline-none focus:border-[#1800ad] text-[#1800ad]"
+                                rows={2}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex justify-end gap-2 text-[10px] font-black" onClick={(e) => e.stopPropagation()}>
+                                <button 
+                                  onClick={() => handleToggleRegenPrompt(act.id)}
+                                  className="px-3.5 py-1.5 rounded-full border border-[#1800ad]/30"
+                                >
+                                  Cancel
+                                </button>
+                                <button 
+                                  onClick={() => handleRegenerateSubmit(act.id)}
+                                  className="px-4 py-1.5 rounded-full bg-[#1800ad] text-white flex items-center gap-1"
+                                >
+                                  Submit <Send size={10} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2.5 shrink-0 justify-end">
+                              <button
+                                type="button"
+                                disabled={!isReady}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isReady) {
+                                    navigate(`/teacher/topic-setup/${classId}/${chapterId}/${act.id}`, {
+                                      state: {
+                                        payload_json: act.payload_json,
+                                        external_url: act.external_url
+                                      }
+                                    });
+                                  }
+                                }}
+                                className={`px-4 py-2 border rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-colors ${
+                                  isReady ? 'border-[#1800ad]/20 hover:bg-[#1800ad]/5 text-[#1800ad]' : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                }`}
                               >
-                                Cancel
+                                <Eye size={12} /> Preview
                               </button>
-                              <button 
-                                onClick={() => handleRegenerateSubmit(act.id)}
-                                className="px-4 py-1.5 rounded-full bg-[#1800ad] text-white flex items-center gap-1"
+                              <button
+                                type="button"
+                                disabled={!isReady}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isReady) {
+                                    handleToggleRegenPrompt(act.id);
+                                  }
+                                }}
+                                className={`px-4 py-2 border rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-all ${
+                                  isReady ? 'border-[#1800ad] bg-[#1800ad] text-[#f6f4ee] hover:bg-white hover:text-[#1800ad]' : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                }`}
                               >
-                                Submit <Send size={10} />
+                                <RotateCcw size={12} /> Regenerate
                               </button>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2.5 shrink-0 justify-end">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                alert(`Simulated modal preview of ${act.title}`);
-                              }}
-                              className="px-4 py-2 border border-[#1800ad]/20 hover:bg-[#1800ad]/5 rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-colors"
-                            >
-                              <Eye size={12} /> Preview
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleRegenPrompt(act.id)}
-                              className="px-4 py-2 border border-[#1800ad] bg-[#1800ad] text-[#f6f4ee] hover:bg-white hover:text-[#1800ad] rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-all"
-                            >
-                              <RotateCcw size={12} /> Regenerate
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                          )}
+                        </div>
 
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Bottom CTA for Configuration Settings trigger */}

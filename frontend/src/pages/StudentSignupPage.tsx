@@ -2,18 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye } from '../components/Eye';
-<<<<<<< HEAD
-=======
 import { api } from '../lib/api';
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
 
 export function StudentSignupPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isLangOpen, setIsLangOpen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('');
-<<<<<<< HEAD
-=======
   const [studentId, setStudentId] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +20,6 @@ export function StudentSignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
   const mousePosRef = useRef({ 
     x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, 
     y: typeof window !== 'undefined' ? window.innerHeight / 2 : 0 
@@ -44,8 +38,6 @@ export function StudentSignupPage() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-<<<<<<< HEAD
-=======
   const addClassCodeField = () => {
     setClassCodes([...classCodes, { value: '', error: null }]);
   };
@@ -173,7 +165,6 @@ export function StudentSignupPage() {
     }
   };
 
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
   return (
     <div className="w-full h-[100dvh] bg-[#f6f4ee] overflow-hidden relative flex items-center justify-center">
       {/* Giant Blue Character Face */}
@@ -205,33 +196,18 @@ export function StudentSignupPage() {
         className="relative z-10 w-[70%] max-w-[240px] md:w-[85%] md:max-w-[320px] lg:max-w-[300px] mt-24 md:mt-16 lg:mt-[12vh] bg-[#f6f4ee] rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8 flex flex-col gap-3 sm:gap-4 md:gap-6 font-montserrat border border-[#1800ad] min-h-[290px] sm:min-h-[340px] md:min-h-[380px]"
       >
         <h2 className="text-center tracking-normal sm:tracking-[0.1em] md:tracking-[0.15em] text-[#2c2c2c] uppercase text-[10px] min-[320px]:text-[11px] min-[360px]:text-[12px] sm:text-[14px] md:text-base font-medium whitespace-nowrap">
-<<<<<<< HEAD
-          {step === 1 ? 'Set up your account' : 'Join a class'}
-=======
           {step === 1 ? 'Set up your account' : step === 2 ? 'Select Language' : 'Join Your Classes'}
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
         </h2>
         
         <div className="flex flex-col flex-1 pb-4">
            <AnimatePresence mode="wait">
-<<<<<<< HEAD
-            {step === 1 ? (
-=======
             {step === 1 && (
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
               <motion.div 
                 key="step1"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-<<<<<<< HEAD
-                className="flex flex-col gap-3 md:gap-4 flex-1 justify-center relative mt-2"
-              >
-                <input 
-                  type="text" 
-                  placeholder="Student ID" 
-=======
                 className="flex flex-col gap-2.5 flex-1 justify-center relative mt-2"
               >
                 {error && (
@@ -253,18 +229,10 @@ export function StudentSignupPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   disabled={isLoading}
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
                   className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
                 />
                 <input 
                   type="password" 
-<<<<<<< HEAD
-                  placeholder="Password" 
-                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
-                />
-              </motion.div>
-            ) : (
-=======
                   placeholder="Password (min 8 chars)" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -275,31 +243,17 @@ export function StudentSignupPage() {
             )}
 
             {step === 2 && (
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
               <motion.div 
                 key="step2"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-<<<<<<< HEAD
-                className="flex flex-col gap-3 md:gap-4 flex-1 justify-center relative mt-2"
-              >
-                <input 
-                  type="text" 
-                  placeholder="Class ID" 
-                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
-                />
-                <div className="relative w-full">
-                  <div 
-                    onClick={() => setIsLangOpen(!isLangOpen)}
-=======
                 className="flex flex-col gap-3 md:gap-4 flex-1 justify-center relative mt-2 animate-fadeIn"
               >
                 <div className="relative w-full">
                   <div 
                     onClick={() => !isLoading && setIsLangOpen(!isLangOpen)}
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
                     className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] cursor-pointer font-montserrat flex items-center justify-center relative"
                   >
                     <span className={selectedLanguage ? "text-[#2c2c2c]" : "text-gray-500"}>
@@ -333,8 +287,6 @@ export function StudentSignupPage() {
                 </div>
               </motion.div>
             )}
-<<<<<<< HEAD
-=======
 
             {step === 3 && (
               <motion.div 
@@ -373,46 +325,15 @@ export function StudentSignupPage() {
                 </button>
               </motion.div>
             )}
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
           </AnimatePresence>
         </div>
 
         <div className="mt-auto">
-<<<<<<< HEAD
-          {step === 1 ? (
-=======
           {step === 1 && (
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
             <div className="flex items-center justify-center w-full relative mb-4 -mt-2 md:-mt-4">
               <div className="absolute left-0 right-0 h-[1.5px] bg-[#1800ad]"></div>
               <span className="relative z-10 bg-[#f6f4ee] px-3 tracking-wide text-[#2c2c2c] text-xs font-medium lowercase">or</span>
             </div>
-<<<<<<< HEAD
-          ) : (
-            <div className="flex items-center justify-center w-full relative mb-4 -mt-2 md:-mt-4 pointer-events-none">
-              <div className="absolute left-0 right-0 h-[1.5px] bg-[#1800ad]"></div>
-              <span className="relative z-10 px-3 text-xs font-medium lowercase opacity-0">or</span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-3">
-            {step === 1 ? (
-              <>
-                <button onClick={() => navigate('/login/student')} className="w-1/2 px-2 sm:px-4 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-base font-medium transition-all duration-300 rounded-full flex justify-center items-center">
-                  Login
-                </button>
-                <button onClick={() => setStep(2)} className="w-1/2 px-2 sm:px-4 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-base font-medium transition-all duration-300 rounded-full flex justify-center items-center">
-                  Next
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={() => setStep(1)} className="w-1/2 px-2 sm:px-4 py-2 md:py-3 bg-transparent border-2 border-[#1800ad] text-[#1800ad] hover:bg-[#1800ad] hover:text-[#f6f4ee] text-base font-medium transition-all duration-300 rounded-full flex justify-center items-center">
-                  Back
-                </button>
-                <button onClick={() => navigate('/student/home')} className="w-1/2 px-2 sm:px-4 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-base font-medium transition-all duration-300 rounded-full flex justify-center items-center">
-                  Start
-=======
           )}
 
           <div className="flex items-center justify-between gap-3">
@@ -471,7 +392,6 @@ export function StudentSignupPage() {
                   className="w-1/2 px-2 sm:px-4 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-[13px] sm:text-sm font-bold transition-all duration-300 rounded-full flex justify-center items-center disabled:opacity-45"
                 >
                   {isLoading ? 'Joining...' : 'Start'}
->>>>>>> 93ce25c0b18f35057235b30240777cc56976c4f9
                 </button>
               </>
             )}
