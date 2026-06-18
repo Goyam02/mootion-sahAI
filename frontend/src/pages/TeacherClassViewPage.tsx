@@ -160,7 +160,7 @@ export function TeacherClassViewPage() {
   const selectedChapter = chapters.find(ch => ch.chapter_id === selectedChapterId);
 
   return (
-    <div className="flex flex-1 w-full h-[100dvh] bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
+    <div className="flex flex-1 w-full bg-[#1800ad] font-montserrat text-[#1800ad] relative pb-16">
       
       {/* Mobile Bottom Navigation Bar styled with Montserrat */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2.5 flex justify-between items-center z-40 rounded-full border-[2px] border-[#f6f4ee] shadow-xl font-montserrat">
@@ -189,7 +189,7 @@ export function TeacherClassViewPage() {
       </aside>
 
       {/* Main Content Pane styled strictly with Montserrat */}
-      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] lg:rounded-l-[50px] p-5 md:pl-10 lg:pl-12 xl:pl-16 md:pr-8 lg:pr-10 w-full overflow-y-auto custom-scrollbar pt-6 md:pt-10 pb-32 lg:pb-12 relative flex flex-col h-full font-montserrat">
+      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] lg:rounded-l-[50px] p-5 md:pl-10 lg:pl-12 xl:pl-16 md:pr-8 lg:pr-10 w-full relative flex flex-col font-montserrat">
         
         <div className="w-full">
           

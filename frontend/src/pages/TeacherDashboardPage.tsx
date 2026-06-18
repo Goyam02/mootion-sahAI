@@ -147,7 +147,7 @@ export function TeacherDashboardPage() {
   };
 
   return (
-    <div className="flex flex-1 w-full h-[100dvh] bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
+    <div className="flex flex-1 w-full bg-[#1800ad] font-montserrat text-[#1800ad] relative pb-16">
       
       {/* Mobile Bottom Navigation Bar */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-8 py-2.5 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
@@ -197,8 +197,8 @@ export function TeacherDashboardPage() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] lg:rounded-l-[50px] p-5 md:pl-10 lg:pl-12 xl:pl-16 md:pr-8 lg:pr-10 w-full overflow-y-auto custom-scrollbar pt-6 md:pt-10 pb-32 lg:pb-12 relative flex flex-col h-full">
-        <div className="max-w-[1300px] w-full h-full">
+      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] lg:rounded-l-[50px] p-5 md:pl-10 lg:pl-12 xl:pl-16 md:pr-8 lg:pr-10 w-full relative flex flex-col">
+        <div className="max-w-[1300px] w-full">
         
         {/* Top Header */}
         <header className="flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6 mb-8 lg:mb-10 w-full relative">
@@ -227,7 +227,7 @@ export function TeacherDashboardPage() {
         <div className="flex flex-col xl:grid xl:grid-cols-[1fr_390px] gap-8 lg:gap-10">
           
           {/* Left Column: Classroom Portals */}
-          <section className="flex flex-col h-full order-1 gap-6">
+          <section className="flex flex-col order-1 gap-6">
             <div>
               <h2 className="text-2xl font-black text-[#1800ad] tracking-tight uppercase">My Classrooms & Invite Keys</h2>
               <p className="text-xs font-semibold text-[#1800ad]/60 leading-normal lowercase mt-0.5">
