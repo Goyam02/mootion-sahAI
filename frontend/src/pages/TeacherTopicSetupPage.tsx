@@ -12,7 +12,13 @@ import {
   Flame, 
   Calendar,
   FileText,
-  Users
+  Users,
+  Library,
+  Search,
+  X,
+  Zap,
+  Clock,
+  Play
 } from 'lucide-react';
 import { NavItem } from '../components/NavItem';
 import { api } from '../lib/api';
@@ -191,6 +197,50 @@ export function TeacherTopicSetupPage() {
   const [publishing, setPublishing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  // Content Library states
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [libraryTargetAsset, setLibraryTargetAsset] = useState<any | null>(null);
+  const [libraryItems, setLibraryItems] = useState<any[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [libraryPreview, setLibraryPreview] = useState<string | null>(null);
+  const [adopting, setAdopting] = useState<string | null>(null);
+
+  const openLibrary = async (asset: any) => {
+    if (!resolvedClass) return;
+    setLibraryTargetAsset(asset);
+    setShowLibrary(true);
+    setLibraryLoading(true);
+    setLibraryPreview(null);
+    try {
+      const items = await api.get(
+        `/teachers/library/assets?asset_type=concept_video&grade=${resolvedClass.grade}&subject=${resolvedClass.subject}`
+      );
+      setLibraryItems(items || []);
+    } catch (err) {
+      console.error("Failed to load library items:", err);
+    } finally {
+      setLibraryLoading(false);
+    }
+  };
+
+  const handleAdoptFromLibrary = async (libraryAssetId: string) => {
+    if (!classId || !chapterId || !libraryTargetAsset) return;
+    setAdopting(libraryAssetId);
+    try {
+      const updatedAsset = await api.post(
+        `/teachers/library/classes/${classId}/chapters/${chapterId}/assets/${libraryTargetAsset.asset_id}/adopt`,
+        { library_asset_id: libraryAssetId }
+      );
+      updateTopicAsset(updatedAsset.asset || updatedAsset);
+      setShowLibrary(false);
+    } catch (err) {
+      console.error("Failed to adopt library asset:", err);
+    } finally {
+      setAdopting(null);
+    }
+  };
 
   const mapAssetTypeToAssignmentType = (assetType: string): string => {
     switch (assetType) {
@@ -430,13 +480,30 @@ export function TeacherTopicSetupPage() {
                     <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
                       {isGenerating ? `Expected time left: ${Math.max(0, Math.ceil((generationEndsAt! - now) / 1000))}s` : 'Generation ETA depends on asset type'}
                     </div>
-                    <button
-                      onClick={handleGenerateSelectedAsset}
-                      disabled={isGenerating}
-                      className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedAsset.asset_type === 'concept_video' && (
+                        <button
+                          type="button"
+                          onClick={() => openLibrary(selectedAsset)}
+                          disabled={isGenerating}
+                          className={`px-3.5 py-2 border rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-all ${
+                            isGenerating
+                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'border-[#1800ad]/40 text-[#1800ad] hover:bg-[#1800ad]/5'
+                          }`}
+                          title="Pick from shared content library"
+                        >
+                          <Library size={11} /> Library
+                        </button>
+                      )}
+                      <button
+                        onClick={handleGenerateSelectedAsset}
+                        disabled={isGenerating}
+                        className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -699,6 +766,184 @@ export function TeacherTopicSetupPage() {
 
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* ───────────────────────────────────────────────────────────────
+           CONTENT LIBRARY MODAL
+      ─────────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showLibrary && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#1800ad]/50 z-[60] flex items-center justify-center p-4 animate-fadeIn"
+            onClick={() => setShowLibrary(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#f6f4ee] rounded-[32px] border-2 border-[#1800ad] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden font-montserrat"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between p-7 pb-4 border-b border-[#1800ad]/15 shrink-0">
+                <div>
+                  <div className="flex items-center gap-2.5 mb-1">
+                    <div className="p-2 bg-[#1800ad] rounded-xl">
+                      <Library size={16} className="text-[#f6f4ee]" />
+                    </div>
+                    <h2 className="text-2xl font-black text-[#1800ad] tracking-tight">Content Library</h2>
+                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full">
+                      Free • No generation cost
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-[#1800ad]/65 ml-11">
+                    Pick a ready-made video for <span className="font-black text-[#1800ad]">{libraryTargetAsset?.title}</span> — same curriculum, zero wait time.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowLibrary(false)}
+                  className="p-2 border-2 border-[#1800ad]/20 rounded-full hover:bg-[#1800ad]/5 transition-colors shrink-0"
+                >
+                  <X size={16} className="text-[#1800ad]" />
+                </button>
+              </div>
+
+              {/* Search bar */}
+              <div className="px-7 py-4 shrink-0">
+                <div className="relative">
+                  <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#1800ad]/50" />
+                  <input
+                    type="text"
+                    placeholder="Search by topic, chapter, subject..."
+                    value={librarySearch}
+                    onChange={e => setLibrarySearch(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-white border-2 border-[#1800ad]/20 rounded-2xl text-sm font-semibold text-[#1800ad] placeholder:text-[#1800ad]/35 outline-none focus:border-[#1800ad]/50 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Items grid */}
+              <div className="flex-1 overflow-y-auto px-7 pb-7">
+                {libraryLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="w-10 h-10 rounded-full border-4 border-t-[#1800ad] border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+                    <p className="text-xs font-black uppercase tracking-wider text-[#1800ad]/50">Loading library...</p>
+                  </div>
+                ) : (() => {
+                  const needle = librarySearch.toLowerCase();
+                  const filtered = libraryItems.filter(item => {
+                    if (!needle) return true;
+                    return `${item.title} ${item.chapter_title} ${item.subject} ${item.grade}`.toLowerCase().includes(needle);
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+                        <Library size={40} className="text-[#1800ad]/20" />
+                        <p className="text-sm font-black text-[#1800ad]/40">
+                          {librarySearch ? 'No videos match your search.' : 'No ready videos in the library yet.'}
+                        </p>
+                        <p className="text-xs font-semibold text-[#1800ad]/30 max-w-xs">
+                          Videos appear here once any teacher generates them for a matching curriculum topic.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filtered.map(item => {
+                        const isAdopting = adopting === item.asset_id;
+                        const isPreviewing = libraryPreview === item.asset_id;
+                        return (
+                          <motion.div
+                            key={item.asset_id}
+                            layout
+                            className="bg-white border-2 border-[#1800ad]/10 rounded-[20px] overflow-hidden flex flex-col hover:border-[#1800ad]/40 hover:shadow-md transition-all"
+                          >
+                            {/* Video thumbnail / preview */}
+                            <div
+                              className="relative bg-[#1800ad]/5 h-36 flex items-center justify-center cursor-pointer group overflow-hidden"
+                              onClick={() => setLibraryPreview(isPreviewing ? null : item.asset_id)}
+                            >
+                              {isPreviewing && item.external_url ? (
+                                <video
+                                  src={item.external_url}
+                                  controls
+                                  autoPlay
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <>
+                                  <div className="absolute inset-0 bg-gradient-to-br from-[#1800ad]/10 to-[#1800ad]/5" />
+                                  <div className="relative z-10 flex flex-col items-center gap-2">
+                                    <div className="w-12 h-12 rounded-full bg-[#1800ad] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                      <Play size={18} className="text-[#f6f4ee] ml-1" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60">Click to preview</span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
+                            {/* Card body */}
+                            <div className="p-4 flex flex-col gap-2 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <h4 className="text-sm font-black text-[#1800ad] leading-tight line-clamp-2">{item.title}</h4>
+                              </div>
+
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className="text-[10px] font-black px-2 py-0.5 bg-[#1800ad]/8 text-[#1800ad] rounded-full">
+                                  Grade {item.grade}
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 bg-[#1800ad]/8 text-[#1800ad] rounded-full">
+                                  {item.subject}
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] font-semibold text-[#1800ad]/60 leading-snug">
+                                Chapter: {item.chapter_title}
+                              </p>
+
+                              {item.last_generated_at && (
+                                <p className="text-[10px] font-semibold text-[#1800ad]/40 flex items-center gap-1">
+                                  <Clock size={10} />
+                                  {new Date(item.last_generated_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              )}
+
+                              {/* Use This button */}
+                              <button
+                                id={`library-adopt-${item.asset_id}`}
+                                onClick={() => handleAdoptFromLibrary(item.asset_id)}
+                                disabled={isAdopting || !!adopting}
+                                className="mt-auto w-full py-2.5 rounded-xl bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-[#1800ad]/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                {isAdopting ? (
+                                  <>
+                                    <div className="w-3.5 h-3.5 rounded-full border-2 border-t-white border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+                                    Applying...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Zap size={12} /> Use This Video
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

@@ -982,14 +982,10 @@ export function TeacherChapterSetupPage() {
                                 >
                                   {isPreviewing && item.external_url ? (
                                     <video
-                                      src={`/api/media/assets/${item.asset_id}`}
+                                      src={item.external_url}
                                       controls
                                       autoPlay
                                       className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        // fallback to external_url directly
-                                        (e.target as HTMLVideoElement).src = item.external_url;
-                                      }}
                                     />
                                   ) : (
                                     <>

@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.core.models import Chapter, ChapterAsset, ClassRoom
 from app.repositories.onboarding_repository import get_teacher_class_membership
 
+from app.services.media_service import resolve_asset_media_url
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Schemas (inline, lightweight)
@@ -22,7 +24,7 @@ def _asset_to_library_item(asset: ChapterAsset, chapter: Chapter, classroom: Cla
         "asset_type": asset.asset_type,
         "title": asset.title,
         "description": asset.description,
-        "external_url": asset.external_url,
+        "external_url": resolve_asset_media_url(asset),
         "generation_status": asset.generation_status,
         "chapter_id": str(chapter.id),
         "chapter_title": chapter.title,
