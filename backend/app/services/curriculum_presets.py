@@ -11,6 +11,8 @@ SYLLABUS_PATH = Path(__file__).resolve().parents[1] / "repositories" / "syllabus
 
 
 def _make_node(node_id: str, title: str, kind: str, order: int, metadata: dict | None = None, children: list[CurriculumTreeNode] | None = None) -> CurriculumTreeNode:
+    if len(title) > 255:
+        title = title[:252] + "..."
     return CurriculumTreeNode(
         id=node_id,
         title=title,
