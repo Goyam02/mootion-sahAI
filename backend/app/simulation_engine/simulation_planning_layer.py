@@ -99,6 +99,38 @@ class SimulationPlanningLayer:
 
         return self._rule_based_spec(intent)
 
+    def _get_rag_context(self, intent: SimulationIntent) -> str:
+        try:
+            from app.services.rag_service import retrieve_context
+            
+            # Map grade_level string to standard NCERT Class numbers
+            if intent.grade_level == "middle_school":
+                grades = ["Class 8", "Class 7", "Class 6"]
+            elif intent.grade_level == "advanced":
+                grades = ["Class 12", "Class 11"]
+            else:  # default to high_school
+                grades = ["Class 10", "Class 9"]
+
+            context_parts = []
+            for g in grades:
+                ctx = retrieve_context(query=intent.topic, grade=g, subject=intent.subject.value, limit=2)
+                if ctx:
+                    context_parts.append(ctx)
+                    if len(context_parts) >= 2:
+                        break
+
+            if not context_parts:
+                for g in ["Class 10", "Class 12", "Class 9", "Class 11"]:
+                    ctx = retrieve_context(query=intent.topic, grade=g, subject=intent.subject.value, limit=2)
+                    if ctx:
+                        context_parts.append(ctx)
+                        break
+
+            return "\n\n---\n\n".join(context_parts) if context_parts else ""
+        except Exception as e:
+            print(f"[SimulationPlanningLayer] RAG retrieval bypassed due to error: {e}")
+            return ""
+
     def _llm_generate_spec(self, intent: SimulationIntent) -> SimulationSpecification:
         subject_hint = SUBJECT_PROMPTS.get(intent.subject.value, "")
         type_hint = SIMULATION_TYPE_HINTS.get(
@@ -106,12 +138,19 @@ class SimulationPlanningLayer:
         )
         concepts_str = ", ".join(intent.concepts)
 
+        # Retrieve curriculum context from RAG service
+        rag_context = self._get_rag_context(intent)
+        rag_instructions = ""
+        if rag_context:
+            rag_instructions = f"\n━━ RELEVANT NCERT CURRICULUM CONTEXT ━━\nUse the following textbook content to ensure correct equations, parameters, definitions, and learning objectives:\n{rag_context}\n"
+
         llm_prompt = f"""{subject_hint}
 
 Simulation Type: {intent.simulation_type.value}
 Topic: {intent.topic}
 Concepts: {concepts_str}
 Grade Level: {intent.grade_level}
+{rag_instructions}
 
 {type_hint}
 

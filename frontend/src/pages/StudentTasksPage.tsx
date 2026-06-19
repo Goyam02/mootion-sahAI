@@ -147,7 +147,11 @@ export function StudentTasksPage() {
 
   const handleStart = (a: FlatAssignment) => {
     if (a.status !== 'ready') return;
-    navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`);
+    if (['video', 'simulation', 'quiz', 'model'].includes(a.assignment_type)) {
+      navigate(`/student/task/${a.assignment_id}?class_id=${a.class_id}`);
+    } else {
+      navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`);
+    }
   };
 
   const statusBadge = (status: string) => {

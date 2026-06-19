@@ -79,7 +79,7 @@ services:
     container_name: frontend
 
     environment:
-      GEMINI_API_KEY: "AIzaSyDJWjudoaGxCVLbHo-PdjzVoirvM1r-oqg"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
       APP_URL: "http://localhost:3000"
 
     expose:

@@ -6,556 +6,32 @@ from typing import Any
 from app.simulation_engine.schemas import SimulationSpecification
 
 
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>__TITLE__</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 12px;
-  }
-  #sim-container {
-    max-width: 1100px;
-    width: 100%;
-    background: #1e293b;
-    border-radius: 20px;
-    border: 1px solid #334155;
-    overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
-  }
-  .sim-header {
-    padding: 18px 24px 14px;
-    border-bottom: 1px solid #334155;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-  .sim-header h1 { font-size: 20px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
-  .sim-header .obj { font-size: 12px; color: #94a3b8; line-height: 1.5; margin-top: 2px; }
-  .sim-header .sim-badge {
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
-    padding: 4px 12px; border-radius: 20px; background: rgba(139,92,246,0.15);
-    color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); white-space: nowrap;
-  }
-  .sim-body { display: flex; flex-direction: column; gap: 0; }
-  @media (min-width: 820px) { .sim-body { flex-direction: row; } }
-  .sim-visual {
-    flex: 1; padding: 16px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; min-height: 420px;
-    background: #0f172a;
-  }
-  .sim-visual canvas {
-    width: 100%; max-width: __CANVAS_WIDTH__px; height: auto;
-    aspect-ratio: __CANVAS_WIDTH__ / __CANVAS_HEIGHT__;
-    border-radius: 14px; border: 1px solid #334155;
-    background: #f8fafc; touch-action: none; cursor: crosshair;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  }
-  .sim-panel {
-    width: 100%; max-width: 320px; padding: 16px 18px;
-    border-left: 1px solid #334155;
-    display: flex; flex-direction: column; gap: 10px;
-    background: #162032;
-  }
-  @media (max-width: 819px) {
-    .sim-panel { max-width: 100%; border-left: none; border-top: 1px solid #334155; }
-    .sim-visual { min-height: 320px; }
-  }
-  .ctrl { display: flex; flex-direction: column; gap: 2px; }
-  .ctrl-label {
-    font-size: 11px; font-weight: 600; color: #94a3b8;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .ctrl-label .val-badge {
-    background: rgba(139,92,246,0.15); color: #a78bfa;
-    padding: 1px 8px; border-radius: 10px; font-size: 11px;
-    font-family: 'Courier New', monospace; font-weight: 700;
-    min-width: 40px; text-align: center;
-  }
-  input[type="range"] {
-    width: 100%; height: 5px; -webkit-appearance: none; appearance: none;
-    background: #334155; border-radius: 4px; outline: none; cursor: pointer;
-    margin: 6px 0;
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 20px; height: 20px;
-    border-radius: 50%; background: #8b5cf6;
-    border: 3px solid #1e293b; cursor: pointer;
-    box-shadow: 0 2px 8px rgba(139,92,246,0.4);
-    transition: transform 0.1s;
-  }
-  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
-  input[type="range"]::-moz-range-thumb {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: #8b5cf6; border: 3px solid #1e293b; cursor: pointer;
-    box-shadow: 0 2px 8px rgba(139,92,246,0.4);
-  }
-  input[type="range"]:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
-  .ctrl-unit { font-size: 10px; color: #64748b; }
-  .actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
-  .actions button {
-    flex: 1; min-width: 60px; padding: 8px 12px; border: 1px solid #334155;
-    border-radius: 8px; background: #1a2332; color: #e2e8f0;
-    font-size: 11px; font-weight: 700; cursor: pointer;
-    transition: all 0.12s; text-transform: uppercase; letter-spacing: 0.3px;
-    display: flex; align-items: center; justify-content: center; gap: 4px;
-  }
-  .actions button:hover { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
-  .actions button:active { transform: scale(0.97); }
-  .actions button.primary { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
-  .actions button.primary:hover { opacity: 0.88; }
-  .actions button.green { background: #059669; border-color: #059669; }
-  .actions button.green:hover { background: #047857; }
-  .actions button.amber { background: #d97706; border-color: #d97706; }
-  .actions button.amber:hover { background: #b45309; }
-  .presets { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
-  .presets button {
-    padding: 4px 10px; border: 1px solid #334155; border-radius: 6px;
-    background: transparent; color: #94a3b8; font-size: 10px; font-weight: 600;
-    cursor: pointer; transition: all 0.12s;
-  }
-  .presets button:hover { background: rgba(139,92,246,0.15); color: #a78bfa; border-color: #8b5cf6; }
-  .values {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;
-  }
-  .vcard {
-    background: #0f172a; border: 1px solid #1e293b;
-    border-radius: 10px; padding: 8px 10px; text-align: center;
-    transition: border-color 0.2s;
-  }
-  .vcard:hover { border-color: #334155; }
-  .vcard .lbl { font-size: 8px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; }
-  .vcard .num {
-    font-size: 18px; font-weight: 800; color: #a78bfa;
-    font-family: 'Courier New', monospace; margin-top: 2px;
-    transition: color 0.3s;
-  }
-  .graph-area { width: 100%; padding: 12px 16px 16px; border-top: 1px solid #334155; background: #0f172a; }
-  .graph-area canvas {
-    width: 100%; height: 180px; border-radius: 10px;
-    border: 1px solid #1e293b; background: #f8fafc;
-  }
-  .graph-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
-  }
-  .graph-header .gt { font-size: 12px; font-weight: 700; color: #cbd5e1; }
-  .graph-header .gl {
-    display: flex; gap: 12px; font-size: 10px; font-weight: 600;
-  }
-  .graph-header .gl span { display: flex; align-items: center; gap: 4px; }
-  .graph-header .gl .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .assess-area { padding: 14px 24px; border-top: 1px solid #334155; background: #162032; }
-  .assess-area .ql { font-size: 9px; font-weight: 700; color: #8b5cf6; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; }
-  .assess-area .q { font-size: 13px; line-height: 1.6; color: #e2e8f0; font-weight: 500; }
-  .assess-area .h { font-size: 11px; color: #64748b; margin-top: 6px; font-style: italic; }
-  .info-overlay {
-    position: absolute; pointer-events: none; font-size: 12px;
-    font-weight: 700; font-family: 'Courier New', monospace;
-    color: #1e293b; background: rgba(255,255,255,0.9);
-    padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: none;
-  }
-  @media (max-width: 480px) {
-    body { padding: 6px; }
-    .sim-header { padding: 12px 14px 10px; flex-direction: column; gap: 6px; }
-    .sim-header h1 { font-size: 16px; }
-    .sim-visual { padding: 8px; min-height: 240px; }
-    .sim-panel { padding: 12px; }
-    .values { grid-template-columns: 1fr; }
-    .assess-area { padding: 10px 14px; }
-    .graph-area { padding: 8px 10px 12px; }
-  }
-</style>
-</head>
-<body>
-<div id="sim-container" role="application" aria-label="__TITLE__">
-    <div class="sim-header" id="learning-objective">
-      <div>
-        <h1>__TITLE__</h1>
-        <div class="obj">__OBJECTIVE__</div>
-      </div>
-      <span class="sim-badge">__SUBJECT_BADGE__</span>
-    </div>
-    <div class="sim-body">
-      <div class="sim-visual" id="simulation-area" style="position:relative">
-        <canvas id="canvas" width="__CANVAS_WIDTH__" height="__CANVAS_HEIGHT__"
-                aria-label="Simulation canvas" role="img"></canvas>
-        <div class="info-overlay" id="info-overlay"></div>
-      </div>
-      <div class="sim-panel" id="panel" role="toolbar" aria-label="Controls">
-        __CONTROLS__
-        <div class="actions">
-          <button class="primary" id="play-btn" aria-label="Play/Pause">
-            <span id="play-icon">II</span>
-          </button>
-          <button id="reset-btn" aria-label="Reset">↺</button>
-          <button id="step-btn" aria-label="Step forward">▶|</button>
-        </div>
-        __SPEED_CONTROL__
-        __PRESETS__
-        <div class="values" id="values">
-          __LIVE_VALUES__
-        </div>
-      </div>
-    </div>
-    __GRAPH__
-    __ASSESSMENT__
-</div>
-<script>
-__SCRIPT__
-</script>
-</body>
-</html>"""
-
-
-CANVAS_BOILERPLATE = """
-(function() {
-  const SPEC = __SPEC__;
-
-  class EventBus {
-    constructor() { this._listeners = {}; }
-    on(event, fn) { (this._listeners[event] ||= []).push(fn); return this; }
-    off(event, fn) { const list = this._listeners[event]; if (list) this._listeners[event] = list.filter(f => f !== fn); return this; }
-    emit(event, data) { (this._listeners[event] || []).forEach(fn => fn(data)); }
-  }
-
-  class StateManager {
-    constructor(initial) {
-      this._state = { ...initial };
-      this._history = [];
-      this._maxHistory = 500;
-      this._bus = new EventBus();
-    }
-    get(key) { return this._state[key]; }
-    set(key, value) {
-      const old = this._state[key];
-      if (old === value) return;
-      this._state[key] = value;
-      this._history.push({ key, old, new: value, time: performance.now() });
-      if (this._history.length > this._maxHistory) this._history.shift();
-      this._bus.emit('change:' + key, { key, old, new: value });
-      this._bus.emit('change', { key, old, new: value });
-    }
-    getAll() { return { ...this._state }; }
-    reset(initial) { this._state = { ...initial }; this._history = []; this._bus.emit('reset', this._state); }
-    on(event, fn) { this._bus.on(event, fn); return this; }
-  }
-
-  class GraphManager {
-    constructor(canvasId, config) {
-      this.canvas = document.getElementById(canvasId);
-      this.ctx = this.canvas.getContext('2d');
-      this.config = config;
-      this.data = {};
-      this.maxPoints = 300;
-      this.range = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
-      this.colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#06b6d4'];
-    }
-    pushData(seriesName, x, y) {
-      if (!this.data[seriesName]) this.data[seriesName] = [];
-      const arr = this.data[seriesName];
-      arr.push({ x, y });
-      if (arr.length > this.maxPoints) arr.shift();
-    }
-    clear() { this.data = {}; }
-    setRange(xMin, xMax, yMin, yMax) {
-      this.range = { xMin, xMax, yMin, yMax };
-    }
-    draw() {
-      const ctx = this.ctx, c = this.canvas, w = c.width, h = c.height;
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, w, h);
-
-      const pad = { t: 15, r: 20, b: 25, l: 45 };
-      const pw = w - pad.l - pad.r;
-      const ph = h - pad.t - pad.b;
-
-      const xRange = this.range.xMax - this.range.xMin || 1;
-      const yRange = this.range.yMax - this.range.yMin || 1;
-
-      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
-      for (let i = 0; i <= 10; i++) {
-        const x = pad.l + (i / 10) * pw;
-        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
-      }
-      for (let i = 0; i <= 8; i++) {
-        const y = pad.t + (i / 8) * ph;
-        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
-      }
-
-      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
-
-      ctx.fillStyle = '#64748b'; ctx.font = '9px "Courier New", monospace'; ctx.textAlign = 'right';
-      for (let i = 0; i <= 4; i++) {
-        const yVal = this.range.yMin + (yRange * i) / 4;
-        const yp = pad.t + ph - (i / 4) * ph;
-        ctx.fillText(yVal.toFixed(1), pad.l - 5, yp + 3);
-      }
-      ctx.textAlign = 'center';
-      for (let i = 0; i <= 4; i++) {
-        const xVal = this.range.xMin + (xRange * i) / 4;
-        const xp = pad.l + (i / 4) * pw;
-        ctx.fillText(xVal.toFixed(1), xp, pad.t + ph + 14);
-      }
-
-      let colorIdx = 0;
-      Object.entries(this.data).forEach(([name, points]) => {
-        if (points.length < 2) return;
-        const color = this.colors[colorIdx % this.colors.length];
-        colorIdx++;
-        ctx.strokeStyle = color; ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        points.forEach((p, i) => {
-          const x = pad.l + ((p.x - this.range.xMin) / xRange) * pw;
-          const y = pad.t + ph - ((p.y - this.range.yMin) / yRange) * ph;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-
-        const last = points[points.length - 1];
-        if (last) {
-          const lx = pad.l + ((last.x - this.range.xMin) / xRange) * pw;
-          const ly = pad.t + ph - ((last.y - this.range.yMin) / yRange) * ph;
-          ctx.fillStyle = color; ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI * 2); ctx.fill();
-        }
-      });
-    }
-  }
-
-  __CLASSES__
-
-  function init() {
-    const canvas = document.getElementById('canvas');
-    const state = new StateManager(__INITIAL_STATE__);
-    const bus = new EventBus();
-    const graphCanvas = document.getElementById('graph-canvas');
-    const graphMgr = graphCanvas ? new GraphManager('graph-canvas', __GRAPH_CONFIG__) : null;
-    const engine = new SimulationEngine(canvas, state, bus);
-    const renderer = new Renderer(canvas, state, bus);
-    const controls = new ControlsManager(state, bus);
-    const assessment = new AssessmentEngine(state, bus);
-
-    window._engine = engine;
-    let running = true;
-    let lastTime = 0;
-    let simSpeed = 1;
-    let stepMode = false;
-
-    function updateDisplayedValues() {
-      const all = state.getAll();
-      Object.entries(all).forEach(([key, val]) => {
-        const el = document.getElementById('val-' + key);
-        if (el) {
-          if (typeof val === 'number') el.textContent = val.toFixed(el.dataset.precision || 2);
-          else el.textContent = val;
-        }
-      });
-      const hintEl = document.getElementById('hint-text');
-      if (hintEl && engine.getHint) {
-        hintEl.textContent = engine.getHint();
-      }
-    }
-
-    function loop(time) {
-      const dt = lastTime ? ((time - lastTime) / 1000) * simSpeed : 0.016;
-      lastTime = time;
-      if (running && !stepMode) {
-        engine.update(dt, state);
-        __GRAPH_DATA_PUSH__
-        updateDisplayedValues();
-        controls.syncLabels();
-      }
-      renderer.draw(dt, state);
-      if (graphMgr) graphMgr.draw();
-      bus.emit('render', { time, dt });
-      if (stepMode) stepMode = false;
-      requestAnimationFrame(loop);
-    }
-
-    document.getElementById('play-btn').addEventListener('click', function() {
-      running = !running;
-      document.getElementById('play-icon').textContent = running ? 'II' : '\\u25B6';
-    });
-
-    document.getElementById('reset-btn').addEventListener('click', function() {
-      state.reset(__INITIAL_STATE__);
-      if (graphMgr) { graphMgr.clear(); graphMgr.setRange(0, 10, 0, 10); }
-      if (engine.onReset) engine.onReset();
-      controls.sync();
-      updateDisplayedValues();
-      lastTime = 0;
-    });
-
-    const stepBtn = document.getElementById('step-btn');
-    if (stepBtn) {
-      stepBtn.addEventListener('click', function() {
-        if (!running) {
-          stepMode = true;
-          running = true;
-          setTimeout(function() {
-            if (stepMode) { running = false; stepMode = false; }
-          }, 50);
-        }
-      });
-    }
-
-    const speedSlider = document.getElementById('speed-slider');
-    if (speedSlider) {
-      speedSlider.addEventListener('input', function() {
-        simSpeed = parseFloat(this.value);
-        document.getElementById('speed-label').textContent = simSpeed.toFixed(1) + 'x';
-      });
-    }
-
-    if (engine.canvasInteractions) {
-      engine.canvasInteractions(canvas, state, bus);
-    }
-
-    controls.bind();
-    updateDisplayedValues();
-    requestAnimationFrame(loop);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-})();
-"""
-
-
-def build_simulation_html(
-    spec: SimulationSpecification,
-    custom_script: str = "",
-    custom_controls: str = "",
-    custom_live_values: str = "",
-    custom_graph: str = "",
-    custom_assessment: str = "",
-    custom_presets: str = "",
-) -> str:
-    title = spec.title
-    objective = spec.learning_objectives[0] if spec.learning_objectives else f"Explore {spec.topic}"
-    subject_badge = spec.subject.value.upper() if spec.subject else "SIMULATION"
-
-    controls_html = custom_controls or _build_controls_html(spec)
-    live_values_html = custom_live_values or _build_live_values_html(spec)
-    graph_html = custom_graph or _build_graph_html(spec)
-    assessment_html = custom_assessment or _build_assessment_html(spec)
-    presets_html = custom_presets or _build_presets_html(spec)
-    script_content = _build_script(spec, custom_script)
-
-    speed_control = """  <div class="ctrl">
-    <div class="ctrl-label">
-      <span>Speed</span>
-      <span class="val-badge" id="speed-label">1.0x</span>
-    </div>
-    <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1" aria-label="Simulation speed">
-  </div>"""
-
-    result = HTML_TEMPLATE
-    result = result.replace("__TITLE__", title)
-    result = result.replace("__OBJECTIVE__", objective)
-    result = result.replace("__SUBJECT_BADGE__", subject_badge)
-    result = result.replace("__CANVAS_WIDTH__", str(spec.canvas_width))
-    result = result.replace("__CANVAS_HEIGHT__", str(spec.canvas_height))
-    result = result.replace("__CONTROLS__", controls_html)
-    result = result.replace("__LIVE_VALUES__", live_values_html)
-    result = result.replace("__GRAPH__", graph_html)
-    result = result.replace("__ASSESSMENT__", assessment_html)
-    result = result.replace("__PRESETS__", presets_html)
-    result = result.replace("__SPEED_CONTROL__", speed_control)
-    result = result.replace("__SCRIPT__", script_content)
-
-    return result
-
-
-def _build_script(spec: SimulationSpecification, custom_script: str) -> str:
-    if custom_script:
-        classes_code = custom_script
-    else:
-        classes_code = _default_classes()
-
-    initial_state = _build_initial_state(spec)
-    spec_json = json.dumps(spec.raw_spec or spec.dict())
-
-    graph_config_json = "{}"
-    graph_data_push = ""
-    if spec.graphs:
-        g = spec.graphs[0]
-        graph_config_json = json.dumps({"series": g.series})
-        first_param_id = spec.parameters[0].id if spec.parameters else "param_1"
-        series_name = g.series[0]["name"] if g.series else "Value"
-        graph_data_push = f"""
-if (graphMgr) {{
-  const p1 = state.get('{first_param_id}') || 0;
-  const p2 = state.get('output') || 0;
-  graphMgr.pushData('{series_name}', p1, p2);
-}}
-"""
-
-    script = CANVAS_BOILERPLATE
-    script = script.replace("__SPEC__", spec_json)
-    script = script.replace("__CLASSES__", classes_code)
-    script = script.replace("__INITIAL_STATE__", json.dumps(initial_state))
-    script = script.replace("__GRAPH_CONFIG__", graph_config_json)
-    script = script.replace("__GRAPH_DATA_PUSH__", graph_data_push)
-
-    return script
-
-
-def _build_initial_state(spec: SimulationSpecification) -> dict:
-    state = {}
-    for p in spec.parameters:
-        state[p.id] = p.default
-    state["output"] = 0
-    return state
-
-
-def _default_classes() -> str:
-    return """
-class SimulationEngine {
-  constructor(canvas, state, bus) {
-    this.canvas = canvas; this.state = state; this.bus = bus;
-  }
-  update(dt, state) {}
-  onReset() {}
-}
-
-class Renderer {
-  constructor(canvas, state, bus) {
-    this.canvas = canvas; this.ctx = canvas.getContext('2d');
-    this.state = state; this.bus = bus;
-  }
-  draw(dt, state) {
-    const ctx = this.ctx, w = this.canvas.width, h = this.canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#1e293b';
-    ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('Simulation Ready', w / 2, h / 2 - 10);
-    ctx.font = '11px sans-serif'; ctx.fillStyle = '#64748b';
-    ctx.fillText('Adjust controls to begin', w / 2, h / 2 + 14);
-    ctx.textAlign = 'left';
-  }
-}
-
+# ---------------------------------------------------------------------------
+# Shared ControlsManager JS — injected once into every simulation.
+# Each subject template should reference SHARED_CONTROLS_MANAGER instead of
+# copy-pasting the same ControlsManager class.
+# ---------------------------------------------------------------------------
+SHARED_CONTROLS_MANAGER = """
 class ControlsManager {
   constructor(state, bus) {
-    this.state = state; this.bus = bus; this.sliders = [];
+    this.state = state;
+    this.bus = bus;
+    this.sliders = [];
+    this._precisions = {};  // key → decimal places override
   }
+
+  /** Register a precision override for a specific parameter id.
+   *  e.g.  controls.setPrecision('volume', 4) */
+  setPrecision(key, decimals) {
+    this._precisions[key] = decimals;
+  }
+
+  _fmt(key, val) {
+    if (typeof val !== 'number') return String(val);
+    const p = this._precisions[key] !== undefined ? this._precisions[key] : 2;
+    return val.toFixed(p);
+  }
+
   bind() {
     const self = this;
     document.querySelectorAll('input[type="range"]').forEach(function(input) {
@@ -567,23 +43,26 @@ class ControlsManager {
         const val = parseFloat(this.value);
         self.state.set(key, val);
         const badge = document.getElementById('badge-' + key);
-        if (badge) badge.textContent = val.toFixed(1);
+        if (badge) badge.textContent = self._fmt(key, val);
       });
     });
   }
+
   sync() {
     this.sliders.forEach(function(input) {
       const val = this.state.get(input.id);
-      input.value = val;
+      if (val !== undefined) input.value = val;
     }, this);
   }
+
   syncLabels() {
     const all = this.state.getAll();
+    const self = this;
     this.sliders.forEach(function(input) {
       const val = all[input.id];
       if (val !== undefined) {
         const badge = document.getElementById('badge-' + input.id);
-        if (badge) badge.textContent = typeof val === 'number' ? val.toFixed(1) : val;
+        if (badge) badge.textContent = self._fmt(input.id, val);
       }
     });
   }
@@ -596,48 +75,785 @@ class AssessmentEngine {
 """
 
 
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>__TITLE__</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: transparent;
+    color: #1e293b;
+    padding: 0;
+    margin: 0;
+    overflow-x: hidden;
+  }
+  #sim-container {
+    max-width: 1100px;
+    width: 100%;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    margin: auto;
+  }
+  /* ── Header ── */
+  .sim-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    background: #ffffff;
+  }
+  .sim-header h1 { 
+    font-size: 20px; 
+    font-weight: 800; 
+    color: #1800ad; 
+    letter-spacing: -0.3px;
+  }
+  .sim-header .obj { font-size: 12px; color: #64748b; line-height: 1.5; margin-top: 3px; max-width: 600px; }
+  .sim-badge {
+    font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px;
+    padding: 4px 12px; border-radius: 20px; 
+    background: rgba(24, 0, 173, 0.06);
+    color: #1800ad; border: 1px solid rgba(24, 0, 173, 0.15); 
+    white-space: nowrap; flex-shrink: 0;
+  }
+  /* ── Layout ── */
+  .sim-body { display: flex; flex-direction: column; }
+  @media (min-width: 820px) { .sim-body { flex-direction: row; } }
+  
+  /* ── Canvas area ── */
+  .sim-visual {
+    flex: 1; padding: 16px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; min-height: 440px;
+    background: #f8fafc; position: relative;
+  }
+  .sim-visual canvas {
+    width: 100%; max-width: __CANVAS_WIDTH__px; height: auto;
+    aspect-ratio: __CANVAS_WIDTH__ / __CANVAS_HEIGHT__;
+    border-radius: 12px; border: 1px solid #e2e8f0;
+    background: #ffffff; touch-action: none; cursor: crosshair;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    display: block;
+  }
+  .canvas-hint {
+    font-size: 11px; color: #64748b; margin-top: 8px;
+    text-align: center; font-style: italic; min-height: 16px;
+    font-weight: 500;
+  }
+  /* ── Side panel ── */
+  .sim-panel {
+    width: 100%; max-width: 290px; padding: 16px;
+    border-left: 1px solid #e2e8f0;
+    display: flex; flex-direction: column; gap: 12px;
+    background: #ffffff; overflow-y: auto; max-height: 700px;
+  }
+  @media (max-width: 819px) {
+    .sim-panel { max-width: 100%; border-left: none; border-top: 1px solid #e2e8f0; max-height: none; }
+    .sim-visual { min-height: 320px; }
+  }
+  /* ── Section label ── */
+  .section-label {
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 1.2px; color: #94a3b8; margin-bottom: -2px;
+  }
+  /* ── Slider controls ── */
+  .ctrl { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-label {
+    font-size: 11px; font-weight: 600; color: #334155;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .ctrl-label .val-badge {
+    background: rgba(24, 0, 173, 0.06); color: #1800ad;
+    padding: 2px 8px; border-radius: 8px; font-size: 11px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700;
+    min-width: 46px; text-align: center;
+    border: 1px solid rgba(24, 0, 173, 0.12);
+  }
+  .ctrl-unit { font-size: 10px; color: #94a3b8; margin-left: 2px; }
+  input[type="range"] {
+    width: 100%; height: 5px; -webkit-appearance: none; appearance: none;
+    background: #e2e8f0; border-radius: 4px; outline: none; cursor: pointer;
+    margin: 4px 0 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: #1800ad;
+    border: 2px solid #ffffff; cursor: pointer;
+    box-shadow: 0 2px 4px rgba(24, 0, 173, 0.25);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { 
+    transform: scale(1.2); 
+    box-shadow: 0 2px 8px rgba(24, 0, 173, 0.4); 
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #1800ad; border: 2px solid #ffffff; cursor: pointer;
+    box-shadow: 0 2px 4px rgba(24, 0, 173, 0.25);
+  }
+  input[type="range"]:focus-visible { outline: 2px solid #1800ad; outline-offset: 3px; }
+  
+  /* ── Buttons ── */
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .actions button {
+    flex: 1; min-width: 54px; padding: 8px 10px; border: 1px solid #cbd5e1;
+    border-radius: 8px; background: #ffffff; color: #475569;
+    font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all 0.12s; text-transform: uppercase; letter-spacing: 0.3px;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .actions button:hover { 
+    background: #f8fafc; 
+    border-color: #94a3b8; 
+    color: #1e293b; 
+    transform: translateY(-1px); 
+  }
+  .actions button:active { transform: scale(0.97) translateY(0); }
+  .actions button.primary { 
+    background: #1800ad; 
+    border-color: #1800ad; 
+    color: #ffffff; 
+    box-shadow: 0 2px 6px rgba(24, 0, 173, 0.2);
+  }
+  .actions button.primary:hover { 
+    background: #14008a; 
+  }
+  .actions button.running { 
+    background: #10b981; 
+    border-color: #10b981; 
+    color: #ffffff; 
+  }
+  .actions button.running:hover { 
+    background: #059669; 
+  }
+  /* ── Presets ── */
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; }
+  .presets button {
+    padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px;
+    background: #ffffff; color: #64748b; font-size: 10px; font-weight: 600;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .presets button:hover { 
+    background: rgba(24, 0, 173, 0.04); 
+    color: #1800ad; 
+    border-color: rgba(24, 0, 173, 0.2); 
+  }
+  /* ── Live value cards ── */
+  .values { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .vcard {
+    background: #ffffff; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 8px 10px; text-align: center;
+    transition: all 0.2s;
+  }
+  .vcard:hover { 
+    border-color: #cbd5e1; 
+    transform: translateY(-1px);
+  }
+  .vcard .lbl { font-size: 8px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; }
+  .vcard .num {
+    font-size: 15px; font-weight: 800; color: #1800ad;
+    font-family: 'JetBrains Mono', monospace; margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* ── Graph ── */
+  .graph-area { 
+    width: 100%; padding: 12px 20px 16px; 
+    border-top: 1px solid #e2e8f0; 
+    background: #ffffff; 
+  }
+  .graph-area canvas {
+    width: 100%; height: 160px; border-radius: 10px;
+    border: 1px solid #e2e8f0; 
+    background: #ffffff; display: block;
+  }
+  .graph-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  }
+  .graph-header .gt { font-size: 12px; font-weight: 800; color: #334155; }
+  .graph-header .gl { display: flex; gap: 12px; font-size: 10px; font-weight: 600; }
+  .graph-header .gl span { display: flex; align-items: center; gap: 4px; color: #64748b; }
+  .graph-header .gl .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  
+  /* ── Assessment ── */
+  .assess-area { 
+    padding: 14px 24px; 
+    border-top: 1px solid #e2e8f0; 
+    background: rgba(24, 0, 173, 0.03); 
+    border-left: 4px solid #1800ad;
+  }
+  .assess-area .ql {
+    font-size: 9px; font-weight: 800; color: #1800ad;
+    text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 4px;
+  }
+  .assess-area .q { font-size: 13px; line-height: 1.6; color: #1e293b; font-weight: 600; }
+  .assess-area .h { font-size: 11px; color: #64748b; margin-top: 6px; font-style: italic; line-height: 1.5; }
+  
+  /* ── Divider ── */
+  .panel-divider { height: 1px; background: #e2e8f0; margin: 3px 0; }
+  
+  /* ── Responsive tweaks ── */
+  @media (max-width: 480px) {
+    body { padding: 0; }
+    #sim-container { border-radius: 0; border-left: none; border-right: none; }
+    .sim-header { padding: 12px 14px 10px; flex-direction: column; gap: 6px; }
+    .sim-header h1 { font-size: 16px; }
+    .sim-visual { padding: 8px; min-height: 240px; }
+    .sim-panel { padding: 12px; }
+    .assess-area { padding: 10px 14px; }
+    .graph-area { padding: 8px 10px 12px; }
+    .graph-area canvas { height: 130px; }
+  }
+</style>
+</head>
+<body>
+<div id="sim-container" role="application" aria-label="__TITLE__">
+  <div class="sim-header">
+    <div>
+      <h1>__TITLE__</h1>
+      <div class="obj">__OBJECTIVE__</div>
+    </div>
+    <span class="sim-badge">__SUBJECT_BADGE__</span>
+  </div>
+  <div class="sim-body">
+    <div class="sim-visual" id="simulation-area">
+      <canvas id="canvas" width="__CANVAS_WIDTH__" height="__CANVAS_HEIGHT__"
+              aria-label="Simulation canvas" role="img"></canvas>
+      <div class="canvas-hint" id="hint-text"></div>
+    </div>
+    <div class="sim-panel" id="panel" role="toolbar" aria-label="Controls">
+      <div class="section-label">Parameters</div>
+      __CONTROLS__
+      <div class="panel-divider"></div>
+      __SPEED_CONTROL__
+      __PRESETS__
+      <div class="actions">
+        <button class="primary" id="play-btn" aria-label="Play/Pause simulation">
+          ▶ Play
+        </button>
+        <button id="reset-btn" aria-label="Reset simulation" title="Reset">↺ Reset</button>
+        <button id="step-btn" aria-label="Step forward" title="Step one frame">▶| Step</button>
+      </div>
+      <div class="panel-divider"></div>
+      <div class="section-label">Live Values</div>
+      <div class="values" id="values">
+        __LIVE_VALUES__
+      </div>
+    </div>
+  </div>
+  __GRAPH__
+  __ASSESSMENT__
+</div>
+<script>
+__SCRIPT__
+</script>
+</body>
+</html>"""
+
+
+CANVAS_BOILERPLATE = """
+(function() {
+  const SPEC = __SPEC__;
+
+  // ── EventBus ─────────────────────────────────────────────────────────────
+  class EventBus {
+    constructor() { this._listeners = {}; }
+    on(event, fn) { (this._listeners[event] = this._listeners[event] || []).push(fn); return this; }
+    off(event, fn) { if (this._listeners[event]) this._listeners[event] = this._listeners[event].filter(f => f !== fn); return this; }
+    emit(event, data) { (this._listeners[event] || []).forEach(fn => fn(data)); }
+  }
+
+  // ── StateManager ─────────────────────────────────────────────────────────
+  class StateManager {
+    constructor(initial) {
+      this._state = Object.assign({}, initial);
+      this._history = [];
+      this._maxHistory = 500;
+      this._bus = new EventBus();
+    }
+    get(key) { return this._state[key]; }
+    set(key, value) {
+      if (this._state[key] === value) return;
+      const old = this._state[key];
+      this._state[key] = value;
+      this._history.push({ key, old, value, time: performance.now() });
+      if (this._history.length > this._maxHistory) this._history.shift();
+      this._bus.emit('change:' + key, { key, old, value });
+      this._bus.emit('change', { key, old, value });
+    }
+    getAll() { return Object.assign({}, this._state); }
+    reset(initial) { this._state = Object.assign({}, initial); this._history = []; this._bus.emit('reset', this._state); }
+    on(event, fn) { this._bus.on(event, fn); return this; }
+  }
+
+  // ── GraphManager ─────────────────────────────────────────────────────────
+  class GraphManager {
+    constructor(canvasId) {
+      this.canvas = document.getElementById(canvasId);
+      if (!this.canvas) return;
+      
+      const dpr = window.devicePixelRatio || 1;
+      const logicalWidth = this.canvas.width || 700;
+      const logicalHeight = this.canvas.height || 160;
+      
+      this.canvas.width = logicalWidth * dpr;
+      this.canvas.height = logicalHeight * dpr;
+      this.canvas.style.width = logicalWidth + 'px';
+      this.canvas.style.height = logicalHeight + 'px';
+      
+      Object.defineProperty(this.canvas, 'width', {
+        configurable: true,
+        get: function() { return logicalWidth; }
+      });
+      Object.defineProperty(this.canvas, 'height', {
+        configurable: true,
+        get: function() { return logicalHeight; }
+      });
+      
+      this.ctx = this.canvas.getContext('2d');
+      this.ctx.scale(dpr, dpr);
+      
+      this.data = {};           // seriesName → [{x, y}]
+      this.maxPoints = 350;
+      this.range = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
+      this.colors = ['#1800ad', '#059669', '#d97706', '#ec4899', '#0284c7', '#8b5cf6'];
+    }
+
+    pushData(seriesName, x, y) {
+      if (!this.canvas) return;
+      if (!this.data[seriesName]) this.data[seriesName] = [];
+      const arr = this.data[seriesName];
+      arr.push({ x, y });
+      if (arr.length > this.maxPoints) arr.shift();
+    }
+
+    clear() { this.data = {}; }
+
+    setRange(xMin, xMax, yMin, yMax) {
+      this.range = { xMin, xMax, yMin, yMax };
+    }
+
+    /** Auto-scale Y to the data currently in the series. */
+    autoScaleY(padding) {
+      padding = padding || 0.1;
+      let yMin = Infinity, yMax = -Infinity;
+      Object.values(this.data).forEach(function(pts) {
+        pts.forEach(function(p) { if (p.y < yMin) yMin = p.y; if (p.y > yMax) yMax = p.y; });
+      });
+      if (!isFinite(yMin)) return;
+      const margin = Math.abs(yMax - yMin) * padding || 1;
+      this.range.yMin = yMin - margin;
+      this.range.yMax = yMax + margin;
+    }
+
+    draw() {
+      if (!this.canvas) return;
+      const ctx = this.ctx, c = this.canvas;
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+
+      const pad = { t: 16, r: 16, b: 28, l: 48 };
+      const pw = w - pad.l - pad.r;
+      const ph = h - pad.t - pad.b;
+      const { xMin, xMax, yMin, yMax } = this.range;
+      const xRange = xMax - xMin || 1;
+      const yRange = yMax - yMin || 1;
+
+      // grid
+      ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1.0;
+      for (let i = 0; i <= 8; i++) {
+        const x = pad.l + (i / 8) * pw;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+      }
+      for (let i = 0; i <= 5; i++) {
+        const y = pad.t + (i / 5) * ph;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
+      }
+
+      // axes
+      ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph);
+      ctx.stroke();
+
+      // Y labels
+      ctx.fillStyle = '#64748b'; ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'right';
+      for (let i = 0; i <= 4; i++) {
+        const yVal = yMin + (yRange * i) / 4;
+        const yp = pad.t + ph - (i / 4) * ph;
+        ctx.fillText(yVal.toFixed(1), pad.l - 5, yp + 3);
+      }
+      // X labels
+      ctx.textAlign = 'center';
+      for (let i = 0; i <= 4; i++) {
+        const xVal = xMin + (xRange * i) / 4;
+        const xp = pad.l + (i / 4) * pw;
+        ctx.fillText(xVal.toFixed(1), xp, pad.t + ph + 16);
+      }
+
+      // series
+      let colorIdx = 0;
+      const self = this;
+      Object.entries(this.data).forEach(function([name, points]) {
+        if (points.length < 2) return;
+        const color = self.colors[colorIdx++ % self.colors.length];
+        ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        points.forEach(function(p, i) {
+          const x = pad.l + ((p.x - xMin) / xRange) * pw;
+          const y = pad.t + ph - ((p.y - yMin) / yRange) * ph;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        // dot at latest point
+        const last = points[points.length - 1];
+        const lx = pad.l + ((last.x - xMin) / xRange) * pw;
+        const ly = pad.t + ph - ((last.y - yMin) / yRange) * ph;
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(lx, ly, 3.5, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+  }
+
+  // ── User-defined simulation classes injected here ─────────────────────
+  __CLASSES__
+
+  // ── Bootstrap ────────────────────────────────────────────────────────────
+  function init() {
+    const canvas = document.getElementById('canvas');
+    if (canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const logicalWidth = canvas.width || 600;
+      const logicalHeight = canvas.height || 400;
+      
+      canvas.width = logicalWidth * dpr;
+      canvas.height = logicalHeight * dpr;
+      canvas.style.width = logicalWidth + 'px';
+      canvas.style.height = logicalHeight + 'px';
+      
+      Object.defineProperty(canvas, 'width', {
+        configurable: true,
+        get: function() { return logicalWidth; }
+      });
+      Object.defineProperty(canvas, 'height', {
+        configurable: true,
+        get: function() { return logicalHeight; }
+      });
+      
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+    }
+
+    const state  = new StateManager(__INITIAL_STATE__);
+    const bus    = new EventBus();
+    const graphEl = document.getElementById('graph-canvas');
+    const graphMgr = graphEl ? new GraphManager('graph-canvas') : null;
+
+    const engine     = new SimulationEngine(canvas, state, bus);
+    const renderer   = new Renderer(canvas, state, bus);
+    const controls   = new ControlsManager(state, bus);
+    const assessment = new AssessmentEngine(state, bus);
+
+    window._engine   = engine;
+    window._state    = state;
+    window._graphMgr = graphMgr;
+
+    let running  = false;   // starts paused — user presses Play
+    let lastTime = 0;
+    let simSpeed = 1;
+    let stepMode = false;
+
+    // ── DOM helpers ──────────────────────────────────────────────────────
+    const playBtn  = document.getElementById('play-btn');
+    const playIcon = playBtn;
+
+    function setRunning(val) {
+      running = val;
+      if (running) {
+        playBtn.textContent = '⏸ Pause';
+        playBtn.classList.remove('primary');
+        playBtn.classList.add('running');
+      } else {
+        playBtn.textContent = '▶ Play';
+        playBtn.classList.remove('running');
+        playBtn.classList.add('primary');
+      }
+    }
+
+    function updateDisplayedValues() {
+      const all = state.getAll();
+      Object.entries(all).forEach(function([key, val]) {
+        const el = document.getElementById('val-' + key);
+        if (el) {
+          if (typeof val === 'number') {
+            const p = parseInt(el.dataset.precision, 10);
+            el.textContent = val.toFixed(isNaN(p) ? 2 : p);
+          } else {
+            el.textContent = val;
+          }
+        }
+      });
+      const hintEl = document.getElementById('hint-text');
+      if (hintEl && engine.getHint) hintEl.textContent = engine.getHint();
+    }
+
+    // ── Render loop ──────────────────────────────────────────────────────
+    function loop(time) {
+      const rawDt = lastTime ? (time - lastTime) / 1000 : 0.016;
+      // clamp dt so a tab-pause doesn't explode the sim
+      const dt = Math.min(rawDt, 0.05) * simSpeed;
+      lastTime = time;
+
+      if ((running || stepMode) && !(!running && !stepMode)) {
+        if (running || stepMode) {
+          engine.update(dt, state);
+          __GRAPH_DATA_PUSH__
+          updateDisplayedValues();
+          controls.syncLabels();
+        }
+        if (stepMode) { stepMode = false; running = false; setRunning(false); }
+      }
+      renderer.draw(dt, state);
+      if (graphMgr) graphMgr.draw();
+      bus.emit('render', { time, dt });
+      requestAnimationFrame(loop);
+    }
+
+    // ── Control bindings ─────────────────────────────────────────────────
+    playBtn.addEventListener('click', function() { setRunning(!running); });
+
+    document.getElementById('reset-btn').addEventListener('click', function() {
+      state.reset(__INITIAL_STATE__);
+      if (graphMgr) { graphMgr.clear(); graphMgr.setRange(0, 10, 0, 10); }
+      if (engine.onReset) engine.onReset();
+      controls.sync();
+      updateDisplayedValues();
+      lastTime = 0;
+      setRunning(false);
+    });
+
+    const stepBtn = document.getElementById('step-btn');
+    if (stepBtn) {
+      stepBtn.addEventListener('click', function() {
+        stepMode = true;
+        // Ensure one frame runs even if paused
+        if (!running) {
+          engine.update(0.016 * simSpeed, state);
+          __GRAPH_DATA_PUSH__
+          updateDisplayedValues();
+          controls.syncLabels();
+          renderer.draw(0.016, state);
+          if (graphMgr) graphMgr.draw();
+          stepMode = false;
+        }
+      });
+    }
+
+    const speedSlider = document.getElementById('speed-slider');
+    if (speedSlider) {
+      speedSlider.addEventListener('input', function() {
+        simSpeed = parseFloat(this.value);
+        document.getElementById('speed-label').textContent = simSpeed.toFixed(1) + '×';
+      });
+    }
+
+    if (engine.canvasInteractions) engine.canvasInteractions(canvas, state, bus);
+
+    controls.bind();
+    updateDisplayedValues();
+    // Draw one static frame immediately so canvas isn't blank
+    renderer.draw(0, state);
+    requestAnimationFrame(loop);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+"""
+
+
+# ---------------------------------------------------------------------------
+# HTML builder
+# ---------------------------------------------------------------------------
+
+def build_simulation_html(
+    spec: SimulationSpecification,
+    custom_script: str = "",
+    custom_controls: str = "",
+    custom_live_values: str = "",
+    custom_graph: str = "",
+    custom_assessment: str = "",
+    custom_presets: str = "",
+) -> str:
+    title      = spec.title
+    objective  = spec.learning_objectives[0] if spec.learning_objectives else f"Explore {spec.topic}"
+    subject_badge = spec.subject.value.upper() if spec.subject else "SIMULATION"
+
+    controls_html    = custom_controls    or _build_controls_html(spec)
+    live_values_html = custom_live_values or _build_live_values_html(spec)
+    graph_html       = custom_graph       or _build_graph_html(spec)
+    assessment_html  = custom_assessment  or _build_assessment_html(spec)
+    presets_html     = custom_presets     or ""
+    script_content   = _build_script(spec, custom_script)
+
+    speed_control = """  <div class="ctrl">
+    <div class="ctrl-label">
+      <span>Sim Speed</span>
+      <span class="val-badge" id="speed-label">1.0×</span>
+    </div>
+    <input type="range" id="speed-slider" min="0.1" max="4" step="0.1" value="1" aria-label="Simulation speed">
+  </div>"""
+
+    result = HTML_TEMPLATE
+    result = result.replace("__TITLE__",        title)
+    result = result.replace("__OBJECTIVE__",    objective)
+    result = result.replace("__SUBJECT_BADGE__",subject_badge)
+    result = result.replace("__CANVAS_WIDTH__", str(spec.canvas_width))
+    result = result.replace("__CANVAS_HEIGHT__",str(spec.canvas_height))
+    result = result.replace("__CONTROLS__",     controls_html)
+    result = result.replace("__LIVE_VALUES__",  live_values_html)
+    result = result.replace("__GRAPH__",        graph_html)
+    result = result.replace("__ASSESSMENT__",   assessment_html)
+    result = result.replace("__PRESETS__",      presets_html)
+    result = result.replace("__SPEED_CONTROL__",speed_control)
+    result = result.replace("__SCRIPT__",       script_content)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Script builder
+# ---------------------------------------------------------------------------
+
+def _build_script(spec: SimulationSpecification, custom_script: str) -> str:
+    classes_code = custom_script if custom_script else _default_classes()
+
+    # Always append the shared ControlsManager + AssessmentEngine so subject
+    # templates only need to supply SimulationEngine + Renderer.
+    # Subject templates that define their own ControlsManager are responsible
+    # for NOT importing the shared one by passing include_shared=False.
+    classes_code = classes_code + "\n" + SHARED_CONTROLS_MANAGER
+
+    initial_state    = _build_initial_state(spec)
+    spec_json        = json.dumps(spec.raw_spec or spec.dict())
+    graph_data_push  = _build_graph_data_push(spec)
+
+    script = CANVAS_BOILERPLATE
+    script = script.replace("__SPEC__",          spec_json)
+    script = script.replace("__CLASSES__",       classes_code)
+    script = script.replace("__INITIAL_STATE__", json.dumps(initial_state))
+    script = script.replace("__GRAPH_DATA_PUSH__", graph_data_push)
+
+    return script
+
+
+def _build_graph_data_push(spec: SimulationSpecification) -> str:
+    """Generate sensible graph push code from spec, or empty string."""
+    if not spec.graphs:
+        return ""
+    g = spec.graphs[0]
+    if not g.series:
+        return ""
+    lines = ["if (graphMgr) {"]
+    declared_v_keys = set()
+    declared_x_keys = set()
+    for s in g.series[:2]:
+        key = s.get("key") or s.get("name", "output")
+        name = s.get("name", key)
+        x_key = s.get("x_key", "time")
+        safe_key = "".join(c if c.isalnum() else "_" for c in key)
+        safe_x_key = "".join(c if c.isalnum() else "_" for c in x_key)
+        
+        if safe_key not in declared_v_keys:
+            lines.append(
+                f"  const _v_{safe_key} = parseFloat(state.get('{key}') || 0);"
+            )
+            declared_v_keys.add(safe_key)
+            
+        if safe_x_key not in declared_x_keys:
+            lines.append(
+                f"  const _x_{safe_x_key} = parseFloat(state.get('{x_key}') || 0);"
+            )
+            declared_x_keys.add(safe_x_key)
+            
+        lines.append(
+            f"  graphMgr.pushData('{name}', _x_{safe_x_key}, _v_{safe_key});"
+        )
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _build_initial_state(spec: SimulationSpecification) -> dict:
+    state: dict = {}
+    for p in spec.parameters:
+        state[p.id] = p.default
+    state["output"] = 0
+    state["time"]   = 0
+    return state
+
+
+# ---------------------------------------------------------------------------
+# HTML snippet builders
+# ---------------------------------------------------------------------------
+
 def _build_controls_html(spec: SimulationSpecification) -> str:
     if not spec.parameters:
         return ""
-    parts = []
-    for p in spec.parameters:
-        parts.append(_control_html(p.id, p.name, p.symbol, p.default, p.min, p.max, p.step, p.unit, p.description))
-    return "\n".join(parts)
+    return "\n".join(
+        _control_html(p.id, p.name, p.symbol, p.default, p.min, p.max, p.step, p.unit, p.description)
+        for p in spec.parameters
+    )
 
 
-def _control_html(
-    cid: str, name: str, symbol: str, default: float,
-    min_v: float, max_v: float, step: float, unit: str, desc: str,
-) -> str:
-    parts = []
-    parts.append('    <div class="ctrl">')
-    parts.append(f'      <div class="ctrl-label">')
-    parts.append(f'        <span>{name} ({symbol}) <span class="ctrl-unit">{unit}</span></span>')
-    parts.append(f'        <span class="val-badge" id="badge-{cid}">{default}</span>')
-    parts.append(f'      </div>')
-    parts.append(f'      <input type="range" id="{cid}" min="{min_v}" max="{max_v}" step="{step}" value="{default}"')
-    parts.append(f'             aria-label="{name}: {desc}" title="{desc}">')
-    parts.append('    </div>')
-    return "\n".join(parts)
+def _control_html(cid, name, symbol, default, min_v, max_v, step, unit, desc):
+    label = f"{name}"
+    if symbol and symbol != name:
+        label += f" ({symbol})"
+    return (
+        f'    <div class="ctrl">\n'
+        f'      <div class="ctrl-label">\n'
+        f'        <span>{label} <span class="ctrl-unit">{unit}</span></span>\n'
+        f'        <span class="val-badge" id="badge-{cid}">{default}</span>\n'
+        f'      </div>\n'
+        f'      <input type="range" id="{cid}" min="{min_v}" max="{max_v}" step="{step}" value="{default}"\n'
+        f'             aria-label="{name}" title="{desc}">\n'
+        f'    </div>'
+    )
 
 
 def _build_live_values_html(spec: SimulationSpecification) -> str:
-    params = spec.parameters
-    if not params:
+    if not spec.parameters:
         return ""
-    parts = []
     colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6']
-    for i, p in enumerate(params[:6]):
+    parts = []
+    for i, p in enumerate(spec.parameters[:6]):
         color = colors[i % len(colors)]
-        parts.append(_value_card_html(p.symbol, p.id, p.default, color))
+        parts.append(_value_card_html(p.symbol or p.name, p.id, p.default, color))
     if spec.equations:
         parts.append(_value_card_html("Output", "output", 0, "#06b6d4"))
     return "\n".join(parts)
 
 
-def _value_card_html(label: str, vid: str, default_val: float, color: str | None = None) -> str:
+def _value_card_html(label, vid, default_val, color=None):
     style = f' style="color:{color}"' if color else ""
-    return f'    <div class="vcard">\n      <div class="lbl">{label}</div>\n      <div class="num" id="val-{vid}"{style}>{default_val}</div>\n    </div>'
+    return (
+        f'    <div class="vcard">\n'
+        f'      <div class="lbl">{label}</div>\n'
+        f'      <div class="num" id="val-{vid}"{style}>{default_val}</div>\n'
+        f'    </div>'
+    )
 
 
 def _build_graph_html(spec: SimulationSpecification) -> str:
@@ -648,147 +864,206 @@ def _build_graph_html(spec: SimulationSpecification) -> str:
         f'<span><span class="dot" style="background:{s.get("color","#6366f1")}"></span>{s["name"]}</span>'
         for s in g.series
     )
-    return f'''  <div class="graph-area">
-    <div class="graph-header">
-      <div class="gt">{g.title}</div>
-      <div class="gl">{legend_items}</div>
-    </div>
-    <canvas id="graph-canvas" width="700" height="180" aria-label="{g.title} graph"></canvas>
-  </div>'''
+    return (
+        f'  <div class="graph-area">\n'
+        f'    <div class="graph-header">\n'
+        f'      <div class="gt">{g.title}</div>\n'
+        f'      <div class="gl">{legend_items}</div>\n'
+        f'    </div>\n'
+        f'    <canvas id="graph-canvas" width="700" height="160" aria-label="{g.title} graph"></canvas>\n'
+        f'  </div>'
+    )
 
 
 def _build_assessment_html(spec: SimulationSpecification) -> str:
     if not spec.assessment_prompts:
         return ""
     ap = spec.assessment_prompts[0]
-    return f'''  <div class="assess-area" id="assess-area">
-    <div class="ql">{"Try This"}</div>
-    <div class="q" id="assess-q">{ap.question}</div>
-    <div class="h" id="assess-h">{ap.hint}</div>
-  </div>'''
+    return (
+        f'  <div class="assess-area">\n'
+        f'    <div class="ql">Try This</div>\n'
+        f'    <div class="q" id="assess-q">{ap.question}</div>\n'
+        f'    <div class="h" id="assess-h">{ap.hint}</div>\n'
+        f'  </div>'
+    )
 
 
-def _build_presets_html(spec: SimulationSpecification) -> str:
-    return ""
+# ---------------------------------------------------------------------------
+# Default (stub) classes — used when no custom script is provided
+# ---------------------------------------------------------------------------
 
+def _default_classes() -> str:
+    return """
+class SimulationEngine {
+  constructor(canvas, state, bus) {
+    this.canvas = canvas; this.state = state; this.bus = bus;
+  }
+  update(dt, state) {}
+  onReset() {}
+  getHint() { return 'Press Play to begin, then adjust controls.'; }
+}
+
+class Renderer {
+  constructor(canvas, state, bus) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.state = state; this.bus = bus;
+  }
+  draw(dt, state) {
+    const ctx = this.ctx, w = this.canvas.width, h = this.canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, w, h);
+
+    // subtle grid
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+    for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+    ctx.fillStyle = '#1e293b'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Simulation Ready', w / 2, h / 2 - 12);
+    ctx.font = '12px sans-serif'; ctx.fillStyle = '#64748b';
+    ctx.fillText('Press ▶ Play to begin', w / 2, h / 2 + 14);
+    ctx.textAlign = 'left';
+  }
+}
+"""
+
+
+# ---------------------------------------------------------------------------
+# LLM-generated simulation (for topics without a built-in template)
+# ---------------------------------------------------------------------------
 
 def build_custom_llm_simulation(spec: SimulationSpecification) -> str:
-    """Generate a custom simulation via LLM for topics not covered by built-in templates.
-    Returns the JavaScript code string containing all 4 classes."""
+    """Generate SimulationEngine + Renderer JS via LLM for arbitrary topics.
+    Returns JS string containing exactly those two classes.
+    ControlsManager and AssessmentEngine are appended automatically by
+    _build_script() via SHARED_CONTROLS_MANAGER.
+    """
     from app.simulation_engine.prompt_understanding_layer import query_llm
 
     objectives_text = "; ".join(spec.learning_objectives) if spec.learning_objectives else spec.topic
     params_text = "\n".join(
-        f"  - {p.name} ({p.symbol}): range {p.min}-{p.max}, default {p.default}, unit: {p.unit}"
+        f"  - id='{p.id}'  name='{p.name}'  symbol='{p.symbol}'  "
+        f"range=[{p.min}, {p.max}]  default={p.default}  unit='{p.unit}'"
         for p in spec.parameters
-    ) if spec.parameters else "  - (no predefined parameters)"
+    ) if spec.parameters else "  (no predefined parameters — choose appropriate ones)"
 
-    llm_prompt = f"""Generate JavaScript classes for an interactive HTML5 Canvas educational simulation.
+    canvas_w = spec.canvas_width
+    canvas_h = spec.canvas_height
+
+    llm_prompt = f"""You are a senior front-end developer and creative tech designer.
+Your task is to write raw JavaScript that defines two classes: SimulationEngine and Renderer.
+These classes will run inside a premium light-themed educational canvas simulation.
 
 TOPIC: {spec.topic}
 SUBJECT: {spec.subject.value.upper()}
-OBJECTIVES: {objectives_text}
-PARAMETERS:
+LEARNING OBJECTIVES: {objectives_text}
+CANVAS SIZE: {canvas_w} × {canvas_h} pixels
+
+PARAMETERS available to read/write via state:
 {params_text}
 
-Generate ONLY the following 4 JavaScript classes. No markdown fences, no HTML, no explanations.
+━━ REQUIREMENTS & CODE STYLE ━━
+1. HTML5 Canvas size is exactly {canvas_w}x{canvas_h}. The background color of the canvas is white `#ffffff` or `#f8fafc` (already cleared in the template).
+2. Use clean, high-contrast, premium color accents inspired by the brand (e.g. Royal Blue `#1800ad`, Slate Grey `#475569`, Sky Blue `#0284c7`, Emerald Green `#059669`, Amber `#d97706`, Crimson Red `#dc2626`) for all objects, particles, paths, and annotations.
+3. Avoid neon glows or excessive shadows. Keep visuals crisp and flat. You can use standard drop shadows (e.g. `ctx.shadowColor = 'rgba(0,0,0,0.06)'; ctx.shadowBlur = 6;`) sparingly for depth on draggable handles, but keep all line paths, text labels, and grid coordinates sharp and clean.
+4. Direct Canvas Drag Interactions (CRITICAL FOR HIGH ENGAGEMENT):
+   - You MUST implement direct mouse/touch interaction in `canvasInteractions(canvas, state, bus)`!
+   - Define draggable handles (e.g., handles, dots, vectors, or particles) directly on the canvas.
+   - On mousedown/touchstart, compute coordinates using getBoundingClientRect() and calculate distance using `Math.hypot(clickX - handleX, clickY - handleY)`.
+   - If distance < 20, set dragging state. On mousemove/touchmove, update the corresponding parameter in the `state` via `state.set('param_id', newValue)`.
+   - Update `canvas.style.cursor` to `'grab'` on hover and `'grabbing'` on drag to give strong visual affordance.
+5. High-fidelity Fluid Animations:
+   - Add animations like trailing paths (remember past positions in a trail array), smooth particle flows (e.g. current drift, magnetic field lines, moving atoms), wave ripples, or glowing pulse dots traveling along path lines to make the canvas feel alive.
+6. Elegant HUD Overlay:
+   - Draw a beautiful, light-themed HUD overlay card directly on the canvas in a corner:
+     `ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';`
+     `ctx.strokeStyle = 'rgba(24, 0, 173, 0.12)';`
+     `ctx.lineWidth = 1;`
+     `ctx.beginPath();`
+     `ctx.roundRect(15, 15, 240, 95, 10);`
+     `ctx.fill();`
+     `ctx.stroke();`
+     And print at least 3 live variables/formulas using a dark slate color `#1e293b` or `#1800ad`.
+7. Avoid divide-by-zero or out-of-bounds positions by clamping states properly.
 
-1. SimulationEngine — handles physics/science logic:
-```
+OUTPUT STRUCTURE:
+Output ONLY the raw JavaScript code defining:
+- `class SimulationEngine`
+- `class Renderer`
+Absolutely NO markdown fences, NO HTML, and NO explanation text.
+
+━━ CLASS 1 template ━━
 class SimulationEngine {{
   constructor(canvas, state, bus) {{
-    this.canvas = canvas; this.state = state; this.bus = bus;
+    this.canvas = canvas;
+    this.state = state;
+    this.bus = bus;
     this.time = 0;
+    this.dragging = null; // tracking drag node
   }}
   update(dt, state) {{
-    // dt in seconds; read params via state.get('param_id')
-    // publish computed values via state.set('key', value)
+    this.time += dt;
+    // dt in seconds. Read sliders: state.get('param')
+    // Compute physics, check bounds. Set output state keys.
   }}
-  onReset() {{ this.time = 0; }}
-  canvasInteractions(canvas, state, bus) {{}}
-  getHint() {{ return 'Interactive hint'; }}
+  onReset() {{
+    this.time = 0;
+  }}
+  getHint() {{
+    return 'Click and drag elements directly on the canvas to interact!';
+  }}
+  canvasInteractions(canvas, state, bus) {{
+    // bind mousedown, mousemove, mouseup, touchstart, touchmove, touchend
+  }}
 }}
-```
 
-2. Renderer — draws on canvas:
-```
+━━ CLASS 2 template ━━
 class Renderer {{
   constructor(canvas, state, bus) {{
-    this.canvas = canvas; this.ctx = canvas.getContext('2d');
-    this.state = state; this.bus = bus;
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.state = state;
+    this.bus = bus;
   }}
   draw(dt, state) {{
     const ctx = this.ctx, w = this.canvas.width, h = this.canvas.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, w, h);
-    // Draw grid, visualization, and data labels
-    // Show real-time values at top-left
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+    
+    // Draw subtle grid
+    ctx.strokeStyle = 'rgba(24, 0, 173, 0.05)'; ctx.lineWidth = 0.5;
+    for (let x = 0; x < w; x += 40) {{ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }}
+    for (let y = 0; y < h; y += 40) {{ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }}
+    
+    // Draw main physics visualization using clean, crisp brand-aligned styles
+    
+    // Draw HUD glass panel with key values
   }}
 }}
-```
-
-3. ControlsManager — standard pattern (copy exactly):
-```
-class ControlsManager {{
-  constructor(state, bus) {{ this.state = state; this.bus = bus; this.sliders = []; }}
-  bind() {{
-    var self = this;
-    document.querySelectorAll('input[type="range"]').forEach(function(input) {{
-      if (input.id === 'speed-slider') return;
-      var key = input.id; self.sliders.push(input);
-      self.state.set(key, parseFloat(input.value));
-      input.addEventListener('input', function() {{
-        var val = parseFloat(this.value);
-        self.state.set(key, val);
-        var badge = document.getElementById('badge-' + key);
-        if (badge) badge.textContent = val.toFixed(1);
-      }});
-    }});
-  }}
-  sync() {{ this.sliders.forEach(function(input) {{ var val = this.state.get(input.id); if (val !== undefined) input.value = val; }}, this); }}
-  syncLabels() {{
-    var all = this.state.getAll();
-    this.sliders.forEach(function(input) {{
-      var val = all[input.id]; if (val !== undefined) {{
-        var badge = document.getElementById('badge-' + input.id);
-        if (badge) badge.textContent = typeof val === 'number' ? val.toFixed(1) : val;
-      }}
-    }});
-  }}
-}}
-```
-
-4. AssessmentEngine — standard pattern:
-```
-class AssessmentEngine {{
-  constructor(state, bus) {{ this.state = state; this.bus = bus; }}
-  getCurrentQuestion() {{ return document.getElementById('assess-q')?.textContent || ''; }}
-}}
-```
-
-RULES:
-- Make it scientifically accurate with real formulas and behaviors
-- Use color palette: #6366f1 (primary), #10b981 (green), #ef4444 (red), #f59e0b (amber), #0ea5e9 (blue)
-- Show real-time data labels on the canvas (top-left corner using ctx.fillText)
-- StateManager uses state.get() and state.set() methods
-- Canvas dimensions: this.canvas.width, this.canvas.height
-- Draw grid lines: ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 0.5; for x in steps of 40
-- Return ONLY the raw JavaScript with all 4 classes, no markdown fences, no HTML."""
+"""
 
     try:
-        js_code = query_llm(llm_prompt, temperature=0.3)
+        js_code = query_llm(llm_prompt, temperature=0.25)
         js_code = js_code.strip()
+        # strip markdown fences if model ignores instructions
         if js_code.startswith("```"):
-            idx = js_code.find("\n")
-            if idx != -1:
-                js_code = js_code[idx+1:]
-            else:
-                js_code = js_code[3:]
+            js_code = js_code[js_code.find("\n") + 1:]
         if js_code.endswith("```"):
-            js_code = js_code[:-3]
+            js_code = js_code[:-3].rstrip()
         js_code = js_code.strip()
+
+        # Sanity-check
         if "class SimulationEngine" not in js_code or "class Renderer" not in js_code:
             return _default_classes()
+
+        # Strip any ControlsManager/AssessmentEngine the model may have hallucinated
+        # (shared ones are appended by _build_script)
+        for cls in ("class ControlsManager", "class AssessmentEngine"):
+            idx = js_code.find(cls)
+            if idx != -1:
+                js_code = js_code[:idx].rstrip()
+
         return js_code
+
     except Exception:
         return _default_classes()

@@ -42,7 +42,7 @@ const getGeminiApiKey = (): string => {
   if (envKey && envKey !== 'MY_GEMINI_API_KEY' && envKey.trim() !== '') {
     return envKey;
   }
-  return "AIzaSyDJWjudoaGxCVLbHo-PdjzVoirvM1r-oqg";
+  return "";
 };
 
 const transcribeAudioWithGemini = async (blob: Blob): Promise<string> => {
@@ -93,6 +93,16 @@ export function TeacherDoubtsPage() {
   const [selectedDoubtId, setSelectedDoubtId] = useState<string | null>(null);
   const [responseInputs, setResponseInputs] = useState<Record<string, string>>({});
   const [submittingIds, setSubmittingIds] = useState<Record<string, boolean>>({});
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
+
+  const handleClassroomNav = () => {
+    const lastClassId = localStorage.getItem('mootion_last_class_id');
+    if (lastClassId) {
+      navigate(`/teacher/class/${lastClassId}`);
+    } else {
+      navigate('/teacher/class/class-8-science');
+    }
+  };
   
   // AI Suggestions & Speech-to-Text States
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, string>>({});
@@ -162,6 +172,20 @@ export function TeacherDoubtsPage() {
       console.error("Failed to fetch doubts for classes:", err);
     }
   };
+
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
 
   useEffect(() => {
     let intervalId: any;
@@ -453,8 +477,8 @@ Do not add any prefix, introductory remarks, markdown, or formatting. Output onl
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2.5 flex justify-between items-center z-40 rounded-full border-[2px] border-[#f6f4ee] shadow-xl font-montserrat">
         <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
-        <NavItem icon={<BookOpen size={24} />} onClick={() => navigate('/teacher/home')} />
-        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/home')} />
+        <NavItem icon={<BookOpen size={24} />} onClick={handleClassroomNav} />
+        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
         <NavItem icon={<MessageSquare size={24} />} active onClick={() => navigate('/teacher/doubts')} />
       </nav>
 
@@ -465,12 +489,12 @@ Do not add any prefix, introductory remarks, markdown, or formatting. Output onl
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
-          <NavItem icon={<BookOpen size={24} />} onClick={() => navigate('/teacher/home')} />
-          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/home')} />
+          <NavItem icon={<BookOpen size={24} />} onClick={handleClassroomNav} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
           <NavItem icon={<MessageSquare size={24} />} active onClick={() => navigate('/teacher/doubts')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
-          <span className="text-[#1800ad] font-montserrat font-black text-lg">P</span>
+          <span className="text-[#1800ad] font-montserrat font-black text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
 

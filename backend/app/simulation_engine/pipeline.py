@@ -64,6 +64,11 @@ class SimulationPipeline:
             html = self.simulation_builder.build(spec)
             build_issues = self.simulation_builder.validate_html(html)
             result.html = html
+            if build_issues:
+                result.error = f"HTML/JS validation failed: {'; '.join(build_issues)}"
+                result.phase = SimulationPhase.FAILED
+                result.duration_ms = (time.time() - start_time) * 1000
+                return result
 
             # Phase 4: Validate scientific accuracy
             result.phase = SimulationPhase.VALIDATING_SCIENCE
@@ -124,6 +129,13 @@ class SimulationOrchestrator:
         try:
             html = self.pipeline.simulation_builder.build(spec)
             result.html = html
+
+            build_issues = self.pipeline.simulation_builder.validate_html(html)
+            if build_issues:
+                result.error = f"HTML/JS validation failed: {'; '.join(build_issues)}"
+                result.phase = SimulationPhase.FAILED
+                result.duration_ms = (time.time() - start_time) * 1000
+                return result
 
             if self.pipeline.validate:
                 validation = self.pipeline.scientific_validator.validate(spec)

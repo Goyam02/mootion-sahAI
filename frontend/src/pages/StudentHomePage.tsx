@@ -377,7 +377,13 @@ export function StudentHomePage() {
               ) : upNext ? (
                 <motion.div
                   whileHover={{ y: -4 }}
-                  onClick={() => navigate(`/student/playground?assignment_id=${upNext.assignment_id}&class_id=${upNext.class_id}`)}
+                  onClick={() => {
+                    if (['video', 'simulation', 'quiz', 'model'].includes(upNext.assignment_type)) {
+                      navigate(`/student/task/${upNext.assignment_id}?class_id=${upNext.class_id}`);
+                    } else {
+                      navigate(`/student/playground?assignment_id=${upNext.assignment_id}&class_id=${upNext.class_id}`);
+                    }
+                  }}
                   className="bg-[#1800ad] text-[#f6f4ee] p-5 md:p-8 rounded-[32px] md:rounded-[40px] flex flex-col justify-between gap-4 md:gap-6 relative overflow-hidden group cursor-pointer shadow-lg border-2 border-[#1800ad] flex-1"
                 >
                   <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#f6f4ee]/10 rounded-full blur-3xl pointer-events-none group-hover:scale-110 transition-transform duration-700"></div>
@@ -530,7 +536,13 @@ export function StudentHomePage() {
                       <motion.div
                         key={a.assignment_id}
                         whileHover={{ y: -2 }}
-                        onClick={() => navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`)}
+                        onClick={() => {
+                          if (['video', 'simulation', 'quiz', 'model'].includes(a.assignment_type)) {
+                            navigate(`/student/task/${a.assignment_id}?class_id=${a.class_id}`);
+                          } else {
+                            navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`);
+                          }
+                        }}
                         className="p-4 md:p-5 rounded-3xl border-2 border-[#1800ad]/20 bg-[#f6f4ee] text-[#1800ad] flex flex-col gap-2 cursor-pointer hover:border-[#1800ad] transition-colors group shadow-sm"
                       >
                         <span className="text-xs font-bold opacity-70 uppercase tracking-wider">{cls?.subject ?? 'Assignment'}</span>

@@ -29,6 +29,21 @@ export function TeacherClassViewPage() {
 
   const [selectedChapterDetails, setSelectedChapterDetails] = useState<any | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
+
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
 
   useEffect(() => {
     // `active` guards against React 18 StrictMode's double-mount.
@@ -124,6 +139,7 @@ export function TeacherClassViewPage() {
         if (!active) return;
         setResolvedClass(matchedClass);
         const classId = matchedClass.class_id;
+        localStorage.setItem('mootion_last_class_id', classId);
 
         setLoadingStep("Checking curriculum...");
         const curricula = await api.get(`/teachers/classes/${classId}/curriculum`);
@@ -222,10 +238,19 @@ export function TeacherClassViewPage() {
   return (
     <div className="flex flex-1 w-full bg-[#1800ad] font-montserrat text-[#1800ad] relative">
       
-      {/* Mobile Bottom Navigation Bar styled with Montserrat */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2.5 flex justify-between items-center z-40 rounded-full border-[2px] border-[#f6f4ee] shadow-xl font-montserrat">
         <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
-        <NavItem icon={<BookOpen size={24} />} active onClick={() => navigate(`/teacher/class/${id}`)} />
+        <NavItem 
+          icon={<BookOpen size={24} />} 
+          active 
+          onClick={() => {
+            if (selectedChapterId) {
+              setSelectedChapterId(null);
+            } else {
+              navigate(`/teacher/class/${id}`);
+            }
+          }} 
+        />
         <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
       </nav>
@@ -238,13 +263,23 @@ export function TeacherClassViewPage() {
 
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
-          <NavItem icon={<BookOpen size={24} />} active onClick={() => navigate(`/teacher/class/${id}`)} />
+          <NavItem 
+            icon={<BookOpen size={24} />} 
+            active 
+            onClick={() => {
+              if (selectedChapterId) {
+                setSelectedChapterId(null);
+              } else {
+                navigate(`/teacher/class/${id}`);
+              }
+            }} 
+          />
           <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
 
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
-          <span className="text-[#1800ad] font-montserrat font-black text-lg">P</span>
+          <span className="text-[#1800ad] font-montserrat font-black text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
 

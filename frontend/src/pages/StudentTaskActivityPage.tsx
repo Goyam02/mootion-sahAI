@@ -5,7 +5,9 @@ import {
   ArrowLeft, 
   ChevronRight,
   X,
-  Beaker
+  Beaker,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { TASKS, Task } from '../data/tasks';
 import { NavItem } from '../components/NavItem';
@@ -27,6 +29,18 @@ function QuizContent({ task }: { task: Task }) {
   const [timeLeft, setTimeLeft] = useState(10);
 
   useEffect(() => {
+    // If it's a real backend task and we have quiz questions, use them!
+    if ((task as any).dbTask) {
+      const mainJob = (task as any).dbTask.jobs?.find((j: any) => j.asset_type === 'quiz');
+      const questionsData = mainJob?.result_json?.questions || mainJob?.result_json?.quiz || (task as any).dbTask.content_json?.quiz;
+      if (questionsData && Array.isArray(questionsData)) {
+        setQuestions(questionsData);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Fallback to generating simulated quiz
     fetch('/api/quiz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -156,37 +170,118 @@ function QuizContent({ task }: { task: Task }) {
 }
 
 function VideoSimulationContent({ task }: { task: Task }) {
-  if (task.type === 'Simulation') {
-    return (
-      <div className="w-full bg-white border-2 border-[#1800ad] overflow-hidden relative aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl flex items-center justify-center shrink-0">
-        <div className="absolute inset-x-0 top-0 h-10 bg-[#1800ad] flex items-center px-4">
-          <span className="text-white font-bold text-sm tracking-wider uppercase">Interactive Simulation</span>
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const mainJob = (task as any).dbTask?.jobs?.[0];
+  const assetId = mainJob?.asset_id || task.id;
+  
+  const getBackendBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      return isLocalhost ? 'http://localhost:8000' : window.location.origin;
+    }
+    return 'http://localhost:8000';
+  };
+  
+  const mediaUrl = `${getBackendBaseUrl()}/media/assets/${assetId}`;
+
+  const renderContent = (fullscreenMode = false) => {
+    if (task.type === 'Simulation' || task.typeLabel === '3D Model') {
+      return (
+        <div className={`w-full bg-white flex items-center justify-center relative flex-col shrink-0 ${
+          fullscreenMode 
+            ? 'h-full' 
+            : 'border-2 border-[#1800ad] overflow-hidden aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
+        }`}>
+          {!fullscreenMode && (
+            <div className="absolute inset-x-0 top-0 h-10 bg-[#1800ad] flex items-center justify-between px-4 z-10">
+              <span className="text-white font-bold text-sm tracking-wider uppercase">{task.typeLabel || 'Simulation'}</span>
+              <button 
+                onClick={() => setIsFullscreen(true)}
+                className="text-white hover:text-[#f6f4ee] hover:scale-105 transition-all p-1 flex items-center gap-1.5 text-xs font-bold uppercase"
+                title="Enter Full Screen"
+              >
+                <Maximize2 size={14} />
+                <span>Fullscreen</span>
+              </button>
+            </div>
+          )}
+          {(task as any).dbTask ? (
+            <iframe
+              src={mediaUrl}
+              title={task.topic}
+              allowFullScreen
+              className={`w-full h-full border-0 ${fullscreenMode ? 'pt-0' : 'pt-10'}`}
+              style={{ background: '#ffffff' }}
+            />
+          ) : (
+            <div className={`px-8 py-16 flex flex-col items-center justify-center text-center ${fullscreenMode ? 'my-auto' : 'mt-10'}`}>
+               <Beaker size={48} className="text-[#1800ad] mb-4 md:mb-6 md:w-16 md:h-16 animate-pulse" />
+               <h3 className="text-xl md:text-2xl font-black text-[#1800ad] mb-2 md:mb-4">Sample {task.topic} Simulation</h3>
+               <p className="text-[#1800ad]/70 font-medium max-w-lg text-sm md:text-base hidden sm:block">
+                  Interact with the elements to observe the outcomes and prepare for your activities.
+               </p>
+               <button className="mt-4 md:mt-8 px-6 py-2 md:py-3 bg-[#1800ad] text-white rounded-full font-bold hover:scale-105 transition-transform text-sm md:text-base">
+                  Run Complete Lifecycle
+               </button>
+            </div>
+          )}
         </div>
-        <div className="mt-10 px-8 py-16 flex flex-col items-center justify-center text-center">
-           <Beaker size={48} className="text-[#1800ad] mb-4 md:mb-6 md:w-16 md:h-16 animate-pulse" />
-           <h3 className="text-xl md:text-2xl font-black text-[#1800ad] mb-2 md:mb-4">Sample {task.topic} Simulation</h3>
-           <p className="text-[#1800ad]/70 font-medium max-w-lg text-sm md:text-base hidden sm:block">
-              Interact with the elements to observe the outcomes and prepare for your activities.
-           </p>
-           <button className="mt-4 md:mt-8 px-6 py-2 md:py-3 bg-[#1800ad] text-white rounded-full font-bold hover:scale-105 transition-transform text-sm md:text-base">
-              Run Complete Lifecycle
-           </button>
+      );
+    }
+
+    // Video
+    const videoSrc = (task as any).dbTask ? mediaUrl : "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+    return (
+      <div className={`w-full bg-black overflow-hidden relative shrink-0 font-montserrat font-semibold ${
+        fullscreenMode 
+          ? 'h-full flex items-center justify-center' 
+          : 'aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
+      }`}>
+        {!fullscreenMode && (
+          <button 
+            onClick={() => setIsFullscreen(true)}
+            className="absolute top-3 right-3 bg-[#1800ad] text-white border-2 border-white hover:bg-[#14008a] hover:scale-105 transition-all p-2 rounded-full z-10 flex items-center justify-center shadow-lg"
+            title="Enter Full Screen"
+          >
+            <Maximize2 size={16} />
+          </button>
+        )}
+        <video 
+          className="w-full h-full object-contain md:object-cover" 
+          controls 
+          src={videoSrc}
+          poster={!(task as any).dbTask ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg" : undefined}
+        ></video>
+      </div>
+    );
+  };
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen bg-[#f6f4ee] z-[99999] flex flex-col overflow-hidden font-montserrat">
+        {/* Fullscreen Header */}
+        <div className="w-full h-14 bg-[#1800ad] flex items-center justify-between px-6 shrink-0 shadow-md">
+          <div className="flex flex-col">
+            <span className="text-white/60 font-bold text-[10px] uppercase tracking-wider">{task.subject} • {task.typeLabel || 'Simulation'}</span>
+            <span className="text-white font-extrabold text-sm md:text-base leading-tight">{task.topic}</span>
+          </div>
+          <button 
+            onClick={() => setIsFullscreen(false)}
+            className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-4 py-1.5 font-black text-xs md:text-sm uppercase tracking-wider flex items-center gap-2 hover:scale-103 transition-all"
+          >
+            <Minimize2 size={16} />
+            <span>Exit Fullscreen</span>
+          </button>
+        </div>
+        {/* Fullscreen Content Area */}
+        <div className="flex-1 w-full bg-white relative">
+          {renderContent(true)}
         </div>
       </div>
     );
   }
 
-  // Video
-  return (
-    <div className="w-full bg-black overflow-hidden relative aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl shrink-0 font-montserrat">
-      <video 
-        className="w-full h-full object-contain md:object-cover" 
-        controls 
-        src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" 
-        poster="https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg"
-      ></video>
-    </div>
-  );
+  return renderContent(false);
 }
 
 // --- Main Page ---
@@ -196,6 +291,7 @@ export function StudentTaskActivityPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromHome = searchParams.get('fromHome') === 'true';
+  const classId = searchParams.get('class_id');
   
   // Determine if we accessed from Explore or Tasks
   const isFromExplore = !fromHome && !!(taskId && taskId.startsWith('exp_'));
@@ -208,10 +304,85 @@ export function StudentTaskActivityPage() {
       backUrl = `/student/explore/${subjectCode}/${chapterId}`;
     }
   }
+
+  const [dbTask, setDbTask] = useState<any | null>(null);
+  const [loadingDbTask, setLoadingDbTask] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [resolvedSubject, setResolvedSubject] = useState('Science');
+
+  useEffect(() => {
+    if (!classId) return;
+    const fetchClassSubject = async () => {
+      try {
+        const classes: any[] = await api.get('/students/classes');
+        const matched = classes.find(c => c.class_id === classId);
+        if (matched?.subject) {
+          setResolvedSubject(matched.subject);
+        }
+      } catch (err) {
+        console.error("Failed to load class subject:", err);
+      }
+    };
+    fetchClassSubject();
+  }, [classId]);
+
+  useEffect(() => {
+    // If it's a static task ID (like p1, c1, m1) or exp_, we don't fetch
+    if (!taskId || taskId.startsWith('exp_') || ['p1', 'p2', 'c1', 'c2', 'c3', 'm1', 'm2', 'm3', 'b1', 'b2', 'b3'].includes(taskId)) {
+      return;
+    }
+    
+    if (!classId) {
+      setFetchError("Missing class_id parameter to load assignment.");
+      return;
+    }
+
+    const fetchAssignment = async () => {
+      setLoadingDbTask(true);
+      setFetchError(null);
+      try {
+        const res = await api.get(`/students/classes/${classId}/assignments/${taskId}`);
+        setDbTask(res);
+      } catch (err: any) {
+        console.error("Failed to load assignment:", err);
+        setFetchError(err?.detail || err?.message || "Failed to load assignment.");
+      } finally {
+        setLoadingDbTask(false);
+      }
+    };
+    fetchAssignment();
+  }, [taskId, classId]);
   
-  // Resolve task or dynamic task from explore chapters
-  let task = TASKS.find(t => t.id === taskId);
-  if (!task && taskId?.startsWith('exp_')) {
+  // Resolve task or dynamic task from explore chapters or backend
+  let task: any = null;
+
+  if (dbTask) {
+    let taskType: any = 'Video';
+    let typeLabel = 'Watch Video';
+    if (dbTask.assignment_type === 'quiz') {
+      taskType = 'Quiz';
+      typeLabel = 'Attempt Quiz';
+    } else if (dbTask.assignment_type === 'simulation') {
+      taskType = 'Simulation';
+      typeLabel = 'Simulation';
+    } else if (dbTask.assignment_type === 'model') {
+      taskType = 'Simulation';
+      typeLabel = '3D Model';
+    }
+
+    task = {
+      id: dbTask.assignment_id,
+      type: taskType,
+      typeLabel: typeLabel,
+      topic: dbTask.title,
+      subject: resolvedSubject,
+      deadline: 'Due Soon',
+      status: dbTask.status === 'ready' ? 'Not Started' : 'In Progress',
+      dbTask: dbTask
+    };
+  } else if (!taskId?.startsWith('exp_')) {
+    task = TASKS.find(t => t.id === taskId);
+  } else {
     const parts = taskId.split('_'); // exp, phy, c3, t1, Video/Simulation/Quiz
     const subjectCode = parts[1];
     const chapterId = parts[2];
@@ -247,6 +418,28 @@ export function StudentTaskActivityPage() {
   }
 
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
+
+  if (loadingDbTask) {
+    return (
+      <div className="flex flex-1 w-full h-[100dvh] bg-[#f6f4ee] font-montserrat text-[#1800ad] flex-col items-center justify-center">
+        <div className="w-16 h-16 border-4 border-[#1800ad]/20 border-t-[#1800ad] rounded-full animate-spin mb-4"></div>
+        <p className="font-bold text-lg animate-pulse">Loading assignment details...</p>
+      </div>
+    );
+  }
+
+  if (fetchError && !task) {
+    return (
+      <div className="flex flex-1 w-full h-[100dvh] bg-[#f6f4ee] font-montserrat text-rose-600 flex-col items-center justify-center p-6 text-center">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h3 className="text-xl font-bold">Failed to load assignment</h3>
+        <p className="text-sm opacity-80 mt-1 max-w-sm">{fetchError}</p>
+        <button onClick={() => navigate(backUrl)} className="mt-6 px-6 py-2.5 bg-[#1800ad] text-white rounded-full font-bold font-montserrat">
+          Go Back
+        </button>
+      </div>
+    );
+  }
 
   if (!task) {
     return <div className="p-10 font-bold text-[#1800ad]">Task not found</div>;

@@ -37,7 +37,9 @@ import {
   Bot,
   ArrowLeft,
   Paperclip,
-  BookOpen
+  BookOpen,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -387,7 +389,8 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 
 const transcribeAudioWithGemini = async (blob: Blob): Promise<string> => {
   const base64 = await blobToBase64(blob);
-  const apiKey = "AIzaSyDJWjudoaGxCVLbHo-PdjzVoirvM1r-oqg";
+  const envKey = (import.meta as any).env.GEMINI_API_KEY;
+  const apiKey = envKey && envKey !== 'MY_GEMINI_API_KEY' && envKey.trim() !== '' ? envKey : '';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
   const response = await fetch(url, {
@@ -554,6 +557,7 @@ export function StudentPlaygroundPage() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [assignmentContext, setAssignmentContext] = useState<any>(null);
+  const [fullscreenSim, setFullscreenSim] = useState<{ url: string; title: string } | null>(null);
 
   // Conversation state — starts empty, populated from API
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -2327,12 +2331,22 @@ export function StudentPlaygroundPage() {
             </div>
             <div>
               <h4 className="text-sm font-black uppercase tracking-wider text-[#1800ad] font-montserrat">{topicTitle}</h4>
-              <p className="text-[10px] text-[#1800ad]/70 font-semibold font-montserrat">PhET Interactive Laboratory Simulation</p>
+              <p className="text-[10px] text-[#1800ad]/70 font-semibold font-montserrat">Interactive Laboratory Simulation</p>
             </div>
           </div>
-          <span className="text-[9px] px-2.5 py-1 bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-bold uppercase font-montserrat">
-            Live Lab Active
-          </span>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setFullscreenSim({ url: phetUrl, title: topicTitle })}
+              className="text-[#1800ad] hover:text-[#14008a] border border-[#1800ad]/30 bg-[#1800ad]/5 hover:bg-[#1800ad]/10 hover:scale-103 transition-all px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 font-montserrat"
+              title="Enter Full Screen"
+            >
+              <Maximize2 size={12} />
+              <span>Fullscreen</span>
+            </button>
+            <span className="text-[9px] px-2.5 py-1 bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-bold uppercase font-montserrat">
+              Live Lab active
+            </span>
+          </div>
         </div>
 
         {/* Live PhET Interactive Iframe */}
@@ -3579,6 +3593,44 @@ export function StudentPlaygroundPage() {
               </form>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Fullscreen Simulation Overlay Portal */}
+      <AnimatePresence>
+        {fullscreenSim && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 w-screen h-screen bg-[#f6f4ee] z-[99999] flex flex-col overflow-hidden font-montserrat"
+          >
+            {/* Fullscreen Header */}
+            <div className="w-full h-14 bg-[#1800ad] flex items-center justify-between px-6 shrink-0 shadow-md">
+              <div className="flex flex-col">
+                <span className="text-white/60 font-bold text-[10px] uppercase tracking-wider">Playground Sandbox • Simulation</span>
+                <span className="text-white font-extrabold text-sm md:text-base leading-tight">{fullscreenSim.title}</span>
+              </div>
+              <button 
+                onClick={() => setFullscreenSim(null)}
+                className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-4 py-1.5 font-black text-xs md:text-sm uppercase tracking-wider flex items-center gap-2 hover:scale-103 transition-all"
+              >
+                <Minimize2 size={16} />
+                <span>Exit Fullscreen</span>
+              </button>
+            </div>
+            {/* Fullscreen Content Area */}
+            <div className="flex-1 w-full bg-white relative">
+              <iframe
+                src={fullscreenSim.url}
+                title={fullscreenSim.title}
+                allowFullScreen
+                className="w-full h-full border-0"
+                style={{ background: '#ffffff' }}
+              />
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

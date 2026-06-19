@@ -627,9 +627,12 @@ def get_class_analytics_overview(db: Session, teacher: User, class_id: str) -> C
                 if "misconception" in s.lower() or "believe" in s.lower() or "think" in s.lower():
                     misconceptions.append(s.strip())
 
-    most_common = "Students tend to confuse speed and acceleration under gravity."
-    if misconceptions:
-        most_common = max(set(misconceptions), key=misconceptions.count)
+    if not attempts:
+        most_common = "No submissions yet."
+    else:
+        most_common = "No struggle areas detected yet."
+        if misconceptions:
+            most_common = max(set(misconceptions), key=misconceptions.count)
 
     return ClassAnalyticsOverview(
         average_scores={

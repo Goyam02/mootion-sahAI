@@ -1,5 +1,6 @@
 import json
 import unittest
+import unittest.mock
 from typing import Any
 
 from app.simulation_engine.schemas import (
@@ -259,6 +260,65 @@ class TestSimulationBuilder(unittest.TestCase):
         html = self.builder.build(spec)
         issues = self.builder.validate_html(html)
         self.assertEqual(len(issues), 0, f"Validation issues: {issues}")
+
+    @unittest.mock.patch("app.simulation_engine.prompt_understanding_layer.query_llm")
+    def test_self_healing_flow(self, mock_query):
+        # The first call returns bad JS with a syntax error (duplicate declaration of let x)
+        bad_js = """
+class SimulationEngine {
+  constructor(canvas, state, bus) {
+    this.canvas = canvas;
+    this.state = state;
+    this.bus = bus;
+    let x = 1;
+    let x = 2; // SyntaxError: Identifier 'x' has already been declared
+  }
+  update(dt, state) {}
+}
+class Renderer {
+  constructor(canvas, state, bus) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.state = state;
+    this.bus = bus;
+  }
+  draw(dt, state) {}
+}
+"""
+        # The second call returns healed/correct JS
+        good_js = """
+class SimulationEngine {
+  constructor(canvas, state, bus) {
+    this.canvas = canvas;
+    this.state = state;
+    this.bus = bus;
+    let x = 1;
+    x = 2;
+  }
+  update(dt, state) {}
+  getHint() { return 'Hint'; }
+  canvasInteractions(canvas, state, bus) {}
+}
+class Renderer {
+  constructor(canvas, state, bus) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.state = state;
+    this.bus = bus;
+  }
+  draw(dt, state) {}
+}
+"""
+        mock_query.side_effect = [bad_js, good_js]
+        
+        spec = self._make_spec(Subject.PHYSICS, SimulationType.PROJECTILE_MOTION)
+        html = self.builder.build(spec)
+        
+        # Verify mock_query was called twice (initial generation + self-healing retry)
+        self.assertEqual(mock_query.call_count, 2)
+        # Verify the final html compiles and contains the corrected code
+        issues = self.builder.validate_html(html)
+        self.assertEqual(len(issues), 0, f"Healed HTML had issues: {issues}")
 
 
 class TestAssessmentGeneration(unittest.TestCase):

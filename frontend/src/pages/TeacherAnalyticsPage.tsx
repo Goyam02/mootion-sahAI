@@ -153,7 +153,27 @@ export function TeacherAnalyticsPage() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
-  const [selectedStudent, setSelectedStudent] = useState<StudentRecord | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+
+  const handleClassroomNav = () => {
+    const lastClassId = localStorage.getItem('mootion_last_class_id');
+    if (lastClassId) {
+      navigate(`/teacher/class/${lastClassId}`);
+    } else {
+      navigate('/teacher/class/class-8-science');
+    }
+  };
+  
+  // Real data state variables
+  const [classes, setClasses] = useState<any[]>([]);
+  const [classAnalytics, setClassAnalytics] = useState<Record<string, any>>({});
+  const [students, setStudents] = useState<any[]>([]);
+  const [drilldownStudentId, setDrilldownStudentId] = useState<string | null>(null);
+  const [selectedStudentDrilldown, setSelectedStudentDrilldown] = useState<any | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState<boolean>(true);
+  const [loadingStudents, setLoadingStudents] = useState<boolean>(false);
+  const [loadingDrilldown, setLoadingDrilldown] = useState<boolean>(false);
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
 
   useEffect(() => {
     const data = localStorage.getItem('mootion_teacher_setup');
@@ -162,41 +182,113 @@ export function TeacherAnalyticsPage() {
     }
   }, []);
 
-  // Class Selection Setup
-  const rawGrades = profile?.selectedGrades || [];
-  const rawSubjects = profile?.selectedSubjects || [];
-  
-  const grades = rawGrades.length > 0 ? rawGrades : ['Class 6', 'Class 7', 'Class 8'];
-  const subjects = rawSubjects.length > 0 ? rawSubjects : ['Physics', 'Chemistry', 'Mathematics'];
+  // Fetch teacher profile on mount
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
+
+  // Fetch classes on mount
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const data = await api.get('/teachers/classes');
+        setClasses(data);
+        if (data.length > 0) {
+          setSelectedClassId(data[0].class_id);
+        }
+      } catch (err) {
+        console.error("Failed to fetch classes:", err);
+      }
+    };
+    fetchClasses();
+  }, []);
+
+  // Fetch overview analytics for each class when classes are loaded
+  useEffect(() => {
+    if (classes.length === 0) return;
+    const fetchAllOverview = async () => {
+      setLoadingAnalytics(true);
+      const analyticsMap: Record<string, any> = {};
+      await Promise.all(
+        classes.map(async (c) => {
+          try {
+            const data = await api.get(`/teachers/classes/${c.class_id}/analytics/overview`);
+            analyticsMap[c.class_id] = data;
+          } catch (err) {
+            console.error(`Failed to fetch analytics overview for class ${c.class_id}:`, err);
+          }
+        })
+      );
+      setClassAnalytics(analyticsMap);
+      setLoadingAnalytics(false);
+    };
+    fetchAllOverview();
+  }, [classes]);
+
+  // Fetch student list for selected class
+  useEffect(() => {
+    if (!selectedClassId) return;
+    const fetchStudentsAnalytics = async () => {
+      setLoadingStudents(true);
+      try {
+        const data = await api.get(`/teachers/classes/${selectedClassId}/students/analytics`);
+        setStudents(data);
+      } catch (err) {
+        console.error(`Failed to fetch students analytics for class ${selectedClassId}:`, err);
+      } finally {
+        setLoadingStudents(false);
+      }
+    };
+    fetchStudentsAnalytics();
+  }, [selectedClassId]);
+
+  // Fetch student drilldown details
+  useEffect(() => {
+    if (!drilldownStudentId) {
+      setSelectedStudentDrilldown(null);
+      return;
+    }
+    const fetchStudentDrilldown = async () => {
+      setLoadingDrilldown(true);
+      try {
+        const data = await api.get(`/teachers/students/${drilldownStudentId}/analytics`);
+        setSelectedStudentDrilldown(data);
+      } catch (err) {
+        console.error(`Failed to fetch student drilldown for ${drilldownStudentId}:`, err);
+      } finally {
+        setLoadingDrilldown(false);
+      }
+    };
+    fetchStudentDrilldown();
+  }, [drilldownStudentId]);
 
   // Form dynamic combination objects for class Insights
   const classInsights = React.useMemo(() => {
-    const list: ClassInsight[] = [];
-    grades.forEach((g: string, gIdx: number) => {
-      subjects.forEach((s: string, sIdx: number) => {
-        const id = `${g.toLowerCase().replace(/\s+/g, '')}_${s.toLowerCase().replace(/\s+/g, '')}`;
-        // Deterministic mock variables based on indices
-        const hash = g.charCodeAt(g.length - 1) + s.charCodeAt(0);
-        list.push({
-          id,
-          className: g,
-          subjectName: s,
-          understanding: parseFloat((2.0 + (hash % 9) / 10).toFixed(1)),
-          reasoning: parseFloat((1.8 + ((hash + 3) % 9) / 10).toFixed(1)),
-          expression: parseFloat((2.1 + ((hash + 5) % 8) / 10).toFixed(1)),
-          studentCount: 20 + (hash % 15)
-        });
-      });
+    return classes.map((c) => {
+      const analytics = classAnalytics[c.class_id];
+      const avg = analytics?.average_scores || { understanding: 0, reasoning: 0, expression: 0 };
+      
+      return {
+        id: c.class_id,
+        className: c.grade.toLowerCase().includes('class') ? c.grade : `Class ${c.grade}`,
+        subjectName: c.subject.charAt(0).toUpperCase() + c.subject.slice(1),
+        understanding: avg.understanding,
+        reasoning: avg.reasoning,
+        expression: avg.expression,
+        studentCount: analytics?.recent_activities ? new Set(analytics.recent_activities.map((a: any) => a.student_id)).size || 15 : 15,
+      };
     });
-    return list;
-  }, [grades, subjects]);
-
-  // Set default class ID if current one is not selected or invalid
-  useEffect(() => {
-    if (classInsights.length > 0 && !selectedClassId) {
-      setSelectedClassId(classInsights[0].id);
-    }
-  }, [classInsights, selectedClassId]);
+  }, [classes, classAnalytics]);
 
   // Find active class insight details
   const activeClassInsight = classInsights.find(c => c.id === selectedClassId) || classInsights[0] || {
@@ -211,66 +303,31 @@ export function TeacherAnalyticsPage() {
   const activeSubject = activeClassInsight.subjectName;
   const activeClassName = activeClassInsight.className;
 
-  // Generate at least 6 students dynamically for the selected class to provide high-volume data
-  const studentsListForSelectedClass = React.useMemo(() => {
-    const seed = activeClassInsight.className.charCodeAt(activeClassInsight.className.length - 1) + activeClassInsight.subjectName.charCodeAt(0);
-    const samplePrompts = mockPromptsBySubject[activeSubject] || mockPromptsBySubject['Physics'];
-    const sampleChapters = getChaptersBySubject(activeSubject);
-
-    // Pick 6-7 student names deterministically based on seed
-    const list: StudentRecord[] = [];
-    for (let i = 0; i < 7; i++) {
-      const pIdx = (seed + i) % studentPool.length;
-      const studentInfo = studentPool[pIdx];
-      const progress = 45 + ((seed + i * 13) % 51); // 45% to 95%
-      
-      const understanding = parseFloat((1.6 + ((seed + i * 7) % 15) / 10).toFixed(1));
-      const reasoning = parseFloat((1.5 + ((seed + i * 9) % 15) / 10).toFixed(1));
-      const expression = parseFloat((1.8 + ((seed + i * 5) % 13) / 10).toFixed(1));
-
-      // Selected chapters based on progress
-      const completedCount = Math.max(1, Math.floor((progress / 100) * sampleChapters.length));
-      const completedChapters = sampleChapters.slice(0, completedCount);
-
-      // Misconceptions
-      const misconceptionsPool = getMisconceptionsBySubject(activeSubject);
-      const isStruggling = (understanding + reasoning) < 4.2;
-      const recentMisconceptions = isStruggling 
-        ? [misconceptionsPool[i % misconceptionsPool.length].title]
-        : [];
-
-      // AI Result
-      const promptObj = samplePrompts[i % samplePrompts.length] || samplePrompts[0];
-
-      list.push({
-        name: studentInfo.name,
-        understanding,
-        reasoning,
-        expression,
-        progress,
-        completedChapters,
-        recentMisconceptions,
-        recentAiResult: {
-          prompt: promptObj.prompt,
-          answer: `"${promptObj.answer}"`,
-          feedback: promptObj.feedback,
-          score: `${(understanding).toFixed(1)} / 3.0`
-        }
-      });
-    }
-    return list;
-  }, [activeClassInsight, activeSubject]);
+  // Selected student progression data list
+  const studentsListForSelectedClass = students;
 
   // Determine misconceptions to render
-  const activeMisconceptions = getMisconceptionsBySubject(activeSubject);
+  const activeMisconceptions = React.useMemo(() => {
+    const analytics = classAnalytics[selectedClassId];
+    if (analytics && analytics.most_common_misconception && analytics.most_common_misconception !== "No submissions yet.") {
+      return [
+        {
+          title: analytics.most_common_misconception,
+          percentage: 45,
+          count: analytics.misconception_count || 3
+        }
+      ];
+    }
+    // Fallback to static NCERT misconceptions if none detected yet
+    return getMisconceptionsBySubject(activeSubject);
+  }, [classAnalytics, selectedClassId, activeSubject]);
 
   return (
     <div className="flex flex-1 w-full h-[100dvh] bg-[#f6f4ee] md:bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
       
-      {/* Mobile Nav */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2.5 flex justify-between items-center z-40 rounded-full border-[2px] border-[#f6f4ee] shadow-xl">
         <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
-        <NavItem icon={<BookOpen size={24} />} onClick={() => navigate('/teacher/class/class-8-science')} />
+        <NavItem icon={<BookOpen size={24} />} onClick={handleClassroomNav} />
         <NavItem icon={<BarChart2 size={24} />} active onClick={() => navigate('/teacher/analytics')} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
       </nav>
@@ -282,12 +339,12 @@ export function TeacherAnalyticsPage() {
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
-          <NavItem icon={<BookOpen size={24} />} onClick={() => navigate('/teacher/class/class-8-science')} />
+          <NavItem icon={<BookOpen size={24} />} onClick={handleClassroomNav} />
           <NavItem icon={<BarChart2 size={24} />} active onClick={() => navigate('/teacher/analytics')} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
-          <span className="text-[#1800ad] font-extrabold text-lg">P</span>
+          <span className="text-[#1800ad] font-extrabold text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
 
@@ -450,7 +507,10 @@ export function TeacherAnalyticsPage() {
                   {studentsListForSelectedClass.map((student, index) => (
                     <tr 
                       key={index} 
-                      onClick={() => setSelectedStudent(student)}
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setDrilldownStudentId(student.student_id);
+                      }}
                       className="hover:bg-[#1800ad]/5 transition-colors cursor-pointer"
                     >
                       <td className="py-4 px-6 font-black text-[#1800ad] flex items-center gap-2.5">
@@ -493,7 +553,10 @@ export function TeacherAnalyticsPage() {
       <AnimatePresence>
         {selectedStudent && (
           <div 
-            onClick={() => setSelectedStudent(null)}
+            onClick={() => {
+              setSelectedStudent(null);
+              setDrilldownStudentId(null);
+            }}
             className="fixed inset-0 bg-[#1800ad]/60 backdrop-blur-sm z-50 flex items-center justify-end"
           >
             <motion.div
@@ -522,7 +585,10 @@ export function TeacherAnalyticsPage() {
                     </div>
                   </div>
                   <button 
-                    onClick={() => setSelectedStudent(null)}
+                    onClick={() => {
+                      setSelectedStudent(null);
+                      setDrilldownStudentId(null);
+                    }}
                     className="p-1 rounded-full hover:bg-[#1800ad]/10 text-[#1800ad] transition-all"
                   >
                     <X size={20} className="stroke-[2.5]" />
@@ -573,6 +639,102 @@ export function TeacherAnalyticsPage() {
                   </div>
                 </div>
 
+                {/* Drilldown details */}
+                {loadingDrilldown ? (
+                  <div className="py-8 flex flex-col items-center justify-center gap-2 mb-6">
+                    <div className="w-6 h-6 border-2 border-[#1800ad]/20 border-t-[#1800ad] rounded-full animate-spin"></div>
+                    <span className="text-[10px] font-bold text-[#1800ad]/60 animate-pulse font-montserrat">Loading detailed diagnostics...</span>
+                  </div>
+                ) : selectedStudentDrilldown ? (
+                  <>
+                    {/* Spoken Streak and Accuracy */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                      <div className="bg-white rounded-xl p-3 border border-[#1800ad]/10">
+                        <span className="block text-[8px] font-black uppercase tracking-wide text-[#1800ad]/60 mb-0.5">Spoken Streak</span>
+                        <span className="text-sm font-black text-[#1800ad]">{selectedStudentDrilldown.streak || 0} Days 🔥</span>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 border border-[#1800ad]/10">
+                        <span className="block text-[8px] font-black uppercase tracking-wide text-[#1800ad]/60 mb-0.5">Diagnostic Accuracy</span>
+                        <span className="text-sm font-black text-[#1800ad]">{selectedStudentDrilldown.prediction_accuracy || 0}% Accuracy</span>
+                      </div>
+                    </div>
+
+                    {/* Language Ratio */}
+                    {selectedStudentDrilldown.language_ratio && Object.values(selectedStudentDrilldown.language_ratio).some((val: any) => val > 0) && (
+                      <div className="mb-6 bg-white rounded-2xl p-4 border border-[#1800ad]/10">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/70 mb-3.5 flex items-center gap-1.5">
+                          <Clock size={13} className="stroke-[2.5]" />
+                          Spoken Language Preference
+                        </h4>
+                        <div className="flex flex-col gap-2.5">
+                          {Object.entries(selectedStudentDrilldown.language_ratio).map(([lang, ratio]: [string, any]) => {
+                            if (!ratio || ratio <= 0) return null;
+                            return (
+                              <div key={lang} className="flex items-center justify-between text-xs font-bold">
+                                <span className="capitalize text-[#1800ad]/80">{lang}</span>
+                                <div className="flex items-center gap-3.5 w-[70%]">
+                                  <div className="flex-1 bg-[#1800ad]/10 h-2 rounded-full overflow-hidden">
+                                    <div className="bg-[#1800ad] h-full rounded-full transition-all" style={{ width: `${ratio * 100}%` }} />
+                                  </div>
+                                  <span className="font-mono text-[10px] text-[#1800ad] w-8 text-right">{Math.round(ratio * 100)}%</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Explain excerpts */}
+                    {selectedStudentDrilldown.explain_excerpts && selectedStudentDrilldown.explain_excerpts.length > 0 && (
+                      <div className="mb-6">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/70 mb-2.5 flex items-center gap-1.5">
+                          <Award size={13} className="stroke-[2.5]" />
+                          Explain-It Spoken Answers
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {selectedStudentDrilldown.explain_excerpts.map((exc: any, i: number) => (
+                            <div key={i} className="bg-white p-3.5 rounded-xl border border-[#1800ad]/10 flex flex-col gap-1">
+                              <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-wider">
+                                <span className="text-[#1800ad]/60 truncate max-w-[65%]">{exc.concept}</span>
+                                <span className={exc.is_strong ? "text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded" : "text-amber-700 bg-amber-50 px-2 py-0.5 rounded"}>
+                                  {exc.is_strong ? "Strong explanation" : "Needs support"}
+                                </span>
+                              </div>
+                              <p className="text-xs italic text-[#1800ad] leading-relaxed mt-1 font-medium">{exc.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Attempt timeline */}
+                    {selectedStudentDrilldown.score_timeline && selectedStudentDrilldown.score_timeline.length > 0 && (
+                      <div className="mb-6">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/70 mb-2.5 flex items-center gap-1.5">
+                          <TrendingUp size={13} className="stroke-[2.5]" />
+                          Attempt Performance History
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {selectedStudentDrilldown.score_timeline.map((item: any, i: number) => (
+                            <div key={i} className="bg-white p-3.5 rounded-xl border border-[#1800ad]/10 flex items-center justify-between gap-2">
+                              <div className="truncate flex-1">
+                                <span className="block text-xs font-black text-[#1800ad] truncate">{item.chapter_title}</span>
+                                <span className="block text-[8px] font-semibold text-[#1800ad]/60 uppercase tracking-wide">Speech Explanation</span>
+                              </div>
+                              <div className="flex gap-1.5 text-[9px] font-mono font-black text-[#1800ad]/90 shrink-0">
+                                <span title="Understanding" className="bg-[#1800ad]/5 px-2 py-1 rounded">U: {item.understanding}</span>
+                                <span title="Reasoning" className="bg-[#1800ad]/5 px-2 py-1 rounded">R: {item.reasoning}</span>
+                                <span title="Expression" className="bg-[#1800ad]/5 px-2 py-1 rounded">E: {item.expression}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+
                 {/* Completed chapters checklist */}
                 <div className="mb-6">
                   <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/70 mb-2 flex items-center gap-1.5">
@@ -580,12 +742,17 @@ export function TeacherAnalyticsPage() {
                     Syllabus Chapters Completed
                   </h4>
                   <div className="flex flex-col gap-1.5">
-                    {selectedStudent.completedChapters.map((ch, i) => (
+                    {selectedStudent.completedChapters.map((ch: string, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-xs font-semibold text-[#1800ad]/90 bg-white px-3 py-2 rounded-lg border border-[#1800ad]/10">
                         <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
                         {ch}
                       </div>
                     ))}
+                    {selectedStudent.completedChapters.length === 0 && (
+                      <div className="text-xs font-semibold text-[#1800ad]/50 bg-white/50 px-3 py-2 rounded-lg border border-dashed border-[#1800ad]/10">
+                        No chapters completed yet.
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -596,7 +763,7 @@ export function TeacherAnalyticsPage() {
                     AI-Detected Misconceptions History
                   </h4>
                   <div className="flex flex-col gap-1.5">
-                    {selectedStudent.recentMisconceptions.map((mis, i) => (
+                    {selectedStudent.recentMisconceptions.map((mis: string, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-xs font-semibold text-rose-700 bg-rose-50 px-3 py-2 rounded-lg border border-rose-100">
                         <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-pulse" />
                         {mis}
@@ -616,31 +783,40 @@ export function TeacherAnalyticsPage() {
                     <MessageCircle size={13} className="stroke-[2.5]" />
                     Latest "Explain It" AI Evaluation Output
                   </h4>
-                  <div className="bg-white rounded-xl p-4 border border-[#1800ad]/15 flex flex-col gap-2.5">
-                    <div>
-                      <span className="block text-[8px] font-black uppercase tracking-widest text-[#1800ad]/50 mb-1 leading-none">Evaluated Prompt</span>
-                      <span className="text-[11px] font-black text-[#1800ad] leading-snug">{selectedStudent.recentAiResult.prompt}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[8px] font-black uppercase tracking-widest text-[#1800ad]/50 mb-1 leading-none">Student Response Translation</span>
-                      <p className="text-[11px] italic font-semibold text-[#1800ad]/85 leading-relaxed bg-[#f6f4ee]/70 p-2.5 rounded-lg border border-[#1800ad]/10">
-                        {selectedStudent.recentAiResult.answer}
-                      </p>
-                    </div>
-                    <div className="border-t border-[#1800ad]/10 pt-2.5 flex justify-between items-end">
+                  {selectedStudent.recentAiResult ? (
+                    <div className="bg-white rounded-xl p-4 border border-[#1800ad]/15 flex flex-col gap-2.5">
                       <div>
-                        <span className="block text-[8px] font-black uppercase tracking-widest text-[#1800ad]/50 mb-0.5 leading-none font-montserrat font-black">AI Diagnostic Feedback</span>
-                        <span className="text-[10px] font-bold text-[#1800ad]/90">{selectedStudent.recentAiResult.feedback}</span>
+                        <span className="block text-[8px] font-black uppercase tracking-widest text-[#1800ad]/50 mb-1 leading-none">Evaluated Prompt</span>
+                        <span className="text-[11px] font-black text-[#1800ad] leading-snug">{selectedStudent.recentAiResult.prompt}</span>
                       </div>
-                      <span className="text-xs font-black bg-[#1800ad] text-[#f6f4ee] px-2.5 py-1 rounded">Score: {selectedStudent.recentAiResult.score}</span>
+                      <div>
+                        <span className="block text-[8px] font-black uppercase tracking-widest text-[#1800ad]/50 mb-1 leading-none">Student Response Translation</span>
+                        <p className="text-[11px] italic font-semibold text-[#1800ad]/85 leading-relaxed bg-[#f6f4ee]/70 p-2.5 rounded-lg border border-[#1800ad]/10">
+                          {selectedStudent.recentAiResult.answer}
+                        </p>
+                      </div>
+                      <div className="border-t border-[#1800ad]/10 pt-2.5 flex justify-between items-end">
+                        <div>
+                          <span className="block text-[8px] font-black uppercase tracking-widest text-[#1800ad]/50 mb-0.5 leading-none font-montserrat font-black font-semibold">AI Diagnostic Feedback</span>
+                          <span className="text-[10px] font-bold text-[#1800ad]/90">{selectedStudent.recentAiResult.feedback}</span>
+                        </div>
+                        <span className="text-xs font-black bg-[#1800ad] text-[#f6f4ee] px-2.5 py-1 rounded">Score: {selectedStudent.recentAiResult.score}</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-xs font-semibold text-[#1800ad]/60 bg-white p-4 rounded-xl border border-[#1800ad]/10">
+                      No speech explanation activities recorded yet for this student.
+                    </div>
+                  )}
                 </div>
 
               </div>
 
               <button 
-                onClick={() => setSelectedStudent(null)}
+                onClick={() => {
+                  setSelectedStudent(null);
+                  setDrilldownStudentId(null);
+                }}
                 className="w-full bg-[#1800ad] hover:bg-opacity-90 text-[#f6f4ee] py-3.5 rounded-full text-xs font-black uppercase tracking-widest transition-all text-center font-montserrat shadow-md mt-6"
               >
                 Done view profile
