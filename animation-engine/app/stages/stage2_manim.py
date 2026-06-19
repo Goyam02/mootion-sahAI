@@ -30,7 +30,7 @@ SCENES_OUT_DIR = OUTPUTS_DIR / "scenes"
 # ============================================================
 
 SCENE_CLASS_RE = re.compile(
-    r"class\s+(Scene\d+_[A-Za-z0-9_]+)\s*\(Scene\)"
+    r"class\s+(Scene\d+(?:_[A-Za-z0-9_]+)?)\s*\((?:Scene|ThreeDScene|MovingCameraScene)\)"
 )
 
 # ============================================================
@@ -67,6 +67,27 @@ def render_scene(scene_class_name: str):
         stderr=subprocess.PIPE,
         text=True,
     )
+
+
+def generate_placeholder_video(scene_id: str, index: int, duration: int = 6):
+    """Generate a plain black video as a fallback for scenes that failed to render."""
+    SCENES_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    dst = SCENES_OUT_DIR / f"{index:02d}_{scene_id}.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-f", "lavfi",
+            "-i", f"color=c=black:s=854x480:r=15:d={duration}",
+            "-c:v", "libx264",
+            "-t", str(duration),
+            str(dst),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    print(f"⬛ Placeholder video generated → {dst}")
+    return dst
 
 
 def extract_scene_video(scene_class_name: str, scene_id: str, index: int):
@@ -109,18 +130,62 @@ Error:
 
 MAX_RETRIES = 2
 
-def generate_manim(scenes):
-# ---------- Generate Manim code ----------
+def generate_manim(scenes, rag_context: str | None = None):
+    # ---------- Generate Manim code ----------
     scenes_json = json.dumps(scenes)
     scenes_category = scenes["category"]
     prompt_path = PROMPTS_DIR / f"{scenes_category.lower()}_manim.txt"
     prompt = prompt_path.read_text(encoding="utf-8").replace(
         "{scenes_json}", scenes_json
     )
+    if rag_context and rag_context.strip():
+        safe_rag = str(rag_context).replace("{", "{{").replace("}", "}}")
+        prompt += (
+            f"\n\nTextbook Reference Context (RAG):\n"
+            f"Use the following NCERT textbook excerpts to ensure the animation "
+            f"accurately reflects the curriculum (correct terminology, structure, "
+            f"and key concepts):\n{safe_rag}"
+        )
 
-    output = call_llm(prompt)
-    data = extract_json(output)
-    manim_code = data["manim_code"]
+    manim_code = ""
+    scene_classes = []
+    
+    # Retry up to 3 times to get the correct number of scene classes
+    for attempt in range(3):
+        try:
+            output = call_llm(prompt)
+            data = extract_json(output)
+            manim_code = data["manim_code"]
+            
+            # Harden against self.wait(<=0)
+            def fix_wait_durations(match):
+                try:
+                    val = float(match.group(1))
+                    if val <= 0:
+                        return "self.wait(1.0)"
+                except Exception:
+                    pass
+                return match.group(0)
+                
+            manim_code = re.sub(
+                r"self\.wait\(\s*(-?\d+(?:\.\d+)?)\s*\)",
+                fix_wait_durations,
+                manim_code
+            )
+            
+            scene_classes = extract_scene_classes(manim_code)
+            
+            if len(scene_classes) == len(scenes["scenes"]):
+                break
+            else:
+                print(f"⚠️ Scene count mismatch on attempt {attempt+1}: expected {len(scenes['scenes'])}, got {len(scene_classes)}")
+        except Exception as e:
+            print(f"⚠️ Error during Manim generation attempt {attempt+1}: {e}")
+
+    if len(scene_classes) != len(scenes["scenes"]):
+        raise RuntimeError(
+            f"Scene count mismatch between JSON ({len(scenes['scenes'])}) and Manim code ({len(scene_classes)}) after 3 attempts."
+        )
 
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     ANIMATION_PY.write_text(manim_code)
@@ -129,12 +194,7 @@ def generate_manim(scenes):
     timestamps = extract_timestamps(manim_code)
     TIMESTAMPS_JSON.write_text(json.dumps(timestamps, indent=2))
 
-    # ---------- Scene validation ----------
-    scene_classes = extract_scene_classes(manim_code)
-    if len(scene_classes) != len(scenes["scenes"]):
-        raise RuntimeError("Scene count mismatch between JSON and Manim code")
-
-    final_scene_ids = []
+    final_scene_ids = []   # list of (disk_index, scene_id)
 
     # ---------- Per-scene rendering ----------
     for idx, scene_class in enumerate(scene_classes, start=1):
@@ -146,22 +206,23 @@ def generate_manim(scenes):
                 clean_manim_temp()
                 render_scene(scene_class)
                 extract_scene_video(scene_class, scene_id, idx)
-                final_scene_ids.append(scene_id)
+                final_scene_ids.append((idx, scene_id))
                 print(f"✅ Rendered {scene_class}")
                 break
 
             except (subprocess.CalledProcessError, RuntimeError) as e:
 
                 retries += 1
+                stderr_text = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
 
                 print("\n" + "=" * 80)
                 print(f"❌ Manim error in {scene_class} (attempt {retries}/{MAX_RETRIES})")
                 print("-" * 80)
-                print(e.stderr)
+                print(stderr_text)
                 print("=" * 80)
 
                 if retries <= MAX_RETRIES:
-                    fixed_code = fix_manim_code_with_llm(manim_code, e.stderr)
+                    fixed_code = fix_manim_code_with_llm(manim_code, stderr_text)
 
                     print("\n🛠 LLM FIX APPLIED (preview):")
                     print("-" * 80)
@@ -171,14 +232,21 @@ def generate_manim(scenes):
                     manim_code = fixed_code
                     ANIMATION_PY.write_text(manim_code)
                 else:
-                    print(f"🗑 Skipping {scene_class}")
+                    # All retries exhausted — generate a black placeholder so
+                    # downstream stages (TTS, mux, stitch) don't crash.
+                    print(f"⬛ Scene {scene_class} failed all retries — inserting placeholder.")
+                    try:
+                        generate_placeholder_video(scene_id, idx)
+                        final_scene_ids.append((idx, scene_id))
+                    except Exception as placeholder_err:
+                        print(f"⚠️  Could not generate placeholder for {scene_id}: {placeholder_err}")
                     break
 
 
     return {
         "manim_code": manim_code,
         "timestamps": timestamps,
-        "scene_ids": final_scene_ids,
+        "scene_ids": final_scene_ids,   # list of (disk_index, scene_id)
     }
 
 

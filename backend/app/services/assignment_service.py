@@ -357,6 +357,29 @@ def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, 
     notes = str(payload_json.get("teacher_notes") or payload_json.get("instructions") or "").strip()
     prompt = topic if not notes else f"{topic}. Teacher notes: {notes}"
     
+    # Resolve grade and subject from the database
+    grade = None
+    subject = None
+    
+    from app.core.database import SessionLocal
+    from app.core.models import Chapter, ClassRoom
+    from app.services.rag_service import retrieve_context
+    
+    local_db = SessionLocal()
+    try:
+        chapter = local_db.get(Chapter, asset.chapter_id)
+        if chapter:
+            classroom = local_db.get(ClassRoom, chapter.class_id)
+            if classroom:
+                grade = classroom.grade
+                subject = classroom.subject
+    except Exception as e:
+        print(f"[media-worker] Failed to resolve classroom context for RAG: {e}", flush=True)
+    finally:
+        local_db.close()
+        
+    rag_context = retrieve_context(prompt, grade, subject)
+    
     print(f"[media-worker] Sending render request to Manim Service URL: {settings.manim_service_url} for prompt: '{prompt}'", flush=True)
     response = httpx.post(
         settings.manim_service_url,
@@ -365,6 +388,7 @@ def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, 
             "level": "school",
             "persona": "teacher",
             "face_enabled": False,
+            "rag_context": rag_context,
         },
         timeout=300.0,
     )

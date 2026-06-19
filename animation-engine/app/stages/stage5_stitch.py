@@ -37,26 +37,41 @@ def get_duration(path: Path) -> float:
 # MUX AUDIO (AUTHORITATIVE: scene_ids)
 # ============================================================
 
-def mux_audio(video_id: str, scene_ids: list[str]):
+def mux_audio(video_id: str, scene_ids: list):
     """
     Combine audio + video ONLY for scenes that survived Manim rendering.
-    scene_ids must come from generate_manim().
+    scene_ids must come from generate_manim() — a list of (disk_index, scene_id) tuples.
+    Plain string entries are also accepted for backward compatibility.
     """
 
     base_audio = AUDIO_DIR / video_id
     base_out = VIDEOS_DIR / video_id / "scenes_with_audio"
     base_out.mkdir(parents=True, exist_ok=True)
 
-    for idx, scene_id in enumerate(scene_ids, start=1):
-        video = SCENES_DIR / f"{idx:02d}_{scene_id}.mp4"
+    for mux_idx, entry in enumerate(scene_ids, start=1):
+        # Support both (disk_index, scene_id) tuples and plain strings (legacy)
+        if isinstance(entry, (list, tuple)):
+            disk_index, scene_id = entry
+        else:
+            disk_index, scene_id = mux_idx, entry
+
+        video = SCENES_DIR / f"{disk_index:02d}_{scene_id}.mp4"
         audio = base_audio / f"{scene_id}.wav"
-        out = base_out / f"{idx:02d}_{scene_id}.mp4"
+        out = base_out / f"{mux_idx:02d}_{scene_id}.mp4"
 
         if not video.exists():
-            raise RuntimeError(f"Missing video for {scene_id}")
+            raise RuntimeError(
+                f"Missing video for {scene_id} "
+                f"(expected file: {video.name}). "
+                f"Check stage2 rendering logs."
+            )
 
         if not audio.exists():
-            raise RuntimeError(f"Missing audio for {scene_id}")
+            raise RuntimeError(
+                f"Missing audio for {scene_id} "
+                f"(expected file: {audio.name}). "
+                f"Check stage4 TTS logs."
+            )
 
         V = get_duration(video)
         A = get_duration(audio)

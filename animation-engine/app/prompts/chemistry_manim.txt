@@ -18,7 +18,7 @@ CORE RULES:
 - DO NOT use MovingCameraScene, self.camera, self.camera.frame, zoom, or pan
 - The total runtime of all .play() and .wait() calls in a scene's construct()
   must sum to that scene's duration_sec; pad with a final self.wait() to
-  close any gap exactly
+  close any gap exactly (NEVER use self.wait(0) or wait duration <= 0; use self.wait(1.0) as a minimum)
 - Do not compute timestamps from animation run_times. Instead:
   - scene[0].start = 00:00
   - scene[n].start = scene[n-1].end

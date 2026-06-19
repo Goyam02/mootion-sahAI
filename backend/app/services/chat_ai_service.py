@@ -20,6 +20,7 @@ from app.core.models import (
     SimulationRecord,
     StudentAiChatMessage,
     StudentAiChatThread,
+    StudentClassMembership,
     User,
 )
 from app.repositories.chapter_repository import get_assets_for_chapter
@@ -189,6 +190,11 @@ def _resolve_context(
         if not chapter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
         resolved_class_id = resolved_class_id or str(chapter.class_id)
+
+    if not resolved_class_id:
+        membership = db.query(StudentClassMembership).filter(StudentClassMembership.student_id == student.id).first()
+        if membership:
+            resolved_class_id = str(membership.class_id)
 
     if resolved_class_id:
         membership = get_student_class_membership(db, str(student.id), resolved_class_id)
@@ -450,6 +456,12 @@ def _extract_command_topic(command_prefix: str, message: str, context: dict[str,
 
 def _run_video_tool(message: str, context: dict[str, Any]) -> dict[str, Any]:
     topic = _extract_command_topic("/video", message, context)
+    
+    from app.services.rag_service import retrieve_context
+    grade = context.get("grade")
+    subject = context.get("subject")
+    rag_context = retrieve_context(str(topic), grade, subject)
+    
     response = httpx.post(
         settings.manim_service_url,
         params={
@@ -457,6 +469,7 @@ def _run_video_tool(message: str, context: dict[str, Any]) -> dict[str, Any]:
             "level": "school",
             "persona": "teacher",
             "face_enabled": False,
+            "rag_context": rag_context,
         },
         timeout=300.0,
     )
@@ -564,7 +577,11 @@ def _run_tool(db: Session, tool_name: str, message: str, context: dict[str, Any]
     raise RuntimeError(f"Unsupported tool: {tool_name}")
 
 
-def _build_answer_prompt(context: dict[str, Any], history: str, user_message: str, tool_summaries: list[dict[str, Any]]) -> str:
+def _build_answer_prompt(context: dict[str, Any], history: str, user_message: str, tool_summaries: list[dict[str, Any]], rag_context: str = "") -> str:
+    rag_section = ""
+    if rag_context:
+        rag_section = f"\nRelevant Textbook Content (RAG):\n{rag_context}\n"
+
     return f"""
 You are Mootion AI, a private student-only learning assistant.
 
@@ -573,7 +590,7 @@ Answer naturally if the question is broader than the current chapter.
 
 Context:
 {json.dumps(context, indent=2, ensure_ascii=False)}
-
+{rag_section}
 Conversation history:
 {history or "(none)"}
 
@@ -585,6 +602,7 @@ Tool results:
 
 Rules:
 - Be accurate, student-friendly, and concise unless the student asks for more detail.
+- Use the Relevant Textbook Content (RAG) to keep the answer accurate and aligned with the textbook's curriculum/explanations.
 - If a tool produced a useful asset, mention it briefly and clearly.
 - If the user asked for a quiz, include a short introduction to the quiz.
 - If the user asked for a video or simulation, explain what was generated and how it helps.
@@ -615,12 +633,18 @@ def _generate_final_answer(context: dict[str, Any], history: str, user_message: 
         return " ".join(pieces)
 
     client = _get_client()
+    
+    from app.services.rag_service import retrieve_context
+    grade = context.get("grade")
+    subject = context.get("subject")
+    rag_context = retrieve_context(user_message, grade, subject)
+
     response = client.chat.completions.create(
         model=settings.azure_openai_deployment,
         temperature=0.3,
         messages=[
             {"role": "system", "content": "You are a helpful student AI tutor."},
-            {"role": "user", "content": _build_answer_prompt(context, history, user_message, tool_summaries)},
+            {"role": "user", "content": _build_answer_prompt(context, history, user_message, tool_summaries, rag_context)},
         ],
     )
     text = (response.choices[0].message.content or "").strip()
@@ -721,6 +745,18 @@ def send_student_chat_message(
         thread.title = _title_from_message(content)
 
     thread.context_json = thread.context_json or {}
+    context_obj = dict(thread.context_json)
+    if not context_obj.get("grade") or not context_obj.get("subject"):
+        membership = db.query(StudentClassMembership).filter(StudentClassMembership.student_id == student.id).first()
+        if membership:
+            class_room = db.get(ClassRoom, membership.class_id)
+            if class_room:
+                context_obj["class_id"] = context_obj.get("class_id") or str(class_room.id)
+                context_obj["class_display_name"] = context_obj.get("class_display_name") or class_room.display_name
+                context_obj["grade"] = class_room.grade
+                context_obj["subject"] = class_room.subject
+                thread.context_json = context_obj
+
     thread.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(thread)

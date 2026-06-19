@@ -182,10 +182,11 @@ def submit_student_attempt(
     )
 
 
-# --- STUDENT DOUBTS ---
-
-def _generate_clarification_video(query_text: str) -> str:
+def _generate_clarification_video(query_text: str, grade: str = None, subject: str = None) -> str:
     try:
+        from app.services.rag_service import retrieve_context
+        rag_context = retrieve_context(query_text, grade, subject)
+        
         response = httpx.post(
             settings.manim_service_url,
             params={
@@ -193,6 +194,7 @@ def _generate_clarification_video(query_text: str) -> str:
                 "level": "school",
                 "persona": "teacher",
                 "face_enabled": False,
+                "rag_context": rag_context,
             },
             timeout=10.0,
         )
@@ -275,7 +277,11 @@ def submit_student_doubt(
             pass
 
     # Start/Get Clarification Video
-    clarification_video = _generate_clarification_video(query_text)
+    from app.core.models import ClassRoom
+    classroom = db.get(ClassRoom, class_id)
+    grade = classroom.grade if classroom else None
+    subject = classroom.subject if classroom else None
+    clarification_video = _generate_clarification_video(query_text, grade, subject)
 
     initial_messages = [
         {
@@ -515,7 +521,16 @@ def generate_playground_item(
         # Trigger Manim Video explanation
         check_and_use_doubt_quota(db, str(student.id))
         try:
-            video_url = _generate_clarification_video(topic)
+            from app.core.models import StudentClassMembership, ClassRoom
+            grade = None
+            subject = None
+            membership = db.query(StudentClassMembership).filter(StudentClassMembership.student_id == student.id).first()
+            if membership:
+                classroom = db.get(ClassRoom, membership.class_id)
+                if classroom:
+                    grade = classroom.grade
+                    subject = classroom.subject
+            video_url = _generate_clarification_video(topic, grade, subject)
             if video_url:
                 return PlaygroundGenerateResponse(
                     success=True,

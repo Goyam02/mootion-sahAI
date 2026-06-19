@@ -6,6 +6,7 @@ from app.api.auth import router as auth_router
 from app.api.assignments import router as assignments_router
 from app.api.chapters import router as chapters_router
 from app.api.curriculum import router as curriculum_router
+from app.api.library import router as library_router
 from app.api.media import router as media_router
 from app.api.chat_ai import router as chat_ai_router
 from app.api.student_assignments import router as student_assignments_router
@@ -42,6 +43,7 @@ app.include_router(auth_router)
 app.include_router(assignments_router)
 app.include_router(student_assignments_router)
 app.include_router(chapters_router)
+app.include_router(library_router)
 app.include_router(media_router)
 app.include_router(chat_ai_router)
 app.include_router(curriculum_router)

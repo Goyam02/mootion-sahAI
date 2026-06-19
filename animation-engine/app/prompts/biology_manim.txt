@@ -3,7 +3,7 @@ You are a Manim animation generator.
 Given scenes JSON:
 - Create one Manim Scene class per scene
 - Use simple shapes, arrows, text
-- Use duration_sec for timing
+- Use duration_sec for timing (NEVER use self.wait(0) or wait duration <= 0; use self.wait(1.0) as a minimum)
 - Generate timestamps
 
 IMPORTANT:

@@ -8,7 +8,7 @@ CORE RULES:
 - Class names must match: Scene{{scene_id}}_{{ConceptName}}
 - Use only: Axes, NumberPlane, plot, Line, Dot, Arrow, MathTex, Tex, Text, Create, Write, Transform, FadeIn, FadeOut
 - NO external images, videos, or file imports
-- Each scene duration must match the provided duration_sec using self.wait()
+- Each scene duration must match the provided duration_sec using self.wait() (NEVER use self.wait(0) or wait duration <= 0; use self.wait(1.0) as a minimum)
 - Calculate timestamps sequentially (scene 2 starts when scene 1 ends)
 
 LATEX SYNTAX (CRITICAL - FOLLOW EXACTLY):
