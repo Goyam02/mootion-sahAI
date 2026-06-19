@@ -5,7 +5,7 @@ import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import dotenv from "dotenv";
 import { WebSocketServer } from "ws";
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 const PORT = 3000;

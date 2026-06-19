@@ -561,6 +561,8 @@ export function StudentPlaygroundPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const mirrorDivRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const voiceStartTextRef = useRef<string>('');
 
   const syncScroll = useCallback(() => {
     if (chatInputRef.current && mirrorDivRef.current) {
@@ -912,11 +914,11 @@ export function StudentPlaygroundPage() {
           </div>
 
           {/* Mode Selector Toggle Segmented rounded pill */}
-          <div className="bg-[#1800ad]/5 rounded-2xl p-1 border border-[#1800ad]/15 flex items-center relative overflow-hidden select-none">
+          <div className="bg-[#1800ad]/5 rounded-full p-1 border border-[#1800ad]/15 flex items-center relative overflow-hidden select-none">
             <button
               type="button"
               onClick={() => setActiveWorkspaceTab('mootion')}
-              className={`flex-1 text-center py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 text-center py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 ${
                 activeWorkspaceTab === 'mootion'
                   ? 'bg-[#1800ad] text-[#f6f4ee] shadow-sm'
                   : 'text-[#1800ad]/60 hover:text-[#1800ad]'
@@ -927,7 +929,7 @@ export function StudentPlaygroundPage() {
             <button
               type="button"
               onClick={() => setActiveWorkspaceTab('teacher')}
-              className={`flex-1 text-center py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 text-center py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 ${
                 activeWorkspaceTab === 'teacher'
                   ? 'bg-[#1800ad] text-[#f6f4ee] shadow-sm'
                   : 'text-[#1800ad]/60 hover:text-[#1800ad]'
@@ -943,7 +945,7 @@ export function StudentPlaygroundPage() {
               <button 
                 type="button"
                 onClick={handleStartNewSession}
-                className="w-full bg-[#1800ad] hover:opacity-95 text-[#f6f4ee] uppercase font-montserrat font-black text-xs py-4 rounded-[18px] transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 border border-[#1800ad] tracking-wider"
+                className="w-full bg-[#1800ad] hover:opacity-95 text-[#f6f4ee] uppercase font-montserrat font-black text-xs py-4 rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 border border-[#1800ad] tracking-wider"
               >
                 <Plus size={16} /> New Chat
               </button>
@@ -951,7 +953,7 @@ export function StudentPlaygroundPage() {
               <button 
                 type="button"
                 onClick={triggerNewDoubtModal}
-                className="w-full bg-[#1800ad] hover:opacity-95 text-[#f6f4ee] uppercase font-montserrat font-black text-xs py-4 rounded-[18px] transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 border border-[#1800ad] tracking-wider"
+                className="w-full bg-[#1800ad] hover:opacity-95 text-[#f6f4ee] uppercase font-montserrat font-black text-xs py-4 rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 border border-[#1800ad] tracking-wider"
               >
                 <Plus size={16} /> New Doubt
               </button>
@@ -1442,7 +1444,6 @@ export function StudentPlaygroundPage() {
     { cmd: '/simulation', label: 'Create an interactive physics sandbox' },
     { cmd: '/universe', label: 'Explore a 3D orbital interactive system' },
     { cmd: '/quiz', label: 'Attempt unlimited custom concept practices' },
-    { cmd: '/ask-teacher', label: 'Ask a direct question to your teacher' },
   ];
 
   // Auto-scroll inside chat
@@ -1828,50 +1829,108 @@ export function StudentPlaygroundPage() {
 
   // Speech recording functions using MediaRecorder and Gemini Speech-to-Text
   const toggleChatVoiceRecording = async () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
     if (isVoiceRecording) {
-      if (mediaRecorderRef.current) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      } else if (mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       }
       setIsVoiceRecording(false);
     } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
+      voiceStartTextRef.current = textInput;
 
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) {
-            audioChunksRef.current.push(e.data);
-          }
-        };
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognitionRef.current = recognition;
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = 'en-US';
 
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          setIsTranscribing(true);
-          try {
-            const transcription = await transcribeAudioWithGemini(audioBlob);
-            if (transcription) {
-              setTextInput(prev => {
-                const newVal = (prev || '') + ' ' + transcription;
-                focusAndMoveCursorToEnd(newVal);
-                return newVal;
-              });
+          recognition.onstart = () => {
+            setIsVoiceRecording(true);
+          };
+
+          recognition.onresult = (event: any) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+              } else {
+                interimTranscript += transcript;
+              }
             }
-          } catch (err) {
-            console.error("Transcription error:", err);
-            alert("Failed to transcribe voice. Make sure microphone permission is enabled.");
-          } finally {
-            setIsTranscribing(false);
-          }
-        };
 
-        mediaRecorder.start();
-        setIsVoiceRecording(true);
-      } catch (err) {
-        console.error("Recording failed to start:", err);
-        alert("Failed to access microphone.");
+            const currentSpeech = finalTranscript || interimTranscript;
+            setTextInput(() => {
+              const base = voiceStartTextRef.current;
+              const newVal = base ? `${base.trim()} ${currentSpeech.trim()}` : currentSpeech.trim();
+              focusAndMoveCursorToEnd(newVal);
+              return newVal;
+            });
+          };
+
+          recognition.onerror = (err: any) => {
+            console.error("Speech recognition error:", err);
+            setIsVoiceRecording(false);
+          };
+
+          recognition.onend = () => {
+            setIsVoiceRecording(false);
+            recognitionRef.current = null;
+          };
+
+          recognition.start();
+        } catch (err) {
+          console.error("Failed to start SpeechRecognition:", err);
+          setIsVoiceRecording(false);
+        }
+      } else {
+        // Fallback to MediaRecorder + Gemini API
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+          audioChunksRef.current = [];
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              audioChunksRef.current.push(e.data);
+            }
+          };
+
+          mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            setIsTranscribing(true);
+            try {
+              const transcription = await transcribeAudioWithGemini(audioBlob);
+              if (transcription) {
+                setTextInput(prev => {
+                  const newVal = (prev || '') + ' ' + transcription;
+                  focusAndMoveCursorToEnd(newVal);
+                  return newVal;
+                });
+              }
+            } catch (err) {
+              console.error("Transcription error:", err);
+              alert("Failed to transcribe voice. Make sure microphone permission is enabled.");
+            } finally {
+              setIsTranscribing(false);
+            }
+          };
+
+          mediaRecorder.start();
+          setIsVoiceRecording(true);
+        } catch (err) {
+          console.error("Recording failed to start:", err);
+          alert("Failed to access microphone.");
+        }
       }
     }
   };
@@ -2743,7 +2802,7 @@ export function StudentPlaygroundPage() {
                           }}
                           className="px-4 py-3.5 text-left font-black text-[#1800ad] bg-[#f6f4ee] hover:bg-[#1800ad]/5 transition-all flex items-center justify-between font-montserrat border-t border-[#1800ad]/15"
                         >
-                          <span>Normal Upload a file</span>
+                          <span>Upload a file</span>
                           <span className="opacity-70 text-[10px] font-montserrat text-[#1800ad]/70" style={{fontFamily: 'Montserrat'}}>Workspace worksheets or figures</span>
                         </button>
                       )}

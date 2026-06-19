@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye } from '../components/Eye';
+import { Check } from 'lucide-react';
 import { api } from '../lib/api';
 
 export function StudentSignupPage() {
@@ -223,7 +224,7 @@ export function StudentSignupPage() {
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
                   disabled={isLoading}
-                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
+                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
                 />
                 <input 
                   type="text" 
@@ -231,7 +232,7 @@ export function StudentSignupPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   disabled={isLoading}
-                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
+                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
                 />
                 <input 
                   type="password" 
@@ -239,7 +240,7 @@ export function StudentSignupPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
-                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
+                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
                 />
               </motion.div>
             )}
@@ -253,39 +254,25 @@ export function StudentSignupPage() {
                 transition={{ duration: 0.3 }}
                 className="flex flex-col gap-3 md:gap-4 flex-1 justify-center relative mt-2 animate-fadeIn"
               >
-                <div className="relative w-full">
-                  <div 
-                    onClick={() => !isLoading && setIsLangOpen(!isLangOpen)}
-                    className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] cursor-pointer font-montserrat flex items-center justify-center relative"
-                  >
-                    <span className={selectedLanguage ? "text-[#2c2c2c]" : "text-gray-500"}>
-                      {selectedLanguage || "Language"}
-                    </span>
-                    <div className="absolute right-4 pointer-events-none">
-                      <motion.svg animate={{ rotate: isLangOpen ? 180 : 0 }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1800ad" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></motion.svg>
-                    </div>
-                  </div>
-                  <AnimatePresence>
-                    {isLangOpen && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute top-full left-0 right-0 mt-2 bg-[#f6f4ee] border border-[#1800ad] rounded-[24px] p-2 flex flex-col gap-1 z-20 shadow-lg font-montserrat"
+                <div className="flex flex-col gap-2 py-3 justify-center flex-1">
+                  {['English', 'Hindi', 'Gujarati', 'Marathi'].map((lang) => {
+                    const isSelected = selectedLanguage === lang;
+                    return (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => setSelectedLanguage(lang)}
+                        className={`w-full px-[18px] py-2 md:py-2.5 rounded-full border-2 font-bold text-xs sm:text-sm transition-all flex items-center justify-between ${
+                          isSelected 
+                            ? 'bg-[#1800ad] border-[#1800ad] text-[#f6f4ee] shadow-sm' 
+                            : 'bg-transparent border-[#1800ad]/35 text-[#1800ad] hover:bg-[#1800ad]/5 hover:border-[#1800ad]/65'
+                        }`}
                       >
-                        {['English', 'Hindi', 'Gujarati', 'Marathi'].map((lang) => (
-                          <div 
-                            key={lang}
-                            onClick={() => { setSelectedLanguage(lang); setIsLangOpen(false); }}
-                            className="w-full py-2 text-center text-sm text-[#2c2c2c] hover:bg-[#1800ad] hover:text-[#f6f4ee] rounded-full cursor-pointer transition-colors"
-                          >
-                            {lang}
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        <span className="flex-1 text-center font-extrabold tracking-wide">{lang}</span>
+                        {isSelected && <Check size={14} className="shrink-0 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
@@ -297,34 +284,36 @@ export function StudentSignupPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col gap-2.5 flex-1 justify-start mt-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1"
+                className="flex flex-col flex-1 justify-start mt-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1"
               >
-                {classCodes.map((codeItem, index) => (
-                  <div key={index} className="flex flex-col gap-1 w-full shrink-0">
-                    <input 
-                      type="text" 
-                      placeholder={`Class Code ${index + 1}`}
-                      value={codeItem.value}
-                      onChange={(e) => handleClassCodeChange(index, e.target.value)}
-                      disabled={isLoading}
-                      className="w-full px-6 py-1.5 md:py-2 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1800ad] font-montserrat"
-                    />
-                    {codeItem.error && (
-                      <span className="text-[10px] text-red-600 font-bold text-center px-2">
-                        {codeItem.error}
-                      </span>
-                    )}
-                  </div>
-                ))}
-                
-                <button 
-                  type="button"
-                  onClick={addClassCodeField}
-                  disabled={isLoading}
-                  className="w-full py-1.5 border-2 border-dashed border-[#1800ad]/30 text-[#1800ad] hover:border-[#1800ad] rounded-full font-bold text-xs transition-colors flex items-center justify-center gap-1 mt-1 shrink-0"
-                >
-                  + Add another class
-                </button>
+                <div className="my-auto w-full flex flex-col gap-2.5">
+                  {classCodes.map((codeItem, index) => (
+                    <div key={index} className="flex flex-col gap-1 w-full shrink-0">
+                      <input 
+                        type="text" 
+                        placeholder={`Class Code ${index + 1}`}
+                        value={codeItem.value}
+                        onChange={(e) => handleClassCodeChange(index, e.target.value)}
+                        disabled={isLoading}
+                        className="w-full px-6 py-1.5 md:py-2 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
+                      />
+                      {codeItem.error && (
+                        <span className="text-[10px] text-red-600 font-bold text-center px-2">
+                          {codeItem.error}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  
+                  <button 
+                    type="button"
+                    onClick={addClassCodeField}
+                    disabled={isLoading}
+                    className="w-full py-2.5 border-2 border-dashed border-[#1800ad]/30 text-[#1800ad] hover:border-[#1800ad] rounded-full font-bold text-[13px] transition-colors flex items-center justify-center gap-1 mt-1 shrink-0"
+                  >
+                    + Add another class
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -385,7 +374,7 @@ export function StudentSignupPage() {
                   onClick={handleSkipOnboarding} 
                   className="w-1/2 px-2 sm:px-4 py-2 md:py-3 bg-transparent border-2 border-[#1800ad] text-[#1800ad] hover:bg-[#1800ad] hover:text-[#f6f4ee] text-[13px] sm:text-sm font-bold transition-all duration-300 rounded-full flex justify-center items-center"
                 >
-                  Skip for now
+                  Skip
                 </button>
                 <button 
                   type="button"

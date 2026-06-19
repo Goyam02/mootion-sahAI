@@ -27,9 +27,13 @@ import { ProtectedRoute, LoginRoute } from './components/ProtectedRoute';
 // NotFound Page
 import { NotFoundPage } from './app/not-found';
 
+// Gesture Navigation
+import { GestureNavigation } from './components/GestureNavigation';
+
 export default function App() {
   return (
     <BrowserRouter>
+      <GestureNavigation />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
