@@ -352,12 +352,7 @@ def get_student_assignment(db: Session, user: User, class_id: str, assignment_id
     return _student_assignment_to_response(db, assignment)
 
 
-def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
-    topic = payload_json.get("chapter_title") or payload_json.get("generation_prompt") or asset.title
-    notes = str(payload_json.get("teacher_notes") or payload_json.get("instructions") or "").strip()
-    prompt = topic if not notes else f"{topic}. Teacher notes: {notes}"
-    
-    # Resolve grade and subject from the database
+def _get_rag_context_for_asset(asset: ChapterAsset, query: str) -> str:
     grade = None
     subject = None
     
@@ -378,7 +373,15 @@ def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, 
     finally:
         local_db.close()
         
-    rag_context = retrieve_context(prompt, grade, subject)
+    return retrieve_context(query, grade, subject)
+
+
+def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+    topic = payload_json.get("chapter_title") or payload_json.get("generation_prompt") or asset.title
+    notes = str(payload_json.get("teacher_notes") or payload_json.get("instructions") or "").strip()
+    prompt = topic if not notes else f"{topic}. Teacher notes: {notes}"
+    
+    rag_context = _get_rag_context_for_asset(asset, prompt)
     
     print(f"[media-worker] Sending render request to Manim Service URL: {settings.manim_service_url} for prompt: '{prompt}'", flush=True)
     response = httpx.post(
@@ -445,6 +448,8 @@ def _apply_generation_result(db: Session, job: ChapterAssetGenerationJob, result
 
 def _run_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
     topic = payload_json.get("chapter_title") or asset.title
+    rag_context = _get_rag_context_for_asset(asset, topic)
+
     prompt = f"""
     You are a science teacher. Generate a quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic}".
     For each question, provide 4 options and specify the index of the correct option (0-based).
@@ -455,6 +460,9 @@ def _run_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, o
 
     Do not include markdown tags like ```json or any other text. Output exactly the raw JSON array.
     """
+    if rag_context:
+        prompt = f"{prompt}\n\nUse the following verified NCERT/curriculum reference context to base the quiz questions on:\n{rag_context}"
+
     try:
         res = query_llm(prompt)
         text = res.get("response", "").strip()
@@ -475,6 +483,10 @@ def _run_simulation_generation(asset: ChapterAsset, payload_json: dict) -> dict[
     topic = payload_json.get("generation_prompt") or payload_json.get("instructions") or payload_json.get("chapter_title") or asset.title
     instructions = payload_json.get("instructions") or ""
     prompt = f"Teach me {topic}. {instructions}".strip()
+
+    rag_context = _get_rag_context_for_asset(asset, topic)
+    if rag_context:
+        prompt = f"{prompt}\n\nUse the following verified NCERT/curriculum reference context to structure the simulation components, parameters, and pedagogical feedback:\n{rag_context}"
 
     pipeline = SimulationPipeline()
     result = pipeline.run(prompt)
