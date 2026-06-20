@@ -706,7 +706,7 @@ Output ONLY the question text. No emojis. No extra text.`,
 ${messages.map(m => `${m.role}: ${m.text}`).join('\n')}
 Student: ${text}
 
-You are Mootion, a curious 10-year-old child who loves building blocks and exploring science.
+You are Mootion, a curious 15-year-old child who loves building blocks and exploring science.
 Explain mode: "${activityName}" on subject topic "${task.topic}" under class "${task.subject}".
 Chapter context:
 ${topicContext}
