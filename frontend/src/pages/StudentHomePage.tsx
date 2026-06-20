@@ -371,7 +371,7 @@ export function StudentHomePage() {
                 <motion.div
                   whileHover={{ y: -4 }}
                   onClick={() => {
-                    if (['video', 'simulation', 'quiz', 'model'].includes(upNext.assignment_type)) {
+                    if (['video', 'simulation', 'quiz', 'model', 'explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ', 'explain_it', 'predict_it'].includes(upNext.assignment_type)) {
                       navigate(`/student/task/${upNext.assignment_id}?class_id=${upNext.class_id}`);
                     } else {
                       navigate(`/student/playground?assignment_id=${upNext.assignment_id}&class_id=${upNext.class_id}`);
@@ -530,7 +530,7 @@ export function StudentHomePage() {
                         key={a.assignment_id}
                         whileHover={{ y: -2 }}
                         onClick={() => {
-                          if (['video', 'simulation', 'quiz', 'model'].includes(a.assignment_type)) {
+                          if (['video', 'simulation', 'quiz', 'model', 'explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ', 'explain_it', 'predict_it'].includes(a.assignment_type)) {
                             navigate(`/student/task/${a.assignment_id}?class_id=${a.class_id}`);
                           } else {
                             navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`);

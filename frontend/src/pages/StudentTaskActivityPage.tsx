@@ -31,7 +31,7 @@ function QuizContent({ task }: { task: Task }) {
   useEffect(() => {
     // If it's a real backend task and we have quiz questions, use them!
     if ((task as any).dbTask) {
-      const mainJob = (task as any).dbTask.jobs?.find((j: any) => j.asset_type === 'quiz');
+      const mainJob = (task as any).dbTask.jobs?.find((j: any) => j.asset_type === 'quiz' || j.asset_type === 'interactive_quiz');
       const questionsData = mainJob?.result_json?.questions || mainJob?.result_json?.quiz || (task as any).dbTask.content_json?.quiz;
       if (questionsData && Array.isArray(questionsData)) {
         setQuestions(questionsData);
@@ -368,6 +368,21 @@ export function StudentTaskActivityPage() {
     } else if (dbTask.assignment_type === 'model') {
       taskType = 'Simulation';
       typeLabel = '3D Model';
+    } else if (['explain_ai', 'EXPLAIN_IT', 'explain_it'].includes(dbTask.assignment_type)) {
+      taskType = 'Explain It';
+      typeLabel = 'Explain It';
+    } else if (['predict_ai', 'PREDICT_IT', 'predict_it'].includes(dbTask.assignment_type)) {
+      taskType = 'Predict It';
+      typeLabel = 'Predict It';
+    } else if (['spot_it', 'SPOT_IT'].includes(dbTask.assignment_type)) {
+      taskType = 'Spot It';
+      typeLabel = 'Spot It';
+    } else if (dbTask.assignment_type === 'connect_it') {
+      taskType = 'Connect It';
+      typeLabel = 'Connect It';
+    } else if (['interactive_quiz', 'INTERACTIVE_QUIZ'].includes(dbTask.assignment_type)) {
+      taskType = 'Interactive Quiz';
+      typeLabel = 'Interactive Quiz';
     }
 
     task = {
@@ -418,6 +433,16 @@ export function StudentTaskActivityPage() {
   }
 
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (task && ['Explain It', 'Predict It', 'Spot It', 'Connect It', 'Interactive Quiz'].includes(task.type)) {
+      if (task.type === 'Interactive Quiz') {
+        setActiveActivity(null);
+      } else {
+        setActiveActivity(task.type);
+      }
+    }
+  }, [task?.type]);
 
   if (loadingDbTask) {
     return (
@@ -504,9 +529,9 @@ export function StudentTaskActivityPage() {
                    <LiveVoiceActivity task={task} activityName="Connect It" instructions="Explain the relationship between concepts." onDone={() => setActiveActivity(null)} />
                  </motion.div>
                )}
-               {!activeActivity && (
-                 <motion.div key="default" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="h-full flex flex-col">
-                     {task.type === 'Quiz' ? <QuizContent task={task} /> : <VideoSimulationContent task={task} />}
+              {!activeActivity && (
+                  <motion.div key="default" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="h-full flex flex-col">
+                      {(task.type === 'Quiz' || task.type === 'Interactive Quiz') ? <QuizContent task={task} /> : <VideoSimulationContent task={task} />}
                      
                      {/* Multi-attempt logs & interactive teacher auditing board embedded cleanly right in the container flow */}
                      <AttemptHistoryPanel taskId={task.id} />

@@ -202,7 +202,31 @@ def _ensure_user_has_access(db: Session, user: User, class_id: str) -> None:
 
 
 def _chapter_to_response(db: Session, chapter: Chapter) -> ChapterResponse:
-    assets = get_assets_for_chapter(db, str(chapter.id))
+    existing_assets = get_assets_for_chapter(db, str(chapter.id))
+    existing_types = {asset.asset_type for asset in existing_assets}
+    
+    needed_updates = False
+    for asset_config in PLACEHOLDER_ASSETS:
+        if asset_config["asset_type"] not in existing_types:
+            new_asset = ChapterAsset(
+                chapter_id=chapter.id,
+                asset_type=asset_config["asset_type"],
+                provider=asset_config["provider"],
+                integration_target=asset_config["integration_target"],
+                title=asset_config["title"],
+                description=asset_config["description"],
+                payload_json=asset_config["payload_json"],
+                generation_status="placeholder",
+            )
+            db.add(new_asset)
+            needed_updates = True
+            
+    if needed_updates:
+        db.commit()
+        assets = get_assets_for_chapter(db, str(chapter.id))
+    else:
+        assets = existing_assets
+
     topics = get_topics_for_chapter(db, str(chapter.id))
 
     subtopics = []
