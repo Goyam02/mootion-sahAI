@@ -12,7 +12,6 @@ import {
   X,
   Play,
   Sparkles,
-  UserPlus,
   BookOpen,
   Clock,
   AlertCircle
@@ -261,14 +260,6 @@ export function StudentHomePage() {
       {/* ChatBot FAB */}
       <ChatbotFab />
 
-      {/* Persistent Join Class FAB */}
-      <button
-        onClick={() => setIsJoinModalOpen(true)}
-        className="fixed bottom-28 md:bottom-6 left-4 md:left-24 lg:left-28 xl:left-32 z-40 w-14 h-14 rounded-full border-4 border-[#f6f4ee] bg-[#1800ad] shadow-xl flex items-center justify-center hover:scale-105 hover:shadow-2xl transition-all text-[#f6f4ee] font-black text-2xl"
-        title="Join a class"
-      >
-        <UserPlus size={22} className="stroke-[2.5]" />
-      </button>
 
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
