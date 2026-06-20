@@ -129,7 +129,7 @@ export function TeacherTopicSetupPage() {
             const numericGrade = parseInt(targetGradeNormalized, 10);
             if (
               !isNaN(numericGrade) &&
-              numericGrade >= 5 &&
+              numericGrade >= 6 &&
               numericGrade <= 10 &&
               classGradeNormalized === targetGradeNormalized &&
               classSubjectNormalized === 'science' &&

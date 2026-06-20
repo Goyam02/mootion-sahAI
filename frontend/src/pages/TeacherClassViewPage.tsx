@@ -113,11 +113,11 @@ export function TeacherClassViewPage() {
             return true;
           }
 
-          // 2. Science fallback match for grades 5-10
+          // 2. Science fallback match for grades 6-10
           const numericGrade = parseInt(targetGradeNormalized, 10);
           if (
             !isNaN(numericGrade) &&
-            numericGrade >= 5 &&
+            numericGrade >= 6 &&
             numericGrade <= 10 &&
             classGradeNormalized === targetGradeNormalized
           ) {
