@@ -16,7 +16,8 @@ import {
   Pencil,
   Film,
   Box,
-  Brain
+  Brain,
+  BarChart2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -57,7 +58,20 @@ const TYPE_LABELS: Record<string, string> = {
   video: 'Watch',
   simulation: 'Simulation',
   model: '3D Model',
+  explain_it: 'Explain It',
+  predict_it: 'Predict It',
+  interactive_quiz: 'Interactive Quiz',
+  EXPLAIN_IT: 'Explain It',
+  PREDICT_IT: 'Predict It',
+  SPOT_IT: 'Spot It',
+  INTERACTIVE_QUIZ: 'Interactive Quiz',
 };
+
+const INTERACTIVE_TASK_TYPES = new Set([
+  'explain_ai', 'predict_ai', 'spot_it', 'connect_it',
+  'explain_it', 'predict_it',
+  'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT',
+]);
 
 const TYPE_ICON = (type: string) => {
   switch (type) {
@@ -65,7 +79,12 @@ const TYPE_ICON = (type: string) => {
     case 'simulation': return <Beaker size={16} />;
     case 'quiz': return <FileQuestion size={16} />;
     case 'model': return <Box size={16} />;
-    case 'explain_ai': case 'predict_ai': case 'spot_it': case 'connect_it': return <Brain size={16} />;
+    case 'explain_ai': case 'predict_ai': case 'spot_it': case 'connect_it':
+    case 'explain_it': case 'predict_it':
+    case 'EXPLAIN_IT': case 'PREDICT_IT': case 'SPOT_IT':
+      return <Brain size={16} />;
+    case 'interactive_quiz': case 'INTERACTIVE_QUIZ':
+      return <FileQuestion size={16} />;
     default: return <Pencil size={16} />;
   }
 };
@@ -147,7 +166,7 @@ export function StudentTasksPage() {
 
   const handleStart = (a: FlatAssignment) => {
     if (a.status !== 'ready') return;
-    if (['video', 'simulation', 'quiz', 'model'].includes(a.assignment_type)) {
+    if (['video', 'simulation', 'quiz', 'model', 'explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'explain_it', 'predict_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ'].includes(a.assignment_type)) {
       navigate(`/student/task/${a.assignment_id}?class_id=${a.class_id}`);
     } else {
       navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`);
@@ -189,6 +208,7 @@ export function StudentTasksPage() {
         <NavItem icon={<CheckSquare size={24} />} active onClick={() => navigate('/student/tasks')} />
         <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
         <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
+        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
       </nav>
 
       {/* Sidebar - Desktop */}
@@ -201,6 +221,7 @@ export function StudentTasksPage() {
           <NavItem icon={<CheckSquare size={24} />} active onClick={() => navigate('/student/tasks')} />
           <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
           <span className="text-[#1800ad] font-bold text-lg transition-colors duration-300">S</span>

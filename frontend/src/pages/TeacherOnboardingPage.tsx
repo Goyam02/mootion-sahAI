@@ -40,13 +40,13 @@ export function TeacherOnboardingPage() {
 
   // Preset options
   const gradeOptions = [
-    'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'
+    'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'
   ];
 
   const [showExclusiveNote, setShowExclusiveNote] = useState(false);
 
   const getSubjectOptions = () => {
-    const hasGroup1 = selectedGrades.some(g => ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'].includes(g));
+    const hasGroup1 = selectedGrades.some(g => ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'].includes(g));
     const hasGroup2 = selectedGrades.some(g => ['Class 11', 'Class 12'].includes(g));
 
     if (hasGroup1) {
@@ -70,11 +70,11 @@ export function TeacherOnboardingPage() {
   }, [selectedGrades]);
 
   const toggleGrade = (grade: string) => {
-    const isGroup1 = ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'].includes(grade);
+    const isGroup1 = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'].includes(grade);
     const isSelecting = !selectedGrades.includes(grade);
 
     if (isSelecting) {
-      const hasGroup1 = selectedGrades.some(g => ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'].includes(g));
+      const hasGroup1 = selectedGrades.some(g => ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'].includes(g));
       const hasGroup2 = selectedGrades.some(g => ['Class 11', 'Class 12'].includes(g));
 
       if (isGroup1 && hasGroup2) {
@@ -201,10 +201,6 @@ export function TeacherOnboardingPage() {
 
   const handleLoadNCERT = () => {
     submitOnboarding(true);
-  };
-
-  const handleSkipNow = () => {
-    submitOnboarding(false);
   };
 
   return (
@@ -354,7 +350,7 @@ export function TeacherOnboardingPage() {
 
                 {showExclusiveNote && (
                   <p className="text-[10px] text-amber-600 font-semibold text-center mt-1 max-w-[280px] mx-auto leading-normal">
-                    Note: Middle school (Class 5–10) and high school (Class 11–12) grades are mutually exclusive. Selecting this grade has deselected your previous choices.
+                    Note: Middle school (Class 6–10) and high school (Class 11–12) grades are mutually exclusive. Selecting this grade has deselected your previous choices.
                   </p>
                 )}
 
@@ -527,18 +523,11 @@ export function TeacherOnboardingPage() {
                      <span className="text-[9px] font-bold uppercase tracking-wider font-mono animate-pulse text-[#1800ad]">Structuring...</span>
                   </div>
                 ) : (
-                  <div className="flex gap-2 w-full mt-auto">
-                    <button 
-                      type="button"
-                      onClick={handleSkipNow}
-                      className="flex-1 px-6 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-[13px] sm:text-sm md:text-base font-bold transition-all duration-300 rounded-full text-center"
-                    >
-                      Skip
-                    </button>
+                  <div className="w-full mt-auto">
                     <button 
                       type="button"
                       onClick={handleLoadNCERT}
-                      className="flex-1 px-6 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-[13px] sm:text-sm md:text-base font-bold transition-all duration-300 rounded-full text-center"
+                      className="w-full px-6 py-2 md:py-3 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-[13px] sm:text-sm md:text-base font-bold transition-all duration-300 rounded-full text-center"
                     >
                       Start
                     </button>

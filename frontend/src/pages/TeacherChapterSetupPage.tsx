@@ -46,12 +46,28 @@ interface ActivityItem {
   payload_json: any;
 }
 
-const DIRECT_GENERATION_TYPES = new Set(['concept_video', 'simulation', 'three_d_model']);
+const DIRECT_GENERATION_TYPES = new Set([
+  'concept_video',
+  'simulation',
+  'three_d_model',
+  'quiz',
+  'explain_it',
+  'predict_it',
+  'spot_it',
+  'connect_it',
+  'interactive_quiz'
+]);
 
 const GENERATION_ESTIMATES: Record<string, number> = {
   concept_video: 180,
   simulation: 75,
   three_d_model: 45,
+  quiz: 30,
+  explain_it: 30,
+  predict_it: 30,
+  spot_it: 30,
+  connect_it: 30,
+  interactive_quiz: 30,
 };
 
 const formatDuration = (seconds: number) => {
@@ -75,6 +91,13 @@ const ASSET_TYPES_ORDER = [
   'connect_it'
 ];
 
+const INTERACTIVE_ASSIGNMENT_TYPES = [
+  { type: 'explain_ai', label: 'Explain It', icon: 'HelpCircle', desc: 'Student explains a topic to a curious 10-year-old AI, testing their understanding through teaching.', color: 'bg-purple-100 text-purple-800 border-purple-300' },
+  { type: 'predict_ai', label: 'Predict It', icon: 'Sliders', desc: 'Student predicts outcomes of scientific experiments before seeing the result, building hypothesis skills.', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { type: 'spot_it', label: 'Spot It', icon: 'AlertCircle', desc: 'Student identifies real-world applications of scientific concepts through riddles and scenarios.', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+  { type: 'interactive_quiz', label: 'Interactive Quiz', icon: 'HelpCircle', desc: 'Timed interactive quiz that tests knowledge with engaging multiple-choice questions.', color: 'bg-rose-100 text-rose-800 border-rose-300' },
+];
+
 export function TeacherChapterSetupPage() {
   const { classId, chapterId } = useParams<{ classId: string, chapterId: string }>();
   const navigate = useNavigate();
@@ -95,6 +118,9 @@ export function TeacherChapterSetupPage() {
   const [now, setNow] = useState(() => Date.now());
 
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [interactiveAssignments, setInteractiveAssignments] = useState<Record<string, boolean>>(
+    Object.fromEntries(INTERACTIVE_ASSIGNMENT_TYPES.map(a => [a.type, false]))
+  );
 
   // ─── Content Library state ────────────────────────────────────────────────
   const [showLibrary, setShowLibrary] = useState(false);
@@ -167,7 +193,7 @@ export function TeacherChapterSetupPage() {
             const numericGrade = parseInt(targetGradeNormalized, 10);
             if (
               !isNaN(numericGrade) &&
-              numericGrade >= 5 &&
+              numericGrade >= 6 &&
               numericGrade <= 10 &&
               classGradeNormalized === targetGradeNormalized &&
               classSubjectNormalized === 'science' &&
@@ -433,22 +459,40 @@ export function TeacherChapterSetupPage() {
     setAssignError(null);
     try {
       const activeActs = activities.filter(a => a.active);
-      if (activeActs.length === 0) {
-        throw new Error('Please select at least one activity to assign.');
+      const selectedInteractive = INTERACTIVE_ASSIGNMENT_TYPES.filter(a => interactiveAssignments[a.type]);
+      const totalSelected = activeActs.length + selectedInteractive.length;
+      if (totalSelected === 0) {
+        throw new Error('Please select at least one activity or interactive mode to assign.');
       }
       
-      // Make sequential or parallel POST calls to create the assignments
-      await Promise.all(
-        activeActs.map(async (act) => {
-          const assignmentType = mapAssetTypeToAssignmentType(act.asset_type);
-          await api.post(`/teachers/classes/${classId}/assignments`, {
+      const promises: Promise<any>[] = [];
+
+      // Create assignments for chapter activities
+      activeActs.forEach(act => {
+        const assignmentType = mapAssetTypeToAssignmentType(act.asset_type);
+        promises.push(
+          api.post(`/teachers/classes/${classId}/assignments`, {
             chapter_id: chapterId,
             assignment_type: assignmentType,
             title: act.title,
             instructions: specialNote || null,
-          });
-        })
-      );
+          })
+        );
+      });
+
+      // Create assignments for interactive modes
+      selectedInteractive.forEach(mode => {
+        promises.push(
+          api.post(`/teachers/classes/${classId}/assignments`, {
+            chapter_id: chapterId,
+            assignment_type: mode.type,
+            title: `${mode.label} - ${resolvedChapter?.title || 'Chapter Activity'}`,
+            instructions: specialNote || null,
+          })
+        );
+      });
+
+      await Promise.all(promises);
 
       setSuccess(true);
       setTimeout(() => {
@@ -469,19 +513,19 @@ export function TeacherChapterSetupPage() {
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2.5 flex justify-between items-center z-40 rounded-full border-[2px] border-[#f6f4ee] shadow-xl font-montserrat">
         <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
         <NavItem icon={<BookOpen size={24} />} active onClick={() => navigate(`/teacher/class/${classId}`)} />
-        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
+        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(classId ? `/teacher/analytics/${classId}` : '/teacher/analytics')} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
       </nav>
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30 font-montserrat">
         <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-montserrat font-black text-3xl leading-none tracking-widest">M</span>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
           <NavItem icon={<BookOpen size={24} />} active onClick={() => navigate(`/teacher/class/${classId}`)} />
-          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(classId ? `/teacher/analytics/${classId}` : '/teacher/analytics')} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
@@ -752,6 +796,48 @@ export function TeacherChapterSetupPage() {
                   })}
                 </div>
 
+                {/* ─── Interactive Assignment Modes Section ─── */}
+                <div className="mt-8 border-t-2 border-[#1800ad]/15 pt-8">
+                  <h2 className="text-lg font-black text-[#1800ad] tracking-tight mb-1">
+                    AI Interactive Modes
+                  </h2>
+                  <p className="text-xs font-semibold opacity-75 mb-5">
+                    Assign AI-powered interactive activities alongside your chapter content. These use conversational AI to engage students.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {INTERACTIVE_ASSIGNMENT_TYPES.map((mode) => {
+                      const isSelected = interactiveAssignments[mode.type];
+                      return (
+                        <button
+                          key={mode.type}
+                          type="button"
+                          onClick={() => setInteractiveAssignments(prev => ({ ...prev, [mode.type]: !prev[mode.type] }))}
+                          className={`border-2 rounded-[24px] p-5 text-left transition-all ${
+                            isSelected
+                              ? 'border-[#1800ad] bg-[#1800ad]/5 shadow-md'
+                              : 'border-[#1800ad]/15 bg-[#f6f4ee] hover:border-[#1800ad]/40 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <span className={`p-2.5 rounded-xl ${isSelected ? 'bg-[#1800ad] text-[#f6f4ee]' : 'bg-[#1800ad]/5 text-[#1800ad] border border-[#1800ad]/15'}`}>
+                              {mode.icon === 'HelpCircle' && <HelpCircle size={18} />}
+                              {mode.icon === 'Sliders' && <Sliders size={18} />}
+                              {mode.icon === 'AlertCircle' && <AlertCircle size={18} />}
+                            </span>
+                            {isSelected && (
+                              <span className="w-5 h-5 bg-[#1800ad] rounded-full flex items-center justify-center">
+                                <Check size={12} className="text-[#f6f4ee] stroke-[3]" />
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-black text-sm text-[#1800ad] mb-1.5">{mode.label}</h3>
+                          <p className="text-[11px] font-semibold text-[#1800ad]/70 leading-relaxed">{mode.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Bottom CTA for Configuration Settings trigger */}
                 <div className="mt-8 border-t-2 border-[#1800ad]/15 pt-6 flex justify-end">
                   <button
@@ -813,6 +899,15 @@ export function TeacherChapterSetupPage() {
                               {a.title}
                             </span>
                           ))}
+                          {INTERACTIVE_ASSIGNMENT_TYPES.filter(m => interactiveAssignments[m.type]).map(m => (
+                            <span key={m.type} className="bg-[#1800ad]/10 whitespace-nowrap px-3 py-1 rounded-full border border-[#1800ad]/30 flex items-center gap-1 font-black">
+                              <Sparkles size={12} className="text-[#1800ad]" />
+                              {m.label}
+                            </span>
+                          ))}
+                          {activities.filter(a => a.active).length === 0 && Object.values(interactiveAssignments).every(v => !v) && (
+                            <span className="text-[#1800ad]/50">No activities selected</span>
+                          )}
                         </div>
                       </div>
 

@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     JSON,
@@ -13,7 +14,43 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.types import TypeDecorator, CHAR
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
+
+class GUID(TypeDecorator):
+    impl = CHAR
+    cache_ok = True
+
+    def __init__(self, as_uuid=True):
+        super().__init__()
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(pgUUID(as_uuid=True))
+        else:
+            return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid.UUID):
+            try:
+                return str(uuid.UUID(value))
+            except ValueError:
+                return value
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid.UUID):
+            try:
+                return uuid.UUID(value)
+            except ValueError:
+                return value
+        return value
+
+UUID = GUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -481,3 +518,39 @@ class StudentAiChatMessage(Base):
     asset_type = Column(String(32), nullable=True)
     asset_json = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ConceptScore(Base):
+    __tablename__ = "concept_scores"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    transcript = Column(Text, nullable=True)
+    clarity_score = Column(Float, nullable=True)
+    accuracy_score = Column(Float, nullable=True)
+    depth_score = Column(Float, nullable=True)
+    overall_score = Column(Float, nullable=True)
+    llm_feedback = Column(Text, nullable=True)
+    attempt_number = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    student = relationship("User", foreign_keys=[student_id])
+    chapter = relationship("Chapter", foreign_keys=[chapter_id])
+    classroom = relationship("ClassRoom", foreign_keys=[class_id])
+
+
+class StudentTopicCluster(Base):
+    __tablename__ = "student_topic_clusters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True)
+    cluster_label = Column(String(50), nullable=False)
+    student_ids = Column(JSON, nullable=False)
+    avg_score = Column(Float, nullable=False)
+    computed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    classroom = relationship("ClassRoom", foreign_keys=[class_id])
+    chapter = relationship("Chapter", foreign_keys=[chapter_id])

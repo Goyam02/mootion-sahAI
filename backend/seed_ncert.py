@@ -10,7 +10,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.core.models import User, ClassRoom, TeacherClassMembership, CurriculumPlan, Chapter
+from app.core.models import User, ClassRoom, TeacherClassMembership, StudentClassMembership, CurriculumPlan, Chapter
 from app.core.security import hash_password
 from app.repositories.auth_repository import get_user_by_login_id
 from app.repositories.onboarding_repository import get_or_create_default_school
@@ -40,6 +40,24 @@ def seed():
             if not teacher.onboarding_completed:
                 teacher.onboarding_completed = True
                 db.commit()
+
+        # 1b. Get or create student user 'student1'
+        student = get_user_by_login_id(db, "student1")
+        if not student:
+            print("Creating default student user 'student1'...")
+            student = User(
+                login_id="student1",
+                role="student",
+                full_name="Default Student",
+                password_hash=hash_password("student1"),
+                preferred_language="english",
+                onboarding_completed=True,
+            )
+            db.add(student)
+            db.commit()
+            db.refresh(student)
+        else:
+            print("Default student user 'student1' already exists.")
 
         # Define NCERT scope
         scope = {
@@ -96,6 +114,21 @@ def seed():
                     db.add(membership)
                     db.commit()
 
+                # Ensure student membership
+                student_membership = db.query(StudentClassMembership).filter(
+                    StudentClassMembership.student_id == student.id,
+                    StudentClassMembership.class_id == class_room.id
+                ).first()
+
+                if not student_membership:
+                    print(f"Adding student membership for Grade {grade} {subject}...")
+                    student_membership = StudentClassMembership(
+                        student_id=student.id,
+                        class_id=class_room.id,
+                    )
+                    db.add(student_membership)
+                    db.commit()
+
                 # Ensure curriculum is bootstrapped
                 curriculum = db.query(CurriculumPlan).filter(
                     CurriculumPlan.class_id == class_room.id
@@ -107,6 +140,8 @@ def seed():
                         curriculum_res = bootstrap_ncert_curriculum(db, teacher, str(class_room.id))
                         curriculum_id = curriculum_res.curriculum_id
                     except Exception as e:
+                        import traceback
+                        traceback.print_exc()
                         print(f"Error bootstrapping curriculum for Grade {grade} {subject}: {e}")
                         continue
                 else:

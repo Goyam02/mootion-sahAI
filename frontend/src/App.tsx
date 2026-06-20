@@ -1,5 +1,4 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { StudentLoginPage } from './pages/StudentLoginPage';
@@ -9,6 +8,8 @@ import { StudentTasksPage } from './pages/StudentTasksPage';
 import { StudentTaskActivityPage } from './pages/StudentTaskActivityPage';
 import { StudentExplorePage } from './pages/StudentExplorePage';
 import { StudentPlaygroundPage } from './pages/StudentPlaygroundPage';
+import { StudentAnalytics } from './pages/StudentAnalytics';
+
 
 // Teacher Imports
 import { TeacherLoginPage } from './pages/TeacherLoginPage';
@@ -18,6 +19,7 @@ import { TeacherClassViewPage } from './pages/TeacherClassViewPage';
 import { TeacherChapterSetupPage } from './pages/TeacherChapterSetupPage';
 import { TeacherBroadcastPage } from './pages/TeacherBroadcastPage';
 import { TeacherAnalyticsPage } from './pages/TeacherAnalyticsPage';
+import { TeacherAnalytics } from './pages/TeacherAnalytics';
 import { TeacherDoubtsPage } from './pages/TeacherDoubtsPage';
 import { TeacherTopicSetupPage } from './pages/TeacherTopicSetupPage';
 
@@ -37,7 +39,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/login" element={<LoginRoute><StudentLoginPage /></LoginRoute>} />
+        <Route path="/login" element={<Navigate to="/onboarding" replace />} />
         <Route path="/login/student" element={<LoginRoute><StudentLoginPage /></LoginRoute>} />
         <Route path="/signup/student" element={<StudentSignupPage />} />
         
@@ -48,6 +50,7 @@ export default function App() {
         <Route path="/student/explore" element={<ProtectedRoute allowedRole="student"><StudentExplorePage /></ProtectedRoute>} />
         <Route path="/student/explore/:subjectCode/:chapterId" element={<ProtectedRoute allowedRole="student"><StudentExplorePage /></ProtectedRoute>} />
         <Route path="/student/playground" element={<ProtectedRoute allowedRole="student"><StudentPlaygroundPage /></ProtectedRoute>} />
+        <Route path="/student/analytics" element={<ProtectedRoute allowedRole="student"><StudentAnalytics /></ProtectedRoute>} />
 
         {/* Protected Teacher Routes */}
         <Route path="/teacher/login" element={<LoginRoute><TeacherLoginPage /></LoginRoute>} />
@@ -58,6 +61,8 @@ export default function App() {
         <Route path="/teacher/topic-setup/:classId/:chapterId/:topicId" element={<ProtectedRoute allowedRole="teacher"><TeacherTopicSetupPage /></ProtectedRoute>} />
         <Route path="/teacher/broadcast" element={<ProtectedRoute allowedRole="teacher"><TeacherBroadcastPage /></ProtectedRoute>} />
         <Route path="/teacher/analytics" element={<ProtectedRoute allowedRole="teacher"><TeacherAnalyticsPage /></ProtectedRoute>} />
+        <Route path="/teacher/analytics/:classId" element={<ProtectedRoute allowedRole="teacher"><TeacherAnalytics /></ProtectedRoute>} />
+        <Route path="/teacher/student/:studentId/scores" element={<ProtectedRoute allowedRole="teacher"><StudentAnalytics /></ProtectedRoute>} />
         <Route path="/teacher/doubts" element={<ProtectedRoute allowedRole="teacher"><TeacherDoubtsPage /></ProtectedRoute>} />
 
         {/* Student login route */}

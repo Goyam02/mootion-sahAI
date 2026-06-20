@@ -18,13 +18,13 @@ export function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
       if (location.pathname.startsWith('/teacher')) {
         navigate('/teacher/login', { replace: true });
       } else {
-        navigate('/login', { replace: true });
+        navigate('/onboarding', { replace: true });
       }
       return;
     }
 
     if (role === 'student' && location.pathname.startsWith('/teacher')) {
-      navigate('/login', { replace: true });
+      navigate('/onboarding', { replace: true });
       return;
     }
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TeacherPreferenceOnboardingRequest(BaseModel):
@@ -14,6 +14,19 @@ class TeacherPreferenceOnboardingResponse(BaseModel):
 class TeacherClassCreateRequest(BaseModel):
     grade: str = Field(min_length=1, max_length=16)
     subject: str = Field(min_length=1, max_length=255)
+
+    @field_validator("grade")
+    @classmethod
+    def validate_grade(cls, value: str) -> str:
+        clean_val = value.strip()
+        import re
+        match = re.search(r"\d+", clean_val)
+        if not match:
+            raise ValueError("Grade must contain a valid number")
+        grade_num = int(match.group(0))
+        if grade_num < 6 or grade_num > 12:
+            raise ValueError(f"Unsupported grade: {value}. Product only supports grades 6-12.")
+        return str(grade_num)
 
 
 class TeacherClassCreateResponse(BaseModel):

@@ -113,11 +113,11 @@ export function TeacherClassViewPage() {
             return true;
           }
 
-          // 2. Science fallback match for grades 5-10
+          // 2. Science fallback match for grades 6-10
           const numericGrade = parseInt(targetGradeNormalized, 10);
           if (
             !isNaN(numericGrade) &&
-            numericGrade >= 5 &&
+            numericGrade >= 6 &&
             numericGrade <= 10 &&
             classGradeNormalized === targetGradeNormalized
           ) {
@@ -251,14 +251,14 @@ export function TeacherClassViewPage() {
             }
           }} 
         />
-        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
+        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(`/teacher/analytics/${resolvedClass?.class_id || resolvedClass?.id || id}`)} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
       </nav>
 
       {/* Sidebar - Desktop styled with Montserrat */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30 font-montserrat">
         <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-montserrat font-black text-3xl leading-none tracking-widest">M</span>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
         </div>
 
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
@@ -274,7 +274,7 @@ export function TeacherClassViewPage() {
               }
             }} 
           />
-          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(`/teacher/analytics/${resolvedClass?.class_id || resolvedClass?.id || id}`)} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
 

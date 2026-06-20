@@ -12,10 +12,10 @@ import {
   X,
   Play,
   Sparkles,
-  UserPlus,
   BookOpen,
   Clock,
-  AlertCircle
+  AlertCircle,
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -261,14 +261,6 @@ export function StudentHomePage() {
       {/* ChatBot FAB */}
       <ChatbotFab />
 
-      {/* Persistent Join Class FAB */}
-      <button
-        onClick={() => setIsJoinModalOpen(true)}
-        className="fixed bottom-28 md:bottom-6 left-4 md:left-24 lg:left-28 xl:left-32 z-40 w-14 h-14 rounded-full border-4 border-[#f6f4ee] bg-[#1800ad] shadow-xl flex items-center justify-center hover:scale-105 hover:shadow-2xl transition-all text-[#f6f4ee] font-black text-2xl"
-        title="Join a class"
-      >
-        <UserPlus size={22} className="stroke-[2.5]" />
-      </button>
 
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
@@ -280,6 +272,7 @@ export function StudentHomePage() {
           <NavItem icon={<CheckSquare size={24} />} onClick={() => navigate('/student/tasks')} />
           <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
           <span className="text-[#1800ad] font-bold text-lg transition-colors duration-300">
@@ -378,7 +371,7 @@ export function StudentHomePage() {
                 <motion.div
                   whileHover={{ y: -4 }}
                   onClick={() => {
-                    if (['video', 'simulation', 'quiz', 'model'].includes(upNext.assignment_type)) {
+                    if (['video', 'simulation', 'quiz', 'model', 'explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ', 'explain_it', 'predict_it'].includes(upNext.assignment_type)) {
                       navigate(`/student/task/${upNext.assignment_id}?class_id=${upNext.class_id}`);
                     } else {
                       navigate(`/student/playground?assignment_id=${upNext.assignment_id}&class_id=${upNext.class_id}`);
@@ -537,7 +530,7 @@ export function StudentHomePage() {
                         key={a.assignment_id}
                         whileHover={{ y: -2 }}
                         onClick={() => {
-                          if (['video', 'simulation', 'quiz', 'model'].includes(a.assignment_type)) {
+                          if (['video', 'simulation', 'quiz', 'model', 'explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ', 'explain_it', 'predict_it'].includes(a.assignment_type)) {
                             navigate(`/student/task/${a.assignment_id}?class_id=${a.class_id}`);
                           } else {
                             navigate(`/student/playground?assignment_id=${a.assignment_id}&class_id=${a.class_id}`);

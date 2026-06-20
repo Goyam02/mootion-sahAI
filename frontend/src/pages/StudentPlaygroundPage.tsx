@@ -39,7 +39,8 @@ import {
   Paperclip,
   BookOpen,
   Maximize2,
-  Minimize2
+  Minimize2,
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -1338,6 +1339,20 @@ export function StudentPlaygroundPage() {
       }]);
     }
   };
+
+  // ─── Redirect interactive assignment types to the task activity page ─────
+  useEffect(() => {
+    if (urlAssignmentId && urlClassId) {
+      api.get(`/students/classes/${urlClassId}/assignments/${urlAssignmentId}`)
+        .then((res: any) => {
+          const interactiveTypes = ['explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ', 'explain_it', 'predict_it'];
+          if (res?.assignment_type && interactiveTypes.includes(res.assignment_type)) {
+            navigate(`/student/task/${urlAssignmentId}?class_id=${urlClassId}`, { replace: true });
+          }
+        })
+        .catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Create or open context-aware chat thread on mount ───────────────────
   useEffect(() => {
@@ -2679,6 +2694,7 @@ export function StudentPlaygroundPage() {
           <NavItem icon={<CheckSquare size={24} />} onClick={() => navigate('/student/tasks')} />
           <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
           <NavItem icon={<Gamepad2 size={24} />} active onClick={() => navigate('/student/playground')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
           <span className="text-[#1800ad] font-bold text-lg">P</span>
