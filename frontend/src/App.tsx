@@ -1,5 +1,4 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { StudentLoginPage } from './pages/StudentLoginPage';
@@ -40,7 +39,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/login" element={<LoginRoute><StudentLoginPage /></LoginRoute>} />
+        <Route path="/login" element={<Navigate to="/onboarding" replace />} />
         <Route path="/login/student" element={<LoginRoute><StudentLoginPage /></LoginRoute>} />
         <Route path="/signup/student" element={<StudentSignupPage />} />
         
