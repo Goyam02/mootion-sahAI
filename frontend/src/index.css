@@ -61,3 +61,31 @@ body,
   animation: breathe 1.5s ease-in-out infinite;
 }
 
+/* Hide Google Translate top banner bar and widgets */
+iframe.skiptranslate, 
+.goog-te-banner-frame,
+#goog-gt-tt, 
+.goog-tooltip, 
+.goog-tooltip:hover,
+.skiptranslate,
+#google_translate_element,
+.goog-te-gadget,
+.goog-te-gadget-simple,
+.goog-te-banner,
+.goog-te-menu-value,
+.goog-te-menu-frame {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body {
+  top: 0px !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+

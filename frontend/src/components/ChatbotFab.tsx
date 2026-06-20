@@ -1,12 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ArrowRight } from 'lucide-react';
+import { api } from '../lib/api';
+import { getTranslationLanguage } from '../lib/translation';
 
 export function ChatbotFab({ context }: { context?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{sender: 'user' | 'bot', text: string}[]>([]);
   const [input, setInput] = useState('');
+  const [userName, setUserName] = useState<string>('there');
   const [mousePos, setMousePos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: typeof window !== 'undefined' ? window.innerHeight / 2 : 0 });
+  const isHindi = getTranslationLanguage() === 'hi';
+
+  useEffect(() => {
+    const role = localStorage.getItem('mootion_role');
+    if (!role) return;
+    
+    const endpoint = role === 'teacher' ? '/teachers/me' : '/students/me';
+    api.get(endpoint)
+      .then((me: any) => {
+        if (me && me.full_name) {
+          const firstName = me.full_name.split(' ')[0];
+          setUserName(firstName);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch user name in ChatbotFab:", err);
+      });
+  }, []);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,25 +58,26 @@ export function ChatbotFab({ context }: { context?: string }) {
     const messageInput = input;
     setMessages(prev => [...prev, { sender: 'user', text: messageInput }]);
     setInput('');
+    const isHindi = getTranslationLanguage() === 'hi';
     try {
       const response = await fetch('/api/chat', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageInput, context })
+        body: JSON.stringify({ message: messageInput, context, lang: getTranslationLanguage() })
       });
       const data = await response.json();
       if (data.text) {
         setMessages(prev => [...prev, { sender: 'bot', text: data.text }]);
       } else {
-        setMessages(prev => [...prev, { sender: 'bot', text: "Sorry, I couldn't understand that." }]);
+        setMessages(prev => [...prev, { sender: 'bot', text: isHindi ? "क्षमा करें, मैं इसे समझ नहीं सका।" : "Sorry, I couldn't understand that." }]);
       }
     } catch(err) {
-       setMessages(prev => [...prev, { sender: 'bot', text: "Error connecting to server." }]);
+       setMessages(prev => [...prev, { sender: 'bot', text: isHindi ? "सर्वर से कनेक्ट करने में त्रुटि।" : "Error connecting to server." }]);
     }
   };
 
   return (
-    <div className="fixed bottom-28 md:bottom-6 right-4 md:right-6 z-50 flex items-end justify-end">
+    <div className="notranslate fixed bottom-28 md:bottom-6 right-4 md:right-6 z-50 flex items-end justify-end">
       <AnimatePresence mode="wait">
         {isOpen ? (
           <motion.div 
@@ -86,10 +108,10 @@ export function ChatbotFab({ context }: { context?: string }) {
             </div>
             
             <div className="flex-1 p-4 flex flex-col bg-[#f6f4ee] overflow-y-auto custom-scrollbar">
-              <div className="text-center text-xs font-bold text-[#1800ad]/60 mb-4 mt-2">Today</div>
+              <div className="text-center text-xs font-bold text-[#1800ad]/60 mb-4 mt-2">{isHindi ? "आज" : "Today"}</div>
               {messages.length === 0 ? (
                 <div className="m-auto text-sm font-medium text-[#1800ad]/70 text-center max-w-[80%] pb-6">
-                  Hi Poorvika! Need help finding your next challenge?
+                  {isHindi ? `नमस्ते ${userName}! क्या आपको अपनी अगली चुनौती खोजने में सहायता चाहिए?` : `Hi ${userName}! Need help finding your next challenge?`}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -109,7 +131,7 @@ export function ChatbotFab({ context }: { context?: string }) {
                   type="text" 
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask me anything."
+                  placeholder={isHindi ? "मुझसे कुछ भी पूछें।" : "Ask me anything."}
                   className="w-full border-2 border-[#1800ad] bg-white rounded-full pl-5 pr-12 py-3 text-sm text-[#1800ad] font-bold outline-none placeholder:text-[#1800ad]/50 focus:ring-2 focus:ring-[#1800ad]/20 transition-all font-montserrat"
                 />
                 <button type="submit" disabled={!input.trim()} className="absolute right-2 p-2 bg-[#1800ad] text-white rounded-full disabled:opacity-50 transition-opacity">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -30,7 +30,33 @@ import { NotFoundPage } from './app/not-found';
 // Gesture Navigation
 import { GestureNavigation } from './components/GestureNavigation';
 
+// Translation Utilities
+import { api } from './lib/api';
+import { setTranslationLanguage } from './lib/translation';
+
 export default function App() {
+  useEffect(() => {
+    const savedLang = localStorage.getItem('mootion_language_pref');
+    if (savedLang) {
+      setTranslationLanguage(savedLang);
+      return;
+    }
+
+    const token = localStorage.getItem('mootion_access_token');
+    const role = localStorage.getItem('mootion_role');
+    if (token && role) {
+      const endpoint = role === 'teacher' ? '/teachers/me' : '/students/me';
+      api.get(endpoint)
+        .then((me: any) => {
+          if (me && me.preferred_language) {
+            const code = me.preferred_language.toLowerCase() === 'hindi' ? 'hi' : 'en';
+            setTranslationLanguage(code);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <GestureNavigation />

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Eye } from '../components/Eye';
 import { api } from '../lib/api';
+import { setTranslationLanguage } from '../lib/translation';
 
 export function StudentLoginPage() {
   const navigate = useNavigate();
@@ -48,9 +49,15 @@ export function StudentLoginPage() {
         return;
       }
 
-      localStorage.setItem('mootion_access_token', data.access_token);
-      localStorage.setItem('mootion_refresh_token', data.refresh_token);
-      localStorage.setItem('mootion_role', data.role || 'student');
+      try {
+        const studentProfile = await api.get('/students/me');
+        if (studentProfile && studentProfile.preferred_language) {
+          const code = studentProfile.preferred_language.toLowerCase() === 'hindi' ? 'hi' : 'en';
+          setTranslationLanguage(code);
+        }
+      } catch (profileErr) {
+        console.error("Failed to sync student language profile:", profileErr);
+      }
 
       navigate('/student/home');
     } catch (err: any) {

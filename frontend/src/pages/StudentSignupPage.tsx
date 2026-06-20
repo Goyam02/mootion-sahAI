@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Eye } from '../components/Eye';
 import { Check } from 'lucide-react';
 import { api } from '../lib/api';
+import { syncOnboardingLanguage } from '../lib/translation';
 
 export function StudentSignupPage() {
   const navigate = useNavigate();
@@ -71,6 +72,7 @@ export function StudentSignupPage() {
       await api.post('/students/language', {
         preferred_language: selectedLanguage.toLowerCase()
       });
+      syncOnboardingLanguage(selectedLanguage);
 
       // 4. Sequentially join each non-empty class code
       const nextClassCodes = [...classCodes];
@@ -101,7 +103,7 @@ export function StudentSignupPage() {
 
       // Redirect if at least one class joined successfully OR if no codes were attempted
       if (successCount > 0 || totalAttempted === 0) {
-        navigate('/student/home');
+        window.location.href = '/student/home';
       }
     } catch (err: any) {
       console.error(err);
@@ -144,8 +146,9 @@ export function StudentSignupPage() {
       await api.post('/students/language', {
         preferred_language: selectedLanguage.toLowerCase()
       });
+      syncOnboardingLanguage(selectedLanguage);
 
-      navigate('/student/home');
+      window.location.href = '/student/home';
     } catch (err: any) {
       console.error(err);
       setStep(1);
@@ -255,7 +258,7 @@ export function StudentSignupPage() {
                 className="flex flex-col gap-3 md:gap-4 flex-1 justify-center relative mt-2 animate-fadeIn"
               >
                 <div className="flex flex-col gap-2 py-3 justify-center flex-1">
-                  {['English', 'Hindi', 'Gujarati', 'Marathi'].map((lang) => {
+                  {['English', 'Hindi'].map((lang) => {
                     const isSelected = selectedLanguage === lang;
                     return (
                       <button

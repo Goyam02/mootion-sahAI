@@ -87,6 +87,7 @@ export function TeacherChapterSetupPage() {
   const [success, setSuccess] = useState(false);
   const [resolvedChapter, setResolvedChapter] = useState<any | null>(null);
   const [resolvedClass, setResolvedClass] = useState<any | null>(null);
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
 
   // Active custom regenerate instructions
   const [regenText, setRegenText] = useState<Record<string, string>>({});
@@ -95,6 +96,17 @@ export function TeacherChapterSetupPage() {
   const [now, setNow] = useState(() => Date.now());
 
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loadingPhase, setLoadingPhase] = useState<'extracting' | 'curriculum'>('extracting');
+
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingPhase('extracting');
+      const timer = setTimeout(() => {
+        setLoadingPhase('curriculum');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading]);
 
   // ─── Content Library state ────────────────────────────────────────────────
   const [showLibrary, setShowLibrary] = useState(false);
@@ -104,6 +116,20 @@ export function TeacherChapterSetupPage() {
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryPreview, setLibraryPreview] = useState<string | null>(null);
   const [adopting, setAdopting] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
 
   // Fetch chapter details and map assets
   useEffect(() => {
@@ -475,8 +501,8 @@ export function TeacherChapterSetupPage() {
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30 font-montserrat">
-        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/teacher/home')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1 notranslate">M</span>
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
@@ -485,7 +511,7 @@ export function TeacherChapterSetupPage() {
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
-          <span className="text-[#1800ad] font-montserrat font-black text-lg">P</span>
+          <span className="text-[#1800ad] font-montserrat font-black text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
 
@@ -506,26 +532,21 @@ export function TeacherChapterSetupPage() {
 
           <AnimatePresence mode="wait">
             {isLoading ? (
-              /* GORGEOUS SIMULATED GENERATING SCREEN */
               <motion.div 
                 key="generating"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4"
+                className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 w-full"
               >
                 <div className="relative mb-6">
-                  {/* Absolute outer orbit circle rotating */}
                   <div className="w-16 h-16 rounded-full border-4 border-t-[#1800ad] border-r-transparent border-b-transparent border-l-transparent animate-spin duration-1000"></div>
                 </div>
-                <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
-                  Generating content for Static Friction & Laws...
+                <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight transition-all duration-500">
+                  {loadingPhase === 'extracting' ? 'Extracting topics' : 'Generating Topic wise curriculum'}
                 </h2>
-                <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
-                  Synthesizing concept videos, sandboxes & misconceptions
-                </p>
-                <p className="text-xs font-semibold text-[#1800ad]/70 mt-4 max-w-sm">
-                  Aligning curriculum to NCERT Class 8 Physics standards automatically. Please hold on.
+                <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono transition-all duration-500">
+                  {loadingPhase === 'extracting' ? 'Analyzing syllabus modules...' : 'Synthesizing concept videos & worksheets...'}
                 </p>
               </motion.div>
             ) : (

@@ -309,6 +309,16 @@ export function StudentTaskActivityPage() {
   const [loadingDbTask, setLoadingDbTask] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [resolvedSubject, setResolvedSubject] = useState('Science');
+  const [studentName, setStudentName] = useState<string>('');
+
+  useEffect(() => {
+    api.get('/students/me').then((me: any) => {
+      if (me?.full_name) {
+        const firstName = me.full_name.split(' ')[0];
+        setStudentName(firstName);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!classId) return;
@@ -452,8 +462,8 @@ export function StudentTaskActivityPage() {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
         {/* Logo */}
-        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/student/home')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1 notranslate">M</span>
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
@@ -462,7 +472,7 @@ export function StudentTaskActivityPage() {
           <NavItem icon={<Gamepad2 size={24} />} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
-           <span className="text-[#1800ad] font-bold text-lg">P</span>
+           <span className="text-[#1800ad] font-bold text-lg">{studentName ? studentName[0].toUpperCase() : 'S'}</span>
         </div>
       </aside>
 

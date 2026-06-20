@@ -26,6 +26,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { Task } from '../data/tasks';
+import { getTranslationLanguage } from '../lib/translation';
 
 // --- Shared Utilities for Audio ---
 function pcmToBase64(pcmData: Float32Array) {
@@ -164,14 +165,17 @@ export function LiveVoiceActivity({
     if (task.subject === 'Chemistry') {
       return "Subatomic orbital balances, atomic nucleus isotopes, Electron group trends, chemical element reaction combinations, balanced redox formulations, and acid-base pH color indicators.";
     }
-    return "Polynomial factors, quadratic complex root grids, Unit circles trigonometry identities, differential derivative limits, or cell double-helix organelle mutations.";
+    return "";
   };
 
   // Init default introduction text based on activity mode
   useEffect(() => {
     let initialGreeting = "";
+    const isHindi = getTranslationLanguage() === 'hi';
     if (activityName === 'Explain It') {
-      initialGreeting = `Teacher! I'm so excited to learn. Can you explain ${task.topic} to me like I'm a 10-year-old? I prepared some building blocks!`;
+      initialGreeting = isHindi 
+        ? "नमस्ते टीचर! आज हम क्या सीखने जा रहे हैं?" 
+        : "Hi teacher! What are we going to learn today?";
       setActivePlayState('explaining');
     } else if (activityName === 'Predict It') {
       initialGreeting = `Ooh, prediction game! Today we're predicting: Will a massive 5kg solid metal ball sink or float inside full fresh water? What's your prediction, teacher? Select SINK or FLOAT below so we can start!`;
@@ -187,7 +191,6 @@ export function LiveVoiceActivity({
     setMessages([
       { role: 'Mootion', text: initialGreeting }
     ]);
-    speakVoiceSynthesis(initialGreeting);
   }, [activityName, task]);
 
   // Handle scrolling of captions
@@ -239,7 +242,29 @@ export function LiveVoiceActivity({
       utterance.onend = () => setAiIsSpeaking(false);
       utterance.onerror = () => setAiIsSpeaking(false);
       
-      utterance.pitch = 1.35; // child-like friendly pitch
+      // Select Google/Microsoft natural voice for premium quality, less robotic
+      const voices = window.speechSynthesis.getVoices();
+      const isHindiText = /[\u0900-\u097F]/.test(text); // Check if text contains Hindi characters
+      const targetLang = isHindiText ? 'hi' : 'en';
+      const naturalVoice = voices.find(v => 
+        v.lang.startsWith(targetLang) && (
+          v.name.toLowerCase().includes('google') ||
+          v.name.toLowerCase().includes('natural') ||
+          v.name.toLowerCase().includes('aria') ||
+          v.name.toLowerCase().includes('jenny') ||
+          v.name.toLowerCase().includes('kalpana') ||
+          v.name.toLowerCase().includes('hemant') ||
+          v.name.toLowerCase().includes('hi-in')
+        )
+      ) || voices.find(v => v.lang.startsWith(targetLang)) || voices.find(v => v.lang.startsWith('en'));
+
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+        utterance.pitch = 1.0; // keep premium voice natural
+      } else {
+        utterance.pitch = 1.15; // slightly friendly pitch if robotic fallback
+      }
+      
       utterance.rate = 1.0;
       window.speechSynthesis.speak(utterance);
     }
@@ -499,7 +524,7 @@ export function LiveVoiceActivity({
 
     try {
       // Build clever context prompting for Mootion child dialog simulation
-      const promptText = `Dialogue History:
+      let promptText = `Dialogue History:
 ${messages.map(m => `${m.role}: ${m.text}`).join('\n')}
 Student: ${text}
 
@@ -511,6 +536,25 @@ ${activityName === 'Spot It' ? "Ask one curious naive question about flotation b
 ${activityName === 'Connect It' ? "Acknowledge their explanation. Ask one final question tying density or gravity together." : ""}
 
 Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not repeat greeting messages. Keep response highly concise.`;
+
+      if (activityName === 'Explain It') {
+        promptText = `Dialogue History:
+${messages.map(m => `${m.role}: ${m.text}`).join('\n')}
+Student: ${text}
+
+You are an expert, empathetic, and highly engaging tutor. Your goal is to help the user learn and deeply understand: "${task.topic}" under class "${task.subject}".
+Follow these core behaviors:
+1. Be Conversational & Natural: Speak like a friendly human mentor.
+2. Socratic Method: Ask guiding questions instead of just giving answers.
+3. Bite-Sized Information: Ask ONLY ONE question at a time to check understanding. NEVER ask multiple consecutive questions!
+4. Adapt to the User: Simplify if they struggle, advance if they understand.
+5. Use Vivid Analogies.
+
+Activity: ${activityName}
+${activityName === 'Explain It' ? "Follow up on the student's explanation with exactly ONE Socratic question to probe their logic." : ""}
+
+Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer to yourself as an AI.`;
+      }
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -910,21 +954,11 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
           {activityName.toUpperCase()}
         </h1>
         <h2 className="text-base md:text-lg font-bold text-white mt-1.5 uppercase tracking-wide opacity-90">{task.topic}</h2>
-        <div className="inline-block mt-2 px-3 py-1 bg-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-wider border border-white/15">
-          {task.subject} Syllabus Chapter Core Activity
-        </div>
       </header>
 
       <div className="flex w-full mt-4 flex-col items-center justify-center relative z-10">
         
-        {activePlayState === 'explaining' && (
-          <div className="w-full max-w-xl bg-white/10 border border-white/15 rounded-2xl p-4 text-white text-left mb-4 animate-fade-in">
-            <span className="font-extrabold text-[10px] uppercase text-white/60 tracking-wider font-mono">Chapter Summary Context</span>
-            <p className="text-xs font-semibold leading-relaxed mt-1 text-white/95">
-              {getSyllabusSummary()}
-            </p>
-          </div>
-        )}
+
 
         {activePlayState === 'prediction' && (
           <div className="flex flex-col gap-4 w-full max-w-xl items-center my-4 animate-fade-in text-center">

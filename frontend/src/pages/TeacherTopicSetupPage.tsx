@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  ArrowLeft, 
-  LayoutDashboard, 
-  BookOpen, 
-  BarChart2, 
+import {
+  ArrowLeft,
+  LayoutDashboard,
+  BookOpen,
+  BarChart2,
   MessageSquare,
-  CheckCircle2, 
-  Loader2, 
-  Flame, 
+  CheckCircle2,
+  Loader2,
+  Flame,
   Calendar,
   FileText,
   Users,
@@ -52,6 +52,7 @@ export function TeacherTopicSetupPage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [isLoadingChapter, setIsLoadingChapter] = useState(true);
   const [resolvedClass, setResolvedClass] = useState<any | null>(null);
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
   const [activeAsset, setActiveAsset] = useState<any | null>(() => {
     // If state is passed via navigate, initialize activeAsset immediately for smoother transitions
     if (state && (state.payload_json !== undefined || state.external_url !== undefined)) {
@@ -69,6 +70,20 @@ export function TeacherTopicSetupPage() {
   });
 
   useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
+
+  useEffect(() => {
     if (!classId || !chapterId || !topicId) return;
     const loadChapterAndAsset = async () => {
       setIsLoadingChapter(true);
@@ -77,7 +92,7 @@ export function TeacherTopicSetupPage() {
         try {
           const classes = await api.get('/teachers/classes');
           const rawId = (classId || '').toLowerCase().trim();
-          
+
           const normalizeGrade = (g: any): string => {
             if (g === null || g === undefined) return '';
             const str = String(g).trim().toLowerCase();
@@ -296,13 +311,13 @@ export function TeacherTopicSetupPage() {
   const selectedAsset = activeAsset;
 
   // Check if payload_json is empty or minimal (scaffolding only)
-  const isMinimalOrPlaceholder = 
+  const isMinimalOrPlaceholder =
     !activeTopic && (!activeAsset ||
-    !activeAsset.payload_json ||
-    Object.keys(activeAsset.payload_json).length === 0 ||
-    (activeAsset.generation_status !== 'ready' && activeAsset.payload_json.placeholder === true) ||
-    (activeAsset.asset_type === 'quiz' && !activeAsset.payload_json.questions && !activeAsset.payload_json.quiz) ||
-    (['explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && !activeAsset.payload_json.instructions));
+      !activeAsset.payload_json ||
+      Object.keys(activeAsset.payload_json).length === 0 ||
+      (activeAsset.generation_status !== 'ready' && activeAsset.payload_json.placeholder === true) ||
+      (activeAsset.asset_type === 'quiz' && !activeAsset.payload_json.questions && !activeAsset.payload_json.quiz) ||
+      (['explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && !activeAsset.payload_json.instructions));
 
   const updateTopicAsset = (nextAsset: any) => {
     setSelectedAssetId(nextAsset.asset_id);
@@ -338,11 +353,11 @@ export function TeacherTopicSetupPage() {
 
   return (
     <div className="flex flex-1 w-full bg-[#1800ad] font-montserrat text-[#1800ad] relative">
-      
+
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30 font-montserrat">
-        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/teacher/home')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1 notranslate">M</span>
         </div>
 
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
@@ -353,7 +368,7 @@ export function TeacherTopicSetupPage() {
         </nav>
 
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
-          <span className="text-[#1800ad] font-montserrat font-black text-lg">P</span>
+          <span className="text-[#1800ad] font-montserrat font-black text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
 
@@ -362,7 +377,7 @@ export function TeacherTopicSetupPage() {
         <div className="max-w-[1300px] w-full mx-auto flex-1 flex flex-col">
           {/* Back Link Header */}
           <div className="flex items-center gap-3 mb-6 shrink-0">
-            <button 
+            <button
               onClick={() => navigate(`/teacher/chapter-setup/${classId}/${chapterId}`)}
               className="p-2 border-2 border-[#1800ad] rounded-full text-[#1800ad] hover:bg-[#1800ad]/10 transition-all font-montserrat flex items-center justify-center"
             >
@@ -373,172 +388,176 @@ export function TeacherTopicSetupPage() {
             </span>
           </div>
 
-        {/* Dynamic Topic Context Area */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 mb-8 border-b-2 border-[#1800ad]/15 shrink-0">
-          <div>
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-[10px] font-black uppercase tracking-widest bg-[#1800ad] text-[#f6f4ee] px-3 py-1 rounded-full">
-                {activeChapterNumber} • {activeTopicNumber}
-              </span>
-              <span className="text-[10px] font-bold text-[#1800ad] bg-[#1800ad]/10 px-3 py-1 rounded-full uppercase tracking-wider">
-                {activeChapterName}
-              </span>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-black text-[#1800ad] tracking-tight">
-              {activeTopicTitle}
-            </h1>
-          </div>
-        </div>
-
-        {activeTopic && topicAssets.length > 0 && (
-          <div className="mb-6 flex flex-col gap-3">
-            <span className="text-xs font-black uppercase tracking-widest text-[#1800ad]/65">Topic Resources</span>
-            <div className="flex flex-wrap gap-2">
-              {topicAssets.map((asset) => (
-                <button
-                  key={asset.asset_id}
-                  onClick={() => updateTopicAsset(asset)}
-                  className={`px-3.5 py-2 rounded-full border text-[11px] font-black uppercase tracking-wider transition-all ${
-                    selectedAssetId === asset.asset_id
-                      ? 'bg-[#1800ad] text-[#f6f4ee] border-[#1800ad]'
-                      : 'bg-white text-[#1800ad] border-[#1800ad]/20 hover:bg-[#1800ad]/5'
-                  }`}
-                >
-                  {asset.title}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {isLoadingChapter || !activeAsset ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-[#1800ad] flex-1">
-            <Loader2 className="w-12 h-12 animate-spin mb-4" />
-            <span className="text-xs font-bold uppercase tracking-widest animate-pulse">Loading activity details...</span>
-          </div>
-        ) : (
-          <div className="w-full flex-1 flex flex-col gap-6">
-            
-            {/* Header / Meta */}
-            <div className="bg-[#1800ad]/5 p-6 rounded-[28px] border-2 border-[#1800ad]/15 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div className="flex-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60 mb-1.5 block animate-pulse font-mono">
-                  {activeAsset.asset_type.replace('_', ' ')} Resource
+          {/* Dynamic Topic Context Area */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 mb-8 border-b-2 border-[#1800ad]/15 shrink-0">
+            <div>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-widest bg-[#1800ad] text-[#f6f4ee] px-3 py-1 rounded-full">
+                  {activeChapterNumber} • {activeTopicNumber}
                 </span>
-                <h2 className="text-xl sm:text-2xl font-black text-[#1800ad] leading-tight">
-                  {activeAsset.title}
-                </h2>
-                <p className="text-xs sm:text-sm text-[#1800ad]/80 font-semibold mt-2 leading-relaxed">
-                  {activeAsset.description}
-                </p>
+                <span className="text-[10px] font-bold text-[#1800ad] bg-[#1800ad]/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                  {activeChapterName}
+                </span>
               </div>
-              <button
-                onClick={() => {
-                  setAssignedItemTitle(activeAsset.title);
-                  setAssignmentNotes(`Hey students! Please complete this interactive topic resource on "${activeAsset.title}".`);
-                  setSuccess(false);
-                  setAssignError(null);
-                  setIsSuccessModalOpen(true);
-                }}
-                className="shrink-0 bg-[#1800ad] text-[#f6f4ee] hover:bg-amber-300 hover:text-[#1800ad] px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5 h-fit self-end sm:self-start"
-              >
-                <CheckCircle2 size={13} className="stroke-[3]" /> Assign to Class
-              </button>
+              <h1 className="text-3xl md:text-4xl font-black text-[#1800ad] tracking-tight">
+                {activeTopicTitle}
+              </h1>
             </div>
+          </div>
 
-            {/* Content Section */}
-            <div className="bg-white p-6 rounded-[28px] border-2 border-[#1800ad]/15 flex flex-col gap-4">
-              <h3 className="text-sm font-black uppercase tracking-widest text-[#1800ad] border-b border-[#1800ad]/10 pb-2">
-                Content
-              </h3>
+          {activeTopic && topicAssets.length > 0 && (
+            <div className="mb-6 flex flex-col gap-3">
+              <span className="text-xs font-black uppercase tracking-widest text-[#1800ad]/65">Topic Resources</span>
+              <div className="flex flex-wrap gap-2">
+                {topicAssets.map((asset) => (
+                  <button
+                    key={asset.asset_id}
+                    onClick={() => updateTopicAsset(asset)}
+                    className={`px-3.5 py-2 rounded-full border text-[11px] font-black uppercase tracking-wider transition-all ${selectedAssetId === asset.asset_id
+                        ? 'bg-[#1800ad] text-[#f6f4ee] border-[#1800ad]'
+                        : 'bg-white text-[#1800ad] border-[#1800ad]/20 hover:bg-[#1800ad]/5'
+                      }`}
+                  >
+                    {asset.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-              {activeTopic && selectedAsset && (
-                <div className="bg-[#1800ad]/5 p-4 rounded-[24px] border border-[#1800ad]/10 flex flex-col gap-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60">Generation Workspace</div>
-                      <div className="text-sm font-black text-[#1800ad]">{selectedAsset.title}</div>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${selectedAsset.generation_status === 'ready' ? 'bg-emerald-100 text-emerald-800' : isGenerating ? 'bg-amber-100 text-amber-800 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
-                      {selectedAsset.generation_status === 'ready' ? 'Ready' : isGenerating ? 'Generating...' : 'Not set up yet'}
-                    </span>
-                  </div>
+          {isLoadingChapter || !activeAsset ? (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center px-4 w-full flex-1">
+              <div className="relative mb-6">
+                <div className="w-16 h-16 rounded-full border-4 border-t-[#1800ad] border-r-transparent border-b-transparent border-l-transparent animate-spin duration-1000"></div>
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
+                Loading Topic Workspace...
+              </h2>
+              <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
+                Please hold on
+              </p>
+            </div>
+          ) : (
+            <div className="w-full flex-1 flex flex-col gap-6">
 
-                  <textarea
-                    value={regenText}
-                    onChange={(e) => setRegenText(e.target.value)}
-                    rows={3}
-                    placeholder="Optional: add teacher notes, examples, or style guidance..."
-                    className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
-                  />
-
-                  {generationError && (
-                    <div className="text-[11px] font-bold text-rose-600">{generationError}</div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
-                      {isGenerating ? `Expected time left: ${Math.max(0, Math.ceil((generationEndsAt! - now) / 1000))}s` : 'Generation ETA depends on asset type'}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedAsset.asset_type === 'concept_video' && (
-                        <button
-                          type="button"
-                          onClick={() => openLibrary(selectedAsset)}
-                          disabled={isGenerating}
-                          className={`px-3.5 py-2 border rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-all ${
-                            isGenerating
-                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                              : 'border-[#1800ad]/40 text-[#1800ad] hover:bg-[#1800ad]/5'
-                          }`}
-                          title="Pick from shared content library"
-                        >
-                          <Library size={11} /> Library
-                        </button>
-                      )}
-                      <button
-                        onClick={handleGenerateSelectedAsset}
-                        disabled={isGenerating}
-                        className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
-                      </button>
-                    </div>
-                  </div>
+              {/* Header / Meta */}
+              <div className="bg-[#1800ad]/5 p-6 rounded-[28px] border-2 border-[#1800ad]/15 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60 mb-1.5 block animate-pulse font-mono">
+                    {activeAsset.asset_type.replace('_', ' ')} Resource
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-black text-[#1800ad] leading-tight">
+                    {activeAsset.title}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[#1800ad]/80 font-semibold mt-2 leading-relaxed">
+                    {activeAsset.description}
+                  </p>
                 </div>
-              )}
-              
-              {isMinimalOrPlaceholder ? (
-                <p className="text-xs sm:text-sm text-[#1800ad]/60 font-semibold italic">
-                  Content is being prepared by your teacher.
-                </p>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {/* Detailed renderer for Quiz payload */}
-                  {activeAsset.asset_type === 'quiz' && (activeAsset.payload_json.questions || activeAsset.payload_json.quiz) && (
-                    <div className="flex flex-col gap-4">
-                      <p className="text-xs text-[#1800ad]/80 font-bold uppercase tracking-wider">Generated Assessment Questions:</p>
-                      {(activeAsset.payload_json.questions || activeAsset.payload_json.quiz).map((q: any, i: number) => (
-                        <div key={i} className="bg-[#1800ad]/5 p-4 rounded-xl border border-[#1800ad]/10 flex flex-col gap-2">
-                          <span className="text-xs font-black text-[#1800ad]">Question {i + 1}: {q.question || q.questionText}</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                            {q.options && q.options.map((opt: string, optIdx: number) => (
-                              <div 
-                                key={optIdx} 
-                                className={`px-4 py-2 border rounded-full text-xs font-semibold ${
-                                  optIdx === q.correctAnswer || opt === q.correctAnswer
-                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800' 
-                                    : 'border-[#1800ad]/20 text-[#1800ad]/80'
-                                }`}
-                              >
-                                {opt}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                <button
+                  onClick={() => {
+                    setAssignedItemTitle(activeAsset.title);
+                    setAssignmentNotes(`Hey students! Please complete this interactive topic resource on "${activeAsset.title}".`);
+                    setSuccess(false);
+                    setAssignError(null);
+                    setIsSuccessModalOpen(true);
+                  }}
+                  className="shrink-0 bg-[#1800ad] text-[#f6f4ee] hover:bg-amber-300 hover:text-[#1800ad] px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5 h-fit self-end sm:self-start"
+                >
+                  <CheckCircle2 size={13} className="stroke-[3]" /> Assign to Class
+                </button>
+              </div>
+
+              {/* Content Section */}
+              <div className="bg-white p-6 rounded-[28px] border-2 border-[#1800ad]/15 flex flex-col gap-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#1800ad] border-b border-[#1800ad]/10 pb-2">
+                  Content
+                </h3>
+
+                {activeTopic && selectedAsset && (
+                  <div className="bg-[#1800ad]/5 p-4 rounded-[24px] border border-[#1800ad]/10 flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60">Generation Workspace</div>
+                        <div className="text-sm font-black text-[#1800ad]">{selectedAsset.title}</div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${selectedAsset.generation_status === 'ready' ? 'bg-emerald-100 text-emerald-800' : isGenerating ? 'bg-amber-100 text-amber-800 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
+                        {selectedAsset.generation_status === 'ready' ? 'Ready' : isGenerating ? 'Generating...' : 'Not set up yet'}
+                      </span>
                     </div>
-                  )}
+
+                    <textarea
+                      value={regenText}
+                      onChange={(e) => setRegenText(e.target.value)}
+                      rows={3}
+                      placeholder="Optional: add teacher notes, examples, or style guidance..."
+                      className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
+                    />
+
+                    {generationError && (
+                      <div className="text-[11px] font-bold text-rose-600">{generationError}</div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                        {isGenerating ? `Expected time left: ${Math.max(0, Math.ceil((generationEndsAt! - now) / 1000))}s` : 'Generation ETA depends on asset type'}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectedAsset.asset_type === 'concept_video' && (
+                          <button
+                            type="button"
+                            onClick={() => openLibrary(selectedAsset)}
+                            disabled={isGenerating}
+                            className={`px-3.5 py-2 border rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-all ${isGenerating
+                                ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                : 'border-[#1800ad]/40 text-[#1800ad] hover:bg-[#1800ad]/5'
+                              }`}
+                            title="Pick from shared content library"
+                          >
+                            <Library size={11} /> Library
+                          </button>
+                        )}
+                        <button
+                          onClick={handleGenerateSelectedAsset}
+                          disabled={isGenerating}
+                          className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isMinimalOrPlaceholder ? (
+                  <p className="text-xs sm:text-sm text-[#1800ad]/60 font-semibold italic">
+                    Content is being prepared by your teacher.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {/* Detailed renderer for Quiz payload */}
+                    {activeAsset.asset_type === 'quiz' && (activeAsset.payload_json.questions || activeAsset.payload_json.quiz) && (
+                      <div className="flex flex-col gap-4">
+                        <p className="text-xs text-[#1800ad]/80 font-bold uppercase tracking-wider">Generated Assessment Questions:</p>
+                        {(activeAsset.payload_json.questions || activeAsset.payload_json.quiz).map((q: any, i: number) => (
+                          <div key={i} className="bg-[#1800ad]/5 p-4 rounded-xl border border-[#1800ad]/10 flex flex-col gap-2">
+                            <span className="text-xs font-black text-[#1800ad]">Question {i + 1}: {q.question || q.questionText}</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                              {q.options && q.options.map((opt: string, optIdx: number) => (
+                                <div
+                                  key={optIdx}
+                                  className={`px-4 py-2 border rounded-full text-xs font-semibold ${optIdx === q.correctAnswer || opt === q.correctAnswer
+                                      ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                                      : 'border-[#1800ad]/20 text-[#1800ad]/80'
+                                    }`}
+                                >
+                                  {opt}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Detailed renderer for explain_it, predict_it, spot_it, connect_it */}
                     {['explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && (
@@ -589,10 +608,10 @@ export function TeacherTopicSetupPage() {
                     <h3 className="text-sm font-black uppercase tracking-widest text-[#1800ad]">
                       Interactive Live Preview
                     </h3>
-                    <a 
-                      href={activeAsset.external_url} 
-                      target="_blank" 
-                      rel="noreferrer" 
+                    <a
+                      href={activeAsset.external_url}
+                      target="_blank"
+                      rel="noreferrer"
                       className="text-xs font-bold text-[#1800ad] hover:underline flex items-center gap-1"
                     >
                       Open in new tab &rarr;
@@ -609,10 +628,10 @@ export function TeacherTopicSetupPage() {
                           className="w-full h-full border-0"
                         />
                       ) : (
-                        <video 
-                          src={activeAsset.external_url} 
-                          controls 
-                          className="w-full h-full object-contain bg-black" 
+                        <video
+                          src={activeAsset.external_url}
+                          controls
+                          className="w-full h-full object-contain bg-black"
                         />
                       )
                     ) : activeAsset.asset_type === 'simulation' ? (
@@ -659,7 +678,7 @@ export function TeacherTopicSetupPage() {
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-[#f6f4ee] rounded-[32px] p-6 lg:p-8 max-w-lg w-full border-2 border-[#1800ad] text-[#1800ad] font-montserrat relative shadow-2xl"
             >
-              
+
               {success ? (
                 <>
                   <div className="w-14 h-14 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/40 animate-pulse">
@@ -669,7 +688,7 @@ export function TeacherTopicSetupPage() {
                   <h3 className="text-xl font-black tracking-tight text-[#1800ad] text-center mb-1 leading-snug">
                     Material Assigned Successfully!
                   </h3>
-                  
+
                   <p className="text-xs text-center text-[#1800ad]/75 font-semibold mb-6 uppercase tracking-wider">
                     Student group notified on dashboard
                   </p>

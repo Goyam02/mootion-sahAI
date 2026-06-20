@@ -4,6 +4,7 @@ import { ArrowRight, Instagram, Github } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Eye } from '../components/Eye';
 import { FAQItem } from '../components/FAQItem';
+import { setTranslationLanguage } from '../lib/translation';
 
 export function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +24,11 @@ export function LandingPage() {
   const [heroLoaded, setHeroLoaded] = useState(false);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Force English on the landing page
+    setTranslationLanguage('en');
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsDraggable(window.innerWidth >= 1024);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   BookOpen,
@@ -8,7 +8,8 @@ import {
   Copy,
   Check,
   TrendingDown,
-  BookMarked
+  BookMarked,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +24,7 @@ import {
   setTeacherAssignedNew 
 } from '../data/taskStore';
 import { api } from '../lib/api';
+import { getTranslationLanguage, setTranslationLanguage } from '../lib/translation';
 
 export function TeacherDashboardPage() {
   const navigate = useNavigate();
@@ -33,6 +35,30 @@ export function TeacherDashboardPage() {
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
   const [classes, setClasses] = useState<any[]>([]);
   const [teacherName, setTeacherName] = useState<string>('Teacher');
+
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setIsLangDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLanguageChange = async (langCode: string) => {
+    try {
+      const dbLang = langCode === 'hi' ? 'hindi' : 'english';
+      await api.post('/teachers/onboarding/preferences', { preferred_language: dbLang });
+    } catch (err) {
+      console.error("Failed to save language preference:", err);
+    }
+    setTranslationLanguage(langCode);
+  };
   const [classAnalytics, setClassAnalytics] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -148,11 +174,19 @@ export function TeacherDashboardPage() {
     <div className="flex flex-1 w-full bg-[#1800ad] font-montserrat text-[#1800ad] relative">
       
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-8 py-2.5 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
-        <NavItem icon={<LayoutDashboard size={24} />} active onClick={() => navigate('/teacher/home')} />
-        <NavItem icon={<BookOpen size={24} />} onClick={handleClassroomNav} />
-        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
-        <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
+        <NavItem icon={<LayoutDashboard size={22} />} active onClick={() => navigate('/teacher/home')} />
+        <NavItem icon={<BookOpen size={22} />} onClick={handleClassroomNav} />
+        <NavItem icon={<BarChart2 size={22} />} onClick={() => navigate('/teacher/analytics')} />
+        <NavItem icon={<MessageSquare size={22} />} onClick={() => navigate('/teacher/doubts')} />
+        <div 
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+        >
+          <span className="text-[#1800ad] font-bold text-xs">
+            {teacherName ? teacherName[0].toUpperCase() : 'T'}
+          </span>
+        </div>
       </nav>
 
       {/* Floating Copied Toast Notification */}
@@ -176,8 +210,8 @@ export function TeacherDashboardPage() {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
         {/* Logo */}
-        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/teacher/home')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1 notranslate">M</span>
         </div>
 
         {/* Navigation */}
@@ -189,7 +223,7 @@ export function TeacherDashboardPage() {
         </nav>
 
         {/* Profile Avatar */}
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
            <span className="text-[#1800ad] font-bold text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
@@ -209,16 +243,64 @@ export function TeacherDashboardPage() {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative w-[calc(100%+16px)] -ml-2 translate-y-1.5 xl:translate-y-0 xl:ml-0 xl:w-[380px]">
-            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-              <Search size={18} className="text-[#1800ad]/60" />
+          {/* Search Bar & Language Selector */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 relative w-[calc(100%+16px)] -ml-2 translate-y-1.5 xl:translate-y-0 xl:ml-0 xl:w-auto">
+            <div ref={langDropdownRef} className="relative mr-5 -left-2 z-40">
+              <button
+                type="button"
+                onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                className="pl-6 pr-12 py-3.5 bg-[#f6f4ee] border-2 border-[#1800ad] rounded-full text-xs sm:text-sm outline-none focus:ring-4 focus:ring-[#1800ad]/10 transition-all font-black text-[#1800ad] cursor-pointer shadow-sm tracking-wide flex items-center justify-between min-w-[130px]"
+              >
+                <span>{getTranslationLanguage() === 'hi' ? 'हिन्दी' : 'English'}</span>
+                <div className="absolute right-7 flex items-center pointer-events-none text-[#1800ad]">
+                  <ChevronDown size={16} className={`stroke-[3] transition-transform duration-300 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {isLangDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full mt-2 left-0 right-0 bg-[#f6f4ee] border-2 border-[#1800ad] rounded-[24px] shadow-lg overflow-hidden flex flex-col py-1.5 z-30"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleLanguageChange('en');
+                        setIsLangDropdownOpen(false);
+                      }}
+                      className={`px-5 py-2.5 text-left text-xs sm:text-sm font-bold text-[#1800ad] hover:bg-[#1800ad]/10 transition-colors ${getTranslationLanguage() === 'en' ? 'bg-[#1800ad]/5 font-black' : ''}`}
+                    >
+                      English
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleLanguageChange('hi');
+                        setIsLangDropdownOpen(false);
+                      }}
+                      className={`px-5 py-2.5 text-left text-xs sm:text-sm font-bold text-[#1800ad] hover:bg-[#1800ad]/10 transition-colors ${getTranslationLanguage() === 'hi' ? 'bg-[#1800ad]/5 font-black' : ''}`}
+                    >
+                      हिन्दी (Hindi)
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <input 
-              type="text" 
-              placeholder="Search your lectures..." 
-              className="w-full pl-12 pr-4 py-3 md:py-3.5 bg-transparent border-2 border-[#1800ad]/30 rounded-full text-sm outline-none focus:border-[#1800ad] focus:ring-4 focus:ring-[#1800ad]/10 transition-all placeholder:text-[#1800ad]/50 font-medium text-[#1800ad]"
-            />
+
+            <div className="relative w-full sm:w-[380px]">
+              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <Search size={18} className="text-[#1800ad]/60" />
+              </div>
+              <input 
+                type="text" 
+                placeholder="Search your lectures..." 
+                className="w-full pl-12 pr-4 py-3 md:py-3.5 bg-transparent border-2 border-[#1800ad]/30 rounded-full text-sm outline-none focus:border-[#1800ad] focus:ring-4 focus:ring-[#1800ad]/10 transition-all placeholder:text-[#1800ad]/50 font-medium text-[#1800ad]"
+              />
+            </div>
           </div>
         </header>
 
@@ -228,8 +310,8 @@ export function TeacherDashboardPage() {
           <section className="flex flex-col order-1 gap-6">
             <div>
               <h2 className="text-2xl font-black text-[#1800ad] tracking-tight uppercase">My Classrooms & Invite Keys</h2>
-              <p className="text-xs font-semibold text-[#1800ad]/60 leading-normal lowercase mt-0.5">
-                Each classroom holds a unique alphabetical student entry invitation. Click code to copy. Click a subject card to view chapters and academic timeline.
+              <p className="text-xs font-semibold text-[#1800ad]/60 leading-normal mt-0.5">
+                Share the code with your students and connect with them
               </p>
             </div>
 
@@ -419,6 +501,40 @@ export function TeacherDashboardPage() {
       </div>
     </main>
 
-  </div>
-);
+      {/* MODAL: Logout Confirmation */}
+      <AnimatePresence>
+        {isLogoutModalOpen && (
+          <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#f6f4ee] border-2 border-[#1800ad] rounded-[32px] shadow-2xl p-6 md:p-8 max-w-sm w-full font-montserrat text-[#1800ad] flex flex-col gap-4 relative"
+            >
+              <h2 className="text-xl md:text-2xl font-black text-center uppercase tracking-wide">Logout</h2>
+              <p className="text-sm text-[#1800ad]/80 font-bold text-center -mt-2">Are you sure you want to log out of Mootion?</p>
+              
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLogoutModalOpen(false)}
+                  className="w-1/2 py-3 bg-transparent border-2 border-[#1800ad] hover:bg-[#1800ad]/5 font-bold rounded-full text-center text-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => api.logout()}
+                  className="w-1/2 py-3 bg-red-600 border-2 border-red-600 hover:bg-red-700 text-white font-bold rounded-full text-center text-sm cursor-pointer"
+                >
+                  Logout
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
 }

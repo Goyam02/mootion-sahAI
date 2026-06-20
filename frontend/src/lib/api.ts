@@ -137,7 +137,6 @@ export const api = {
   delete: (path: string, options: RequestInit = {}) => request(path, { ...options, method: 'DELETE' }),
   logout: async () => {
     const refreshToken = localStorage.getItem('mootion_refresh_token');
-    const role = localStorage.getItem('mootion_role');
     if (refreshToken) {
       try {
         await fetch(`${BASE_URL}/auth/logout`, {
@@ -155,7 +154,7 @@ export const api = {
     localStorage.removeItem('mootion_refresh_token');
     localStorage.removeItem('mootion_role');
     if (typeof window !== 'undefined') {
-      window.location.href = role === 'teacher' ? '/teacher/login' : '/login';
+      window.location.href = '/';
     }
   }
 };

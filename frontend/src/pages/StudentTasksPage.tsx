@@ -18,7 +18,7 @@ import {
   Box,
   Brain
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { NavItem } from '../components/NavItem';
@@ -80,6 +80,17 @@ export function StudentTasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'queued' | 'failed'>('all');
+  const [studentName, setStudentName] = useState<string>('');
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  useEffect(() => {
+    api.get('/students/me').then((me: any) => {
+      if (me?.full_name) {
+        const firstName = me.full_name.split(' ')[0];
+        setStudentName(firstName);
+      }
+    }).catch(() => {});
+  }, []);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -184,17 +195,25 @@ export function StudentTasksPage() {
       <ChatbotFab />
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-8 py-2.5 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
-        <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
-        <NavItem icon={<CheckSquare size={24} />} active onClick={() => navigate('/student/tasks')} />
-        <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
-        <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
+        <NavItem icon={<LayoutDashboard size={22} />} onClick={() => navigate('/student/home')} />
+        <NavItem icon={<CheckSquare size={22} />} active onClick={() => navigate('/student/tasks')} />
+        <NavItem icon={<Compass size={22} />} onClick={() => navigate('/student/explore')} />
+        <NavItem icon={<Gamepad2 size={22} />} onClick={() => navigate('/student/playground')} />
+        <div 
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+        >
+          <span className="text-[#1800ad] font-bold text-xs">
+            {studentName ? studentName[0].toUpperCase() : 'S'}
+          </span>
+        </div>
       </nav>
 
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
-        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/student/home')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1 notranslate">M</span>
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
@@ -202,8 +221,8 @@ export function StudentTasksPage() {
           <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
-          <span className="text-[#1800ad] font-bold text-lg transition-colors duration-300">S</span>
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
+          <span className="text-[#1800ad] font-bold text-lg transition-colors duration-300">{studentName ? studentName[0].toUpperCase() : 'S'}</span>
         </div>
       </aside>
 
@@ -360,6 +379,39 @@ export function StudentTasksPage() {
 
         </div>
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <AnimatePresence>
+        {isLogoutModalOpen && (
+          <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#f6f4ee] border-2 border-[#1800ad] rounded-[32px] shadow-2xl p-6 md:p-8 max-w-sm w-full font-montserrat text-[#1800ad] flex flex-col gap-4 relative"
+            >
+              <h2 className="text-xl md:text-2xl font-black text-center uppercase tracking-wide">Logout</h2>
+              <p className="text-sm text-[#1800ad]/80 font-bold text-center -mt-2">Are you sure you want to log out of Mootion?</p>
+              
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLogoutModalOpen(false)}
+                  className="w-1/2 py-3 bg-transparent border-2 border-[#1800ad] hover:bg-[#1800ad]/5 font-bold rounded-full text-center text-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => api.logout()}
+                  className="w-1/2 py-3 bg-red-600 border-2 border-red-600 hover:bg-red-700 text-white font-bold rounded-full text-center text-sm cursor-pointer"
+                >
+                  Logout
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

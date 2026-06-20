@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Eye } from '../components/Eye';
 import { api } from '../lib/api';
+import { setTranslationLanguage } from '../lib/translation';
 
 export function TeacherLoginPage() {
   const navigate = useNavigate();
@@ -58,12 +59,16 @@ export function TeacherLoginPage() {
         const grades = Array.from(new Set(classes.map((c: any) => c.grade.startsWith('Class ') ? c.grade : `Class ${c.grade}`)));
         const subjects = Array.from(new Set(classes.map((c: any) => c.subject)));
         
+        const prefLang = teacherProfile.preferred_language || "English";
+        const code = prefLang.toLowerCase() === 'hindi' ? 'hi' : 'en';
+        setTranslationLanguage(code);
+
         localStorage.setItem('mootion_teacher_setup', JSON.stringify({
           schoolName: "Default School",
           teacherId: teacherProfile.login_id,
           selectedGrades: grades,
           selectedSubjects: subjects,
-          selectedLanguage: teacherProfile.preferred_language || "English",
+          selectedLanguage: prefLang,
           ncertLoaded: true,
           setupAt: new Date().toISOString()
         }));

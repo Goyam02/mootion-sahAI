@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Eye } from '../components/Eye';
 import { ArrowRight, ArrowLeft, Check, BookOpen } from 'lucide-react';
 import { api } from '../lib/api';
+import { syncOnboardingLanguage } from '../lib/translation';
 
 export function TeacherOnboardingPage() {
   const navigate = useNavigate();
@@ -61,7 +62,7 @@ export function TeacherOnboardingPage() {
   const subjectOptions = getSubjectOptions();
 
   const languageOptions = [
-    'English', 'Hindi', 'Gujarati', 'Marathi'
+    'English', 'Hindi'
   ];
 
   useEffect(() => {
@@ -174,7 +175,10 @@ export function TeacherOnboardingPage() {
         setupAt: new Date().toISOString()
       }));
 
-      navigate('/teacher/home');
+      // Set the translation language preference
+      syncOnboardingLanguage(selectedLanguage);
+
+      window.location.href = '/teacher/home';
     } catch (err: any) {
       console.error(err);
       setStep(1);
@@ -289,10 +293,7 @@ export function TeacherOnboardingPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-center w-full relative mb-3 mt-1 sm:mt-0">
-                  <div className="absolute left-0 right-0 h-[2.5px] bg-[#1800ad]"></div>
-                  <span className="relative z-10 bg-[#f6f4ee] px-3 tracking-wide text-[#2c2c2c] text-xs font-semibold lowercase">or</span>
-                </div>
+
 
                 <div className="flex gap-2">
                   <button 
@@ -354,14 +355,9 @@ export function TeacherOnboardingPage() {
 
                 {showExclusiveNote && (
                   <p className="text-[10px] text-amber-600 font-semibold text-center mt-1 max-w-[280px] mx-auto leading-normal">
-                    Note: Middle school (Class 5–10) and high school (Class 11–12) grades are mutually exclusive. Selecting this grade has deselected your previous choices.
+                    Note: Middle school (5-10) and high school (11-12) grades cannot be mixed. Your previous selection was reset.
                   </p>
                 )}
-
-                <div className="flex items-center justify-center w-full relative mb-3 mt-1 sm:mt-0">
-                  <div className="absolute left-0 right-0 h-[2.5px] bg-[#1800ad]"></div>
-                  <span className="relative z-10 bg-[#f6f4ee] px-3 tracking-wide text-[#2c2c2c] text-xs font-semibold lowercase">or</span>
-                </div>
 
                 <div className="flex gap-2">
                   <button 
@@ -416,10 +412,7 @@ export function TeacherOnboardingPage() {
                   })}
                 </div>
 
-                <div className="flex items-center justify-center w-full relative mb-3 mt-1 sm:mt-0">
-                  <div className="absolute left-0 right-0 h-[2.5px] bg-[#1800ad]"></div>
-                  <span className="relative z-10 bg-[#f6f4ee] px-3 tracking-wide text-[#2c2c2c] text-xs font-semibold lowercase">or</span>
-                </div>
+
 
                 <div className="flex gap-2">
                   <button 
@@ -474,10 +467,7 @@ export function TeacherOnboardingPage() {
                   })}
                 </div>
 
-                <div className="flex items-center justify-center w-full relative mb-3 mt-1 sm:mt-0">
-                  <div className="absolute left-0 right-0 h-[2.5px] bg-[#1800ad]"></div>
-                  <span className="relative z-10 bg-[#f6f4ee] px-3 tracking-wide text-[#2c2c2c] text-xs font-semibold lowercase">or</span>
-                </div>
+
 
                 <div className="flex gap-2">
                   <button 
