@@ -769,7 +769,21 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
       .join(' ')
       .trim();
     if (studentText) {
-      submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId);
+      const dbTask = (task as any).dbTask;
+      if (dbTask) {
+        const classId = dbTask.class_id;
+        const assignmentId = dbTask.assignment_id;
+        api.post(`/students/classes/${classId}/assignments/${assignmentId}/submit`, {
+          transcription_text: studentText,
+          language: 'english'
+        }).then(res => {
+          console.log("Interactive assignment submitted successfully:", res);
+        }).catch(err => {
+          console.error("Failed to submit interactive assignment:", err);
+        });
+      } else {
+        submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId);
+      }
     }
   };
 

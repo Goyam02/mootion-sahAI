@@ -1340,6 +1340,20 @@ export function StudentPlaygroundPage() {
     }
   };
 
+  // ─── Redirect interactive assignment types to the task activity page ─────
+  useEffect(() => {
+    if (urlAssignmentId && urlClassId) {
+      api.get(`/students/classes/${urlClassId}/assignments/${urlAssignmentId}`)
+        .then((res: any) => {
+          const interactiveTypes = ['explain_ai', 'predict_ai', 'spot_it', 'connect_it', 'interactive_quiz', 'EXPLAIN_IT', 'PREDICT_IT', 'SPOT_IT', 'INTERACTIVE_QUIZ', 'explain_it', 'predict_it'];
+          if (res?.assignment_type && interactiveTypes.includes(res.assignment_type)) {
+            navigate(`/student/task/${urlAssignmentId}?class_id=${urlClassId}`, { replace: true });
+          }
+        })
+        .catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── Create or open context-aware chat thread on mount ───────────────────
   useEffect(() => {
     const init = async () => {

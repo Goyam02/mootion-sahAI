@@ -340,6 +340,157 @@ Make sure that you strictly output the JSON structure without any formatting pre
   }
 });
 
+const BACKEND_URL = process.env.BACKEND_API_URL || "http://localhost:8000";
+
+async function proxyToFastAPI(req: express.Request, res: express.Response, targetPath: string) {
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (req.headers.authorization) {
+      headers["Authorization"] = req.headers.authorization;
+    }
+
+    const fetchOptions: RequestInit = {
+      method: req.method,
+      headers,
+    };
+
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+
+    console.log(`BFF Proxying ${req.method} ${req.originalUrl} -> ${BACKEND_URL}${targetPath}`);
+    const response = await fetch(`${BACKEND_URL}${targetPath}`, fetchOptions);
+
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } else {
+      const data = await response.text();
+      res.status(response.status).send(data);
+    }
+  } catch (error: any) {
+    console.error(`BFF Proxy error for ${targetPath}:`, error);
+    res.status(500).json({ error: "Failed to proxy request to backend service" });
+  }
+}
+
+// ─── BFF: Teacher Routes ───────────────────────────────────────────────────
+app.get("/api/teachers/classes", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes`);
+});
+
+app.get("/api/teachers/classes/:class_id", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes/${req.params.class_id}`);
+});
+
+// Teacher: list assignments for a class
+app.get("/api/teachers/classes/:class_id/assignments", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes/${req.params.class_id}/assignments`);
+});
+
+// Teacher: create an assignment
+app.post("/api/teachers/classes/:class_id/assignments", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes/${req.params.class_id}/assignments`);
+});
+
+// Teacher: get assignment detail
+app.get("/api/teachers/classes/:class_id/assignments/:assignment_id", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes/${req.params.class_id}/assignments/${req.params.assignment_id}`);
+});
+
+// Teacher: trigger asset generation
+app.post("/api/teachers/classes/:class_id/chapters/:chapter_id/assets/:asset_id/generate", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes/${req.params.class_id}/chapters/${req.params.chapter_id}/assets/${req.params.asset_id}/generate`);
+});
+
+// Teacher: get chapter detail
+app.get("/api/teachers/classes/:class_id/chapters/:chapter_id", async (req, res) => {
+  await proxyToFastAPI(req, res, `/teachers/classes/${req.params.class_id}/chapters/${req.params.chapter_id}`);
+});
+
+// Teacher: library assets
+app.get("/api/teachers/library/assets", async (req, res) => {
+  const queryStr = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+  await proxyToFastAPI(req, res, `/teachers/library/assets${queryStr}`);
+});
+
+// Legacy teacher assignment endpoint (frontend compatibility)
+app.post("/api/teacher/assignments", async (req, res) => {
+  const classId = req.body.class_id || req.body.classId || req.query.class_id || req.query.classId;
+  const targetPath = classId 
+    ? `/teachers/classes/${classId}/assignments` 
+    : `/teachers/assignments`;
+  await proxyToFastAPI(req, res, targetPath);
+});
+
+// Legacy teacher GET assignments
+app.get("/api/teacher/assignments", async (req, res) => {
+  const classId = req.query.class_id || req.query.classId;
+  const targetPath = classId 
+    ? `/teachers/classes/${classId}/assignments` 
+    : `/teachers/assignments`;
+  await proxyToFastAPI(req, res, targetPath);
+});
+
+// ─── BFF: Student Routes ────────────────────────────────────────────────────
+app.get("/api/students/classes", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/classes`);
+});
+
+// Student: list assignments for a class
+app.get("/api/students/classes/:class_id/assignments", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/classes/${req.params.class_id}/assignments`);
+});
+
+// Student: get assignment detail
+app.get("/api/students/classes/:class_id/assignments/:assignment_id", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/classes/${req.params.class_id}/assignments/${req.params.assignment_id}`);
+});
+
+// Student: submit attempt
+app.post("/api/students/classes/:class_id/assignments/:assignment_id/submit", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/classes/${req.params.class_id}/assignments/${req.params.assignment_id}/submit`);
+});
+
+// Student: quotas
+app.get("/api/students/quotas", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/quotas`);
+});
+
+// Student: doubts
+app.get("/api/students/doubts", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/doubts`);
+});
+
+app.post("/api/students/doubts", async (req, res) => {
+  await proxyToFastAPI(req, res, `/students/doubts`);
+});
+
+// Student: chat AI
+app.get("/api/chat-with-ai/chats", async (req, res) => {
+  await proxyToFastAPI(req, res, `/chat-with-ai/chats`);
+});
+
+app.post("/api/chat-with-ai/chats", async (req, res) => {
+  await proxyToFastAPI(req, res, `/chat-with-ai/chats`);
+});
+
+app.get("/api/chat-with-ai/chats/:chat_id/messages", async (req, res) => {
+  await proxyToFastAPI(req, res, `/chat-with-ai/chats/${req.params.chat_id}/messages`);
+});
+
+// Legacy student tasks endpoint
+app.get("/api/student/tasks", async (req, res) => {
+  const classId = req.query.class_id || req.query.classId;
+  const targetPath = classId 
+    ? `/students/classes/${classId}/assignments` 
+    : `/students/assignments`;
+  await proxyToFastAPI(req, res, targetPath);
+});
+
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -35,7 +35,14 @@ from app.services.model_finder import find_model, query_llm
 import json
 
 
-GENERATIONABLE_PROVIDERS = {"manim", "model_finder", "quiz_generator", "simulation"}
+class GenerationParsingError(Exception):
+    """Raised when LLM output fails to parse after all retry attempts."""
+    def __init__(self, message: str, raw_text: str = ""):
+        self.raw_text = raw_text
+        super().__init__(message)
+
+
+GENERATIONABLE_PROVIDERS = {"manim", "model_finder", "quiz_generator", "simulation", "mootion_ai"}
 ALLOWED_ASSIGNMENT_TYPES = {
     "video",
     "simulation",
@@ -45,6 +52,13 @@ ALLOWED_ASSIGNMENT_TYPES = {
     "predict_ai",
     "spot_it",
     "connect_it",
+    "EXPLAIN_IT",
+    "PREDICT_IT",
+    "SPOT_IT",
+    "INTERACTIVE_QUIZ",
+    "explain_it",
+    "predict_it",
+    "interactive_quiz",
 }
 ASSIGNMENT_TYPE_TO_ASSET_TYPE = {
     "video": "concept_video",
@@ -55,7 +69,21 @@ ASSIGNMENT_TYPE_TO_ASSET_TYPE = {
     "predict_ai": "predict_it",
     "spot_it": "spot_it",
     "connect_it": "connect_it",
+    "EXPLAIN_IT": "explain_it",
+    "PREDICT_IT": "predict_it",
+    "SPOT_IT": "spot_it",
+    "INTERACTIVE_QUIZ": "interactive_quiz",
+    "explain_it": "explain_it",
+    "predict_it": "predict_it",
+    "interactive_quiz": "interactive_quiz",
 }
+
+INTERACTIVE_ASSIGNMENT_TYPES = {
+    "explain_ai", "predict_ai", "spot_it", "connect_it", "interactive_quiz",
+    "EXPLAIN_IT", "PREDICT_IT", "SPOT_IT", "INTERACTIVE_QUIZ",
+    "explain_it", "predict_it",
+}
+
 
 
 def _ensure_teacher_has_access(db: Session, user: User, class_id: str) -> None:
@@ -99,11 +127,24 @@ def _assignment_to_response(db: Session, assignment: Assignment) -> AssignmentRe
 
 def _create_generation_jobs(db: Session, assignment: Assignment, chapter: Chapter) -> int:
     created = 0
+
+    if assignment.assignment_type in INTERACTIVE_ASSIGNMENT_TYPES:
+        return created
+
     assets = get_assets_for_chapter(db, str(chapter.id))
     expected_asset_type = ASSIGNMENT_TYPE_TO_ASSET_TYPE.get(assignment.assignment_type)
 
     for asset in assets:
-        if expected_asset_type and asset.asset_type != expected_asset_type:
+        match = False
+        if expected_asset_type:
+            if asset.asset_type == expected_asset_type:
+                match = True
+            elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
+                match = True
+        else:
+            match = True
+            
+        if not match:
             continue
         if asset.provider not in GENERATIONABLE_PROVIDERS:
             continue
@@ -438,6 +479,17 @@ def _apply_generation_result(db: Session, job: ChapterAssetGenerationJob, result
                 if simulation_id
                 else None
             )
+        elif job.provider == "mootion_ai":
+            if asset.asset_type in ("interactive_quiz", "quiz"):
+                asset.payload_json = {**asset.payload_json, "quiz": result.get("quiz") or result.get("questions", [])}
+            else:
+                asset.payload_json = {
+                    **asset.payload_json,
+                    "system_prompt": result.get("system_prompt"),
+                    "initial_question": result.get("initial_question"),
+                    "student_persona": result.get("student_persona"),
+                    "scenario": result.get("scenario"),
+                }
     else:
         asset.generation_status = "failed"
         asset.payload_json = {**asset.payload_json, "generated": False, "result": result}
@@ -449,32 +501,31 @@ def _apply_generation_result(db: Session, job: ChapterAssetGenerationJob, result
 def _run_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
     topic = payload_json.get("chapter_title") or asset.title
     rag_context = _get_rag_context_for_asset(asset, topic)
+    def _generate():
+        prompt = f"""
+        You are a science teacher. Generate a quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic}".
+        For each question, provide 4 options and specify the index of the correct option (0-based).
+        Return ONLY a valid JSON array of objects with the following keys:
+        - "question" (string)
+        - "options" (array of 4 strings)
+        - "correctAnswer" (integer, 0 to 3)
 
-    prompt = f"""
-    You are a science teacher. Generate a quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic}".
-    For each question, provide 4 options and specify the index of the correct option (0-based).
-    Return ONLY a valid JSON array of objects with the following keys:
-    - "question" (string)
-    - "options" (array of 4 strings)
-    - "correctAnswer" (integer, 0 to 3)
-
-    Do not include markdown tags like ```json or any other text. Output exactly the raw JSON array.
-    """
-    if rag_context:
-        prompt = f"{prompt}\n\nUse the following verified NCERT/curriculum reference context to base the quiz questions on:\n{rag_context}"
-
-    try:
+        Do not include markdown tags like ```json or any other text. Output exactly the raw JSON array.
+        """
+        if rag_context:
+            prompt = f"{prompt}\n\nUse the following verified NCERT/curriculum reference context to base the quiz questions on:\n{rag_context}"
         res = query_llm(prompt)
         text = res.get("response", "").strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        questions = json.loads(text)
-        return {"questions": questions}
-    except Exception as e:
-        return {"error": f"Failed to generate quiz: {str(e)}"}
+        data = _extract_json_helper(text)
+        if isinstance(data, list):
+            return {"questions": data}
+        if isinstance(data, dict) and "questions" in data:
+            return {"questions": data["questions"]}
+        raise GenerationParsingError("LLM response did not contain expected quiz format", raw_text=text)
+    try:
+        return _generation_retry(_generate)
+    except GenerationParsingError as e:
+        return {"error": f"Quiz generation failed after retries: {str(e)}", "parse_error": True}
 
 
 def _run_simulation_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
@@ -500,6 +551,174 @@ def _run_simulation_generation(asset: ChapterAsset, payload_json: dict) -> dict[
     }
 
 
+def _extract_json_helper(text: str) -> any:
+    cleaned = text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+    import re
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except Exception:
+            pass
+    match_arr = re.search(r"\[.*\]", cleaned, re.DOTALL)
+    if match_arr:
+        try:
+            return json.loads(match_arr.group(0))
+        except Exception:
+            pass
+    raise GenerationParsingError("Failed to extract valid JSON from LLM response", raw_text=text)
+
+
+def _generation_retry(callback, max_retries: int = 3) -> dict[str, object]:
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            return callback()
+        except GenerationParsingError as e:
+            last_exception = e
+            print(f"[generation-retry] Attempt {attempt + 1}/{max_retries} failed: {e}", flush=True)
+        except Exception as e:
+            last_exception = e
+            print(f"[generation-retry] Attempt {attempt + 1}/{max_retries} failed with unexpected error: {e}", flush=True)
+    raise GenerationParsingError(
+        f"Generation failed after {max_retries} retries: {str(last_exception)}",
+        raw_text=getattr(last_exception, 'raw_text', '')
+    )
+
+
+def _run_explain_it_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+    topic = payload_json.get("chapter_title") or asset.title
+    def _generate():
+        prompt = f"""
+        You are an AI study partner assistant. Generate a prompt context for the activity "Explain It" (where the student explains a science topic to a 10-year-old child).
+        Topic: "{topic}"
+
+        Generate a JSON object with:
+        1. "system_prompt": Detailed instruction for the AI. It must guide the AI to act as Mootion, a curious 10-year-old student who asks naive but smart questions to check user's understanding of "{topic}".
+        2. "initial_question": The first question the child asks to start the session.
+        3. "student_persona": A brief description of the student's profile.
+
+        Output format must be a raw JSON object with these three keys.
+        Do not include markdown code block tags like ```json.
+        """
+        res = query_llm(prompt)
+        text = res.get("response", "").strip()
+        data = _extract_json_helper(text)
+        if not isinstance(data, dict):
+            raise GenerationParsingError("LLM response was not a valid JSON object", raw_text=text)
+        return data
+    try:
+        return _generation_retry(_generate)
+    except GenerationParsingError as e:
+        return {"error": f"Explain It generation failed after retries: {str(e)}", "parse_error": True}
+
+
+def _run_predict_it_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+    topic = payload_json.get("chapter_title") or asset.title
+    def _generate():
+        prompt = f"""
+        You are an AI study partner assistant. Generate a prompt context for the activity "Predict It" (where the student predicts the outcome of an experiment).
+        Topic: "{topic}"
+
+        Generate a JSON object with:
+        1. "system_prompt": Detailed instruction for the AI to act as Mootion, a curious 10-year-old student doing a prediction game about "{topic}".
+        2. "scenario": A scientific experiment or prediction scenario related to "{topic}".
+        3. "initial_question": The first question the child asks to get the student's prediction.
+        4. "student_persona": A brief description of the student's profile.
+
+        Output format must be a raw JSON object with these four keys.
+        Do not include markdown code block tags like ```json.
+        """
+        res = query_llm(prompt)
+        text = res.get("response", "").strip()
+        data = _extract_json_helper(text)
+        if not isinstance(data, dict):
+            raise GenerationParsingError("LLM response was not a valid JSON object", raw_text=text)
+        return data
+    try:
+        return _generation_retry(_generate)
+    except GenerationParsingError as e:
+        return {"error": f"Predict It generation failed after retries: {str(e)}", "parse_error": True}
+
+
+def _run_spot_it_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+    topic = payload_json.get("chapter_title") or asset.title
+    def _generate():
+        prompt = f"""
+        You are an AI study partner assistant. Generate a prompt context for the activity "Spot It" (where the student spots a real-world concept or riddle).
+        Topic: "{topic}"
+
+        Generate a JSON object with:
+        1. "system_prompt": Detailed instruction for the AI to act as Mootion, a curious 10-year-old student discussing a real-world puzzle or connection of "{topic}".
+        2. "scenario": A real-world scenario or riddle related to "{topic}".
+        3. "initial_question": The first question the child asks to start the discussion.
+        4. "student_persona": A brief description of the student's profile.
+
+        Output format must be a raw JSON object with these four keys.
+        Do not include markdown code block tags like ```json.
+        """
+        res = query_llm(prompt)
+        text = res.get("response", "").strip()
+        data = _extract_json_helper(text)
+        if not isinstance(data, dict):
+            raise GenerationParsingError("LLM response was not a valid JSON object", raw_text=text)
+        return data
+    try:
+        return _generation_retry(_generate)
+    except GenerationParsingError as e:
+        return {"error": f"Spot It generation failed after retries: {str(e)}", "parse_error": True}
+
+
+def _run_interactive_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+    topic = payload_json.get("chapter_title") or asset.title
+    def _generate():
+        prompt = f"""
+        You are a science teacher. Generate an interactive quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic}".
+        For each question, provide 4 options and specify the index of the correct option (0-based).
+        Return ONLY a valid JSON array of objects (or object containing the questions array) with the following keys:
+        - "question" (string)
+        - "options" (array of 4 strings)
+        - "correctAnswer" (integer, 0 to 3)
+
+        Do not include markdown tags like ```json or any other text. Output exactly the raw JSON.
+        """
+        res = query_llm(prompt)
+        text = res.get("response", "").strip()
+        data = _extract_json_helper(text)
+        if isinstance(data, list):
+            return {"questions": data}
+        if isinstance(data, dict) and "questions" in data:
+            return {"questions": data["questions"]}
+        raise GenerationParsingError("LLM response did not contain expected quiz format", raw_text=text)
+    try:
+        return _generation_retry(_generate)
+    except GenerationParsingError as e:
+        return {"error": f"Interactive Quiz generation failed after retries: {str(e)}", "parse_error": True}
+
+
+def _run_mootion_ai_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+    asset_type = asset.asset_type
+    if asset_type == "explain_it":
+        return _run_explain_it_generation(asset, payload_json)
+    elif asset_type == "predict_it":
+        return _run_predict_it_generation(asset, payload_json)
+    elif asset_type == "spot_it":
+        return _run_spot_it_generation(asset, payload_json)
+    elif asset_type in ("interactive_quiz", "quiz"):
+        return _run_interactive_quiz_generation(asset, payload_json)
+    else:
+        return {"error": f"Unsupported asset type for mootion_ai: {asset_type}"}
+
+
 def process_generation_job(db: Session, job: ChapterAssetGenerationJob) -> None:
     asset = db.get(ChapterAsset, job.chapter_asset_id)
     if not asset:
@@ -523,10 +742,20 @@ def process_generation_job(db: Session, job: ChapterAssetGenerationJob) -> None:
             result = _run_quiz_generation(asset, job.payload_json)
         elif job.provider == "simulation":
             result = _run_simulation_generation(asset, job.payload_json)
+        elif job.provider == "mootion_ai":
+            result = _run_mootion_ai_generation(asset, job.payload_json)
         else:
             raise RuntimeError(f"Unsupported provider: {job.provider}")
 
-        if result.get("error"):
+        if result.get("parse_error"):
+            job.error_message = str(result.get("error", "LLM output failed to parse after retries"))
+            job.status = "failed"
+            job.finished_at = datetime.now(timezone.utc)
+            asset.generation_status = "failed"
+            asset.payload_json = {**asset.payload_json, "generated": False, "error": job.error_message}
+            db.commit()
+            print(f"[media-worker] FAILED_TO_GRADE for job {job.id}: {job.error_message}", flush=True)
+        elif result.get("error"):
             job.error_message = str(result.get("error"))
             _apply_generation_result(db, job, result, "failed")
         elif result.get("message") in {"No models found.", "No suitable model found."}:
