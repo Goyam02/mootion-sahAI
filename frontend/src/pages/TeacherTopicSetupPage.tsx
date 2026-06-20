@@ -556,7 +556,8 @@ export function TeacherTopicSetupPage() {
                   Content
                 </h3>
 
-                {activeTopic && selectedAsset && (
+                {/*
+                activeTopic && selectedAsset && (
                   <div className="bg-[#1800ad]/5 p-4 rounded-[24px] border border-[#1800ad]/10 flex flex-col gap-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -609,7 +610,8 @@ export function TeacherTopicSetupPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                )
+                */}
 
                 {isMinimalOrPlaceholder ? (
                   <p className="text-xs sm:text-sm text-[#1800ad]/60 font-semibold italic">
@@ -650,23 +652,13 @@ export function TeacherTopicSetupPage() {
                             <span className="block text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60 mb-1">Pedagogical Instructions:</span>
                             <p className="text-xs sm:text-sm text-[#1800ad] whitespace-pre-wrap">{activeAsset.payload_json.instructions}</p>
                           </div>
-                        ) : (
-                          Object.keys(activeAsset.payload_json).filter(k => k !== 'placeholder' && k !== 'chapter_id' && k !== 'asset_type' && k !== 'provider' && k !== 'integration_target').map((key) => {
-                            const val = activeAsset.payload_json[key];
-                            if (typeof val === 'object') return null;
-                            return (
-                              <div key={key} className="flex justify-between items-center border-b border-[#1800ad]/5 py-1">
-                                <span className="capitalize font-bold text-[#1800ad]/60">{key.replace('_', ' ')}:</span>
-                                <span className="text-[#1800ad] font-extrabold">{String(val)}</span>
-                              </div>
-                            );
-                          })
-                        )}
+                        ) : null}
                       </div>
                     )}
 
                     {/* General payload fallback list for other asset types if any */}
-                    {!['quiz', 'explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && (
+                    {/*
+                    !['quiz', 'explain_it', 'predict_it', 'spot_it', 'connect_it'].includes(activeAsset.asset_type) && (
                       <div className="text-xs text-[#1800ad]/85 font-semibold leading-relaxed flex flex-col gap-3">
                         {Object.keys(activeAsset.payload_json).filter(k => k !== 'placeholder' && k !== 'chapter_id' && k !== 'asset_type' && k !== 'provider' && k !== 'integration_target').map((key) => {
                           const val = activeAsset.payload_json[key];
@@ -679,7 +671,8 @@ export function TeacherTopicSetupPage() {
                           );
                         })}
                       </div>
-                    )}
+                    )
+                    */}
                   </div>
                 )}
               </div>
