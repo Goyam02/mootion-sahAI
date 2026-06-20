@@ -393,7 +393,7 @@ def get_student_assignment(db: Session, user: User, class_id: str, assignment_id
     return _student_assignment_to_response(db, assignment)
 
 
-def _get_rag_context_for_asset(asset: ChapterAsset, query: str) -> str:
+def _get_rag_context_for_asset(asset, query: str) -> str:
     grade = None
     subject = None
     
@@ -403,12 +403,20 @@ def _get_rag_context_for_asset(asset: ChapterAsset, query: str) -> str:
     
     local_db = SessionLocal()
     try:
-        chapter = local_db.get(Chapter, asset.chapter_id)
-        if chapter:
-            classroom = local_db.get(ClassRoom, chapter.class_id)
-            if classroom:
-                grade = classroom.grade
-                subject = classroom.subject
+        chapter_id = getattr(asset, "chapter_id", None)
+        if chapter_id is None and hasattr(asset, "topic_id"):
+            from app.core.models import ChapterTopic
+            topic = local_db.get(ChapterTopic, asset.topic_id)
+            if topic:
+                chapter_id = topic.chapter_id
+
+        if chapter_id:
+            chapter = local_db.get(Chapter, chapter_id)
+            if chapter:
+                classroom = local_db.get(ClassRoom, chapter.class_id)
+                if classroom:
+                    grade = classroom.grade
+                    subject = classroom.subject
     except Exception as e:
         print(f"[media-worker] Failed to resolve classroom context for RAG: {e}", flush=True)
     finally:
@@ -417,7 +425,7 @@ def _get_rag_context_for_asset(asset: ChapterAsset, query: str) -> str:
     return retrieve_context(query, grade, subject)
 
 
-def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
+def _run_manim_generation(asset, payload_json: dict) -> dict[str, object]:
     topic = payload_json.get("chapter_title") or payload_json.get("generation_prompt") or asset.title
     notes = str(payload_json.get("teacher_notes") or payload_json.get("instructions") or "").strip()
     prompt = topic if not notes else f"{topic}. Teacher notes: {notes}"
@@ -433,6 +441,7 @@ def _run_manim_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, 
             "persona": "teacher",
             "face_enabled": False,
             "rag_context": rag_context,
+            "language": payload_json.get("language") or "english",
         },
         timeout=300.0,
     )

@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.models import Chapter, ChapterAsset
+from app.core.models import Chapter, ChapterAsset, ChapterTopicAsset
 from app.repositories.onboarding_repository import get_student_class_membership, get_teacher_class_membership
 from app.services.media_service import get_signed_media_url
 from app.schemas.media import SignedMediaUrlResponse
@@ -16,8 +16,15 @@ from app.schemas.media import SignedMediaUrlResponse
 router = APIRouter(prefix="/media", tags=["media"])
 
 
-def _assert_user_can_access_asset(db: Session, user, asset: ChapterAsset) -> None:
-    chapter = db.get(Chapter, asset.chapter_id)
+def _assert_user_can_access_asset(db: Session, user, asset) -> None:
+    chapter_id = getattr(asset, "chapter_id", None)
+    if chapter_id is None and hasattr(asset, "topic_id"):
+        from app.core.models import ChapterTopic
+        topic = db.get(ChapterTopic, asset.topic_id)
+        if topic:
+            chapter_id = topic.chapter_id
+
+    chapter = db.get(Chapter, chapter_id) if chapter_id else None
     if not chapter:
         raise HTTPException(status_code=404, detail="Media asset not found")
 
@@ -34,6 +41,8 @@ def _assert_user_can_access_asset(db: Session, user, asset: ChapterAsset) -> Non
 def asset_media(asset_id: str, db: Session = Depends(get_db)):
     asset = db.get(ChapterAsset, asset_id)
     if not asset:
+        asset = db.get(ChapterTopicAsset, asset_id)
+    if not asset:
         raise HTTPException(status_code=404, detail="Media asset not found")
 
     if asset.storage_bucket and asset.storage_key:
@@ -48,6 +57,8 @@ def asset_media(asset_id: str, db: Session = Depends(get_db)):
 @router.get("/assets/{asset_id}/signed-url", response_model=SignedMediaUrlResponse)
 def asset_signed_url(asset_id: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
     asset = db.get(ChapterAsset, asset_id)
+    if not asset:
+        asset = db.get(ChapterTopicAsset, asset_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Media asset not found")
 

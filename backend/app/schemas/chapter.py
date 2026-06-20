@@ -42,6 +42,7 @@ class ChapterTopicResponse(BaseModel):
 
 class ChapterAssetGenerateRequest(BaseModel):
     instructions: str | None = None
+    language: str | None = None
 
 
 class ChapterAssetGenerateResponse(BaseModel):
@@ -52,6 +53,7 @@ class ChapterAssetGenerateResponse(BaseModel):
 
 class ChapterTopicAssetGenerateRequest(BaseModel):
     instructions: str | None = None
+    language: str | None = None
 
 
 class ChapterTopicAssetGenerateResponse(BaseModel):

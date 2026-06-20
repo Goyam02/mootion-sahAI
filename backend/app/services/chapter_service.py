@@ -453,6 +453,7 @@ def generate_chapter_asset(
         "instructions": prompt,
         "generation_prompt": generation_prompt,
         "teacher_notes": prompt,
+        "language": request.language or "english",
     }
 
     asset.generation_status = "processing"
@@ -560,6 +561,7 @@ def generate_topic_asset(
         "generation_prompt": topic.title,
         "instructions": notes,
         "teacher_notes": notes,
+        "language": request.language or "english",
     }
 
     asset.generation_status = "processing"
