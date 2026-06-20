@@ -174,27 +174,45 @@ def set_student_language(
 
 def list_teacher_classes(db: Session, user: User) -> list[ClassSummaryResponse]:
     classes = get_teacher_classes(db, str(user.id))
-    return [
-        ClassSummaryResponse(
-            class_id=str(class_room.id),
-            class_code=class_room.class_code,
-            display_name=class_room.display_name,
-            grade=class_room.grade,
-            subject=class_room.subject,
+    from app.core.models import StudentClassMembership
+    from sqlalchemy import func
+    
+    res = []
+    for class_room in classes:
+        student_count = db.query(func.count(StudentClassMembership.id)).filter(
+            StudentClassMembership.class_id == class_room.id
+        ).scalar() or 0
+        res.append(
+            ClassSummaryResponse(
+                class_id=str(class_room.id),
+                class_code=class_room.class_code,
+                display_name=class_room.display_name,
+                grade=class_room.grade,
+                subject=class_room.subject,
+                student_count=student_count,
+            )
         )
-        for class_room in classes
-    ]
+    return res
 
 
 def list_student_classes(db: Session, user: User) -> list[ClassSummaryResponse]:
     classes = get_student_classes(db, str(user.id))
-    return [
-        ClassSummaryResponse(
-            class_id=str(class_room.id),
-            class_code=class_room.class_code,
-            display_name=class_room.display_name,
-            grade=class_room.grade,
-            subject=class_room.subject,
+    from app.core.models import StudentClassMembership
+    from sqlalchemy import func
+    
+    res = []
+    for class_room in classes:
+        student_count = db.query(func.count(StudentClassMembership.id)).filter(
+            StudentClassMembership.class_id == class_room.id
+        ).scalar() or 0
+        res.append(
+            ClassSummaryResponse(
+                class_id=str(class_room.id),
+                class_code=class_room.class_code,
+                display_name=class_room.display_name,
+                grade=class_room.grade,
+                subject=class_room.subject,
+                student_count=student_count,
+            )
         )
-        for class_room in classes
-    ]
+    return res

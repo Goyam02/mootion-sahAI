@@ -18,6 +18,7 @@ def browse_library(
     grade: str | None = Query(default=None),
     subject: str | None = Query(default=None),
     search: str | None = Query(default=None),
+    topic_title: str | None = Query(default=None),
     limit: int = Query(default=100, le=200),
     user=Depends(require_teacher),
     db: Session = Depends(get_db),
@@ -26,7 +27,15 @@ def browse_library(
     Return all ready assets of a given type across all classrooms.
     Supports optional grade, subject, and free-text search filters.
     """
-    return list_library_assets(db, asset_type=asset_type, grade=grade, subject=subject, search=search, limit=limit)
+    return list_library_assets(
+        db,
+        asset_type=asset_type,
+        grade=grade,
+        subject=subject,
+        search=search,
+        topic_title=topic_title,
+        limit=limit,
+    )
 
 
 @router.post("/classes/{class_id}/chapters/{chapter_id}/assets/{asset_id}/adopt")
@@ -43,7 +52,7 @@ def adopt_asset(
     Body: { "source_asset_id": "<uuid>" }
     No generation cost — copies the URL immediately.
     """
-    source_asset_id = body.get("source_asset_id")
+    source_asset_id = body.get("source_asset_id") or body.get("library_asset_id")
     if not source_asset_id:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="source_asset_id is required")

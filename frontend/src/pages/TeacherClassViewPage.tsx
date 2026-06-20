@@ -227,7 +227,7 @@ export function TeacherClassViewPage() {
   const meta = {
     grade: resolvedClass ? `Class ${resolvedClass.grade}` : 'Loading...',
     subject: resolvedClass ? resolvedClass.subject : 'Loading...',
-    students: 24
+    students: resolvedClass?.student_count ?? 0
   };
 
   const selectedChapter = chapters.find(ch => ch.chapter_id === selectedChapterId);

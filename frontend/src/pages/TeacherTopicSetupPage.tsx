@@ -228,9 +228,16 @@ export function TeacherTopicSetupPage() {
     setLibraryLoading(true);
     setLibraryPreview(null);
     try {
-      const items = await api.get(
-        `/teachers/library/assets?asset_type=concept_video&grade=${resolvedClass.grade}&subject=${resolvedClass.subject}`
-      );
+      const topicTitle = activeTopic?.title || asset.title;
+      const params = new URLSearchParams({
+        asset_type: 'concept_video',
+        grade: resolvedClass.grade,
+        subject: resolvedClass.subject,
+      });
+      if (topicTitle) {
+        params.append('topic_title', topicTitle);
+      }
+      const items = await api.get(`/teachers/library/assets?${params.toString()}`);
       setLibraryItems(items || []);
     } catch (err) {
       console.error("Failed to load library items:", err);
@@ -245,7 +252,7 @@ export function TeacherTopicSetupPage() {
     try {
       const updatedAsset = await api.post(
         `/teachers/library/classes/${classId}/chapters/${chapterId}/assets/${libraryTargetAsset.asset_id}/adopt`,
-        { library_asset_id: libraryAssetId }
+        { source_asset_id: libraryAssetId }
       );
       updateTopicAsset(updatedAsset.asset || updatedAsset);
       setShowLibrary(false);

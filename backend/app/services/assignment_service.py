@@ -109,6 +109,22 @@ def _chapter_asset_to_job_response(job: ChapterAssetGenerationJob) -> Assignment
     )
 
 
+def _resolve_content_json_urls(content_json: dict) -> dict:
+    if not content_json:
+        return content_json
+    bucket = content_json.get("storage_bucket")
+    key = content_json.get("storage_key")
+    if bucket and key:
+        from app.services.media_service import build_playback_url
+        new_content = dict(content_json)
+        if "external_url" in new_content:
+            new_content["external_url"] = build_playback_url(bucket, key)
+        if "embedUrl" in new_content:
+            new_content["embedUrl"] = build_playback_url(bucket, key)
+        return new_content
+    return content_json
+
+
 def _assignment_to_response(db: Session, assignment: Assignment) -> AssignmentResponse:
     recipients = [
         AssignmentRecipientResponse(student_id=str(recipient.student_id))
@@ -122,7 +138,7 @@ def _assignment_to_response(db: Session, assignment: Assignment) -> AssignmentRe
         assignment_type=assignment.assignment_type,
         title=assignment.title,
         instructions=assignment.instructions,
-        content_json=assignment.content_json,
+        content_json=_resolve_content_json_urls(assignment.content_json),
         status=assignment.status,
         recipients=recipients,
         jobs=jobs,
@@ -291,9 +307,17 @@ def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_ty
     if asset.asset_type in ("quiz", "interactive_quiz"):
         content_json["quiz"] = (asset.payload_json or {}).get("quiz")
     elif asset.asset_type == "three_d_model":
-        content_json["embedUrl"] = asset.external_url
+        from app.services.media_service import resolve_asset_media_url
+        content_json["embedUrl"] = resolve_asset_media_url(asset)
+        if asset.storage_bucket and asset.storage_key:
+            content_json["storage_bucket"] = asset.storage_bucket
+            content_json["storage_key"] = asset.storage_key
     elif asset.asset_type in ("concept_video", "simulation"):
-        content_json["external_url"] = asset.external_url
+        from app.services.media_service import resolve_asset_media_url
+        content_json["external_url"] = resolve_asset_media_url(asset)
+        if asset.storage_bucket and asset.storage_key:
+            content_json["storage_bucket"] = asset.storage_bucket
+            content_json["storage_key"] = asset.storage_key
     else:
         payload = asset.payload_json or {}
         for key in ("system_prompt", "initial_question", "student_persona", "scenario"):
@@ -457,7 +481,7 @@ def _student_assignment_to_response(db: Session, assignment: Assignment) -> Stud
         assignment_type=assignment.assignment_type,
         title=assignment.title,
         instructions=assignment.instructions,
-        content_json=assignment.content_json,
+        content_json=_resolve_content_json_urls(assignment.content_json),
         status=assignment.status,
         jobs=jobs,
     )

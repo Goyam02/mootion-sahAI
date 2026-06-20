@@ -282,6 +282,12 @@ export function TeacherChapterSetupPage() {
       const params = new URLSearchParams({ asset_type: 'concept_video', limit: '100' });
       if (grade) params.append('grade', grade);
       if (subject) params.append('subject', subject);
+
+      const topicTitle = asset.asset_type === 'topic' ? asset.title : (asset.payload_json?.topic_title || asset.title);
+      if (topicTitle) {
+        params.append('topic_title', topicTitle);
+      }
+
       const data = await api.get(`/teachers/library/assets?${params.toString()}`);
       setLibraryItems(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -591,7 +597,7 @@ export function TeacherChapterSetupPage() {
                       </span>
                       <span className="text-xs font-bold text-[#1800ad] flex items-center gap-1.5 bg-[#1800ad]/5 px-3 py-1 rounded-full">
                         <Users size={13} />
-                        {resolvedClass?.student_count || 24} students enrolled
+                        {resolvedClass?.student_count ?? 0} students enrolled
                       </span>
                     </div>
                     <h1 className="text-3xl md:text-4xl font-extrabold text-[#1800ad] tracking-tight">

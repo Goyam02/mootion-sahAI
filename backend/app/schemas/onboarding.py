@@ -43,6 +43,7 @@ class ClassSummaryResponse(BaseModel):
     display_name: str
     grade: str
     subject: str
+    student_count: int = 0
 
 
 class TeacherOnboardingCompleteRequest(BaseModel):
