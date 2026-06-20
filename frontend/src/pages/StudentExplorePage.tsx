@@ -122,6 +122,7 @@ export function StudentExplorePage() {
         <NavItem icon={<CheckSquare size={22} />} onClick={() => navigate('/student/tasks')} />
         <NavItem icon={<Compass size={22} />} active onClick={() => navigate('/student/explore')} />
         <NavItem icon={<Gamepad2 size={22} />} onClick={() => navigate('/student/playground')} />
+        <NavItem icon={<BarChart2 size={22} />} onClick={() => navigate('/student/analytics')} />
         <div 
           onClick={() => setIsLogoutModalOpen(true)}
           className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
@@ -130,12 +131,6 @@ export function StudentExplorePage() {
             {studentName ? studentName[0].toUpperCase() : 'S'}
           </span>
         </div>
-      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-8 py-2.5 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
-        <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
-        <NavItem icon={<CheckSquare size={24} />} onClick={() => navigate('/student/tasks')} />
-        <NavItem icon={<Compass size={24} />} active onClick={() => navigate('/student/explore')} />
-        <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
-        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
       </nav>
 
       {/* Sidebar - Desktop */}

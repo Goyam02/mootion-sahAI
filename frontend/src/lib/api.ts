@@ -154,11 +154,7 @@ export const api = {
     localStorage.removeItem('mootion_refresh_token');
     localStorage.removeItem('mootion_role');
     if (typeof window !== 'undefined') {
-<<<<<<< HEAD
       window.location.href = '/';
-=======
-      window.location.href = role === 'teacher' ? '/teacher/login' : '/onboarding';
->>>>>>> 8040c42a3ccb6fd5eae56b9a0717b80aed1125dc
     }
   }
 };

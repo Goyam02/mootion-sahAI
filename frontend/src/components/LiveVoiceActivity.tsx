@@ -698,12 +698,11 @@ Output ONLY the question text. No emojis. No extra text.`,
 
     try {
       // Build clever context prompting for Mootion child dialog simulation
-      let promptText = `Dialogue History:
       const topics = getChapterTopics();
       const topicContext = topics.length > 0
         ? topics.map(t => `- ${t.title}${t.source_snippet ? ': ' + t.source_snippet.slice(0, 100) : ''}`).join('\n')
         : task.topic;
-      const promptText = `Dialogue History:
+      let promptText = `Dialogue History:
 ${messages.map(m => `${m.role}: ${m.text}`).join('\n')}
 Student: ${text}
 

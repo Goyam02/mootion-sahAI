@@ -15,7 +15,7 @@ import {
   BookOpen,
   Clock,
   AlertCircle,
-  ChevronDown
+  ChevronDown,
   BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -282,6 +282,7 @@ export function StudentHomePage() {
         <NavItem icon={<CheckSquare size={22} />} onClick={() => navigate('/student/tasks')} />
         <NavItem icon={<Compass size={22} />} onClick={() => navigate('/student/explore')} />
         <NavItem icon={<Gamepad2 size={22} />} onClick={() => navigate('/student/playground')} />
+        <NavItem icon={<BarChart2 size={22} />} onClick={() => navigate('/student/analytics')} />
         <div 
           onClick={() => setIsLogoutModalOpen(true)}
           className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"

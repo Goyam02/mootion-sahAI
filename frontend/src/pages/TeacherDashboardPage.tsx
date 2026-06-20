@@ -198,7 +198,7 @@ export function TeacherDashboardPage() {
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
         <NavItem icon={<LayoutDashboard size={22} />} active onClick={() => navigate('/teacher/home')} />
         <NavItem icon={<BookOpen size={22} />} onClick={handleClassroomNav} />
-        <NavItem icon={<BarChart2 size={22} />} onClick={() => navigate('/teacher/analytics')} />
+        <NavItem icon={<BarChart2 size={22} />} onClick={handleAnalyticsNav} />
         <NavItem icon={<MessageSquare size={22} />} onClick={() => navigate('/teacher/doubts')} />
         <div 
           onClick={() => setIsLogoutModalOpen(true)}
@@ -208,11 +208,6 @@ export function TeacherDashboardPage() {
             {teacherName ? teacherName[0].toUpperCase() : 'T'}
           </span>
         </div>
-      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-8 py-2.5 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
-        <NavItem icon={<LayoutDashboard size={24} />} active onClick={() => navigate('/teacher/home')} />
-        <NavItem icon={<BookOpen size={24} />} onClick={handleClassroomNav} />
-        <NavItem icon={<BarChart2 size={24} />} onClick={handleAnalyticsNav} />
-        <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
       </nav>
 
       {/* Floating Copied Toast Notification */}
