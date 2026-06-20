@@ -16,7 +16,8 @@ import {
   Pencil,
   Film,
   Box,
-  Brain
+  Brain,
+  BarChart2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -189,6 +190,7 @@ export function StudentTasksPage() {
         <NavItem icon={<CheckSquare size={24} />} active onClick={() => navigate('/student/tasks')} />
         <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
         <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
+        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
       </nav>
 
       {/* Sidebar - Desktop */}
@@ -201,6 +203,7 @@ export function StudentTasksPage() {
           <NavItem icon={<CheckSquare size={24} />} active onClick={() => navigate('/student/tasks')} />
           <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
         <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
           <span className="text-[#1800ad] font-bold text-lg transition-colors duration-300">S</span>

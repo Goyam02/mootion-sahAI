@@ -251,7 +251,7 @@ export function TeacherClassViewPage() {
             }
           }} 
         />
-        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
+        <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(`/teacher/analytics/${resolvedClass?.class_id || resolvedClass?.id || id}`)} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
       </nav>
 
@@ -274,7 +274,7 @@ export function TeacherClassViewPage() {
               }
             }} 
           />
-          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/teacher/analytics')} />
+          <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(`/teacher/analytics/${resolvedClass?.class_id || resolvedClass?.id || id}`)} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
 

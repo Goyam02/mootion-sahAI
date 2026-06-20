@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
 import { 
   ArrowLeft, 
   Mic, 
@@ -87,6 +89,22 @@ export function LiveVoiceActivity({
   onDone: () => void 
 }) {
   // Activity Specific Steps & Flow State
+  const navigate = useNavigate();
+  const [resolvedClassId, setResolvedClassId] = useState<string | null>(null);
+  const [resolvedChapterId, setResolvedChapterId] = useState<string | null>(null);
+  const [analyticsResult, setAnalyticsResult] = useState<{
+    concept_score_id: string;
+    clarity_score: number;
+    accuracy_score: number;
+    depth_score: number;
+    overall_score: number;
+    llm_feedback: string;
+    attempt_number: number;
+    created_at: string;
+  } | null>(null);
+
+  const fallbackTranscriptRef = useRef('');
+
   const [activePlayState, setActivePlayState] = useState<'intro' | 'prediction' | 'simulation' | 'explaining' | 'grading'>('intro');
   const [predictionChoice, setPredictionChoice] = useState<'sink' | 'float' | null>(null);
   const [simulationRunning, setSimulationRunning] = useState(false);
@@ -170,6 +188,7 @@ export function LiveVoiceActivity({
   // Init default introduction text based on activity mode
   useEffect(() => {
     let initialGreeting = "";
+    setAnalyticsResult(null);
     if (activityName === 'Explain It') {
       initialGreeting = `Teacher! I'm so excited to learn. Can you explain ${task.topic} to me like I'm a 10-year-old? I prepared some building blocks!`;
       setActivePlayState('explaining');
@@ -189,6 +208,45 @@ export function LiveVoiceActivity({
     ]);
     speakVoiceSynthesis(initialGreeting);
   }, [activityName, task]);
+
+  useEffect(() => {
+    async function fetchClassAndChapter() {
+      try {
+        const classes = await api.get('/students/classes');
+        if (classes && classes.length > 0) {
+          const firstClass = classes[0];
+          const classId = firstClass.class_id || firstClass.id;
+          setResolvedClassId(classId);
+
+          const chapters = await api.get(`/students/classes/${classId}/chapters`);
+          if (chapters && chapters.length > 0) {
+            let matchedChapter = chapters.find((ch: any) => {
+              if (task.id && task.id.includes('_c')) {
+                const parts = task.id.split('_');
+                const cPart = parts.find(p => p.startsWith('c'));
+                if (cPart) {
+                  const num = cPart.replace('c', '');
+                  return String(ch.chapter_number) === num || ch.chapter_id?.includes(cPart);
+                }
+              }
+              return false;
+            });
+            if (!matchedChapter) {
+              matchedChapter = chapters.find((ch: any) => 
+                ch.title.toLowerCase().includes(task.topic.toLowerCase()) ||
+                task.topic.toLowerCase().includes(ch.title.toLowerCase())
+              );
+            }
+            if (!matchedChapter) matchedChapter = chapters[0];
+            setResolvedChapterId(matchedChapter.chapter_id || matchedChapter.id);
+          }
+        }
+      } catch (err) {
+        console.error("Error resolving class/chapter IDs:", err);
+      }
+    }
+    fetchClassAndChapter();
+  }, [task]);
 
   // Handle scrolling of captions
   useEffect(() => {
@@ -415,6 +473,37 @@ export function LiveVoiceActivity({
         ws.send(JSON.stringify({ audio: base64PCM }));
       };
 
+      // Browser-native SpeechRecognition Fallback
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        
+        recognition.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+          if (finalTranscript) {
+            fallbackTranscriptRef.current = (fallbackTranscriptRef.current + " " + finalTranscript).trim();
+          }
+        };
+
+        recognition.onend = () => {
+          console.log("SpeechRecognition fallback ended");
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
+
       setIsRecording(true);
     } catch (err) {
       console.warn("Hardware mic blocked or unavailable", err);
@@ -455,8 +544,14 @@ export function LiveVoiceActivity({
     }
 
     // Submit any remaining student live speech transcript
-    if (liveTranscript.trim()) {
-      setMessages(prev => [...prev, { role: 'student', text: liveTranscript }]);
+    let finalStudentText = liveTranscript.trim();
+    if (!finalStudentText && fallbackTranscriptRef.current.trim()) {
+      finalStudentText = fallbackTranscriptRef.current.trim();
+    }
+    fallbackTranscriptRef.current = '';
+
+    if (finalStudentText) {
+      setMessages(prev => [...prev, { role: 'student', text: finalStudentText }]);
       setLiveTranscript('');
     }
 
@@ -541,10 +636,89 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
     }
   };
 
+  const submitExplanationForAnalysis = async (transcriptText: string, chapterId: string | null, classId: string | null) => {
+    try {
+      let finalClassId = classId || resolvedClassId;
+      let finalChapterId = chapterId || resolvedChapterId;
+
+      if (!finalClassId || !finalChapterId) {
+        const classes = await api.get('/students/classes');
+        if (classes && classes.length > 0) {
+          const firstClass = classes[0];
+          finalClassId = finalClassId || firstClass.class_id || firstClass.id;
+
+          const chapters = await api.get(`/students/classes/${finalClassId}/chapters`);
+          if (chapters && chapters.length > 0) {
+            let matchedChapter = chapters.find((ch: any) => {
+              if (task.id && task.id.includes('_c')) {
+                const parts = task.id.split('_');
+                const cPart = parts.find(p => p.startsWith('c'));
+                if (cPart) {
+                  const num = cPart.replace('c', '');
+                  return String(ch.chapter_number) === num || ch.chapter_id?.includes(cPart);
+                }
+              }
+              return false;
+            });
+            if (!matchedChapter) {
+              matchedChapter = chapters.find((ch: any) => 
+                ch.title.toLowerCase().includes(task.topic.toLowerCase()) ||
+                task.topic.toLowerCase().includes(ch.title.toLowerCase())
+              );
+            }
+            if (!matchedChapter) matchedChapter = chapters[0];
+            finalChapterId = finalChapterId || matchedChapter.chapter_id || matchedChapter.id;
+          }
+        }
+      }
+
+      if (!finalClassId || !finalChapterId) {
+        console.warn("Could not submit explanation: classroom or chapter ID unresolved.");
+        return;
+      }
+
+      const response = await api.post('/api/analytics/submit-explanation', {
+        transcript: transcriptText || "No student explanation provided.",
+        chapter_id: finalChapterId,
+        class_id: finalClassId
+      });
+
+      if (response && response.concept_score_id) {
+        setAnalyticsResult(response);
+      }
+    } catch (err) {
+      console.error("Error submitting explanation for analysis:", err);
+    }
+  };
+
   // Run real-time appraisal of the complete dialog
   const triggerGradingEvaluation = async (finalTranscript: { role: 'student' | 'Mootion'; text: string }[]) => {
     setActivePlayState('grading');
     setIsThinking(true);
+
+    let transcriptToUse = [...finalTranscript];
+    if (isRecording) {
+      setIsRecording(false);
+      if (scriptProcessorRef.current) { scriptProcessorRef.current.disconnect(); scriptProcessorRef.current = null; }
+      if (sourceRef.current) { sourceRef.current.disconnect(); sourceRef.current = null; }
+      if (mstreamRef.current) { mstreamRef.current.getTracks().forEach(track => track.stop()); mstreamRef.current = null; }
+      if (audioContextRef.current) { audioContextRef.current.close().catch(() => {}); audioContextRef.current = null; }
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+      setIsWebSocketActive(false);
+      if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
+
+      let finalStudentText = liveTranscript.trim();
+      if (!finalStudentText && fallbackTranscriptRef.current.trim()) {
+        finalStudentText = fallbackTranscriptRef.current.trim();
+      }
+      fallbackTranscriptRef.current = '';
+
+      if (finalStudentText) {
+        transcriptToUse.push({ role: 'student', text: finalStudentText });
+        setMessages(prev => [...prev, { role: 'student', text: finalStudentText }]);
+        setLiveTranscript('');
+      }
+    }
 
     let predOutcome = "";
     if (activityName === 'Predict It' && predictionChoice) {
@@ -558,7 +732,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
         body: JSON.stringify({
           task,
           activityName,
-          transcript: finalTranscript,
+          transcript: transcriptToUse,
           predictionOutcome: predOutcome || undefined
         })
       });
@@ -572,7 +746,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
       }
 
       // Save Attempt to localStorage history separating each attempt
-      saveAttemptToStorage(finalTranscript, evalData);
+      saveAttemptToStorage(transcriptToUse, evalData);
     } catch (e) {
       console.error("Evaluation generation error", e);
       setIsThinking(false);
@@ -586,7 +760,16 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
         predictionAccuracy: activityName === 'Predict It' ? (predictionChoice === 'sink' ? 'Correct' as const : 'Incorrect' as const) : undefined
       };
       setEvaluation(fallbackReport);
-      saveAttemptToStorage(finalTranscript, fallbackReport);
+      saveAttemptToStorage(transcriptToUse, fallbackReport);
+    }
+
+    const studentText = transcriptToUse
+      .filter(m => m.role === 'student')
+      .map(m => m.text)
+      .join(' ')
+      .trim();
+    if (studentText) {
+      submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId);
     }
   };
 
@@ -842,6 +1025,81 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
             </div>
           )}
 
+          {analyticsResult && (
+            <div className="bg-[#f0f4ff] border-2 border-[#1800ad]/20 rounded-[24px] p-5 flex flex-col gap-4 text-left shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✨</span>
+                <span className="font-black text-xs text-[#1800ad] uppercase tracking-widest font-mono">
+                  Conceptual Explanation Evaluation (Attempt #{analyticsResult.attempt_number})
+                </span>
+              </div>
+              
+              <div className="flex flex-col gap-3">
+                {/* Clarity score bar */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-xs font-bold text-[#1800ad]">
+                    <span>Clarity</span>
+                    <span>{analyticsResult.clarity_score}/10</span>
+                  </div>
+                  <div className="w-full bg-[#1800ad]/10 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${
+                        analyticsResult.clarity_score > 7 ? 'bg-emerald-500' : analyticsResult.clarity_score >= 4 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`} 
+                      style={{ width: `${analyticsResult.clarity_score * 10}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Accuracy score bar */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-xs font-bold text-[#1800ad]">
+                    <span>Accuracy</span>
+                    <span>{analyticsResult.accuracy_score}/10</span>
+                  </div>
+                  <div className="w-full bg-[#1800ad]/10 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${
+                        analyticsResult.accuracy_score > 7 ? 'bg-emerald-500' : analyticsResult.accuracy_score >= 4 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`} 
+                      style={{ width: `${analyticsResult.accuracy_score * 10}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Depth score bar */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-xs font-bold text-[#1800ad]">
+                    <span>Depth</span>
+                    <span>{analyticsResult.depth_score}/10</span>
+                  </div>
+                  <div className="w-full bg-[#1800ad]/10 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${
+                        analyticsResult.depth_score > 7 ? 'bg-emerald-500' : analyticsResult.depth_score >= 4 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`} 
+                      style={{ width: `${analyticsResult.depth_score * 10}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              {analyticsResult.llm_feedback && (
+                <div className="bg-white border border-[#1800ad]/10 rounded-xl p-3 text-xs text-[#1800ad]/80 leading-relaxed font-semibold">
+                  {analyticsResult.llm_feedback}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => navigate('/student/analytics')}
+                className="w-full py-2.5 bg-[#1800ad] hover:bg-[#1800ad]/90 text-white rounded-full font-black text-xs uppercase tracking-wider shadow transition-all hover:scale-101 active:scale-99"
+              >
+                View Full Analytics
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col gap-4 text-left">
             <div className="flex flex-col gap-2">
               <h5 className="font-black text-xs text-[#1800ad] uppercase tracking-widest flex items-center gap-1.5">
@@ -878,6 +1136,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
               type="button"
               onClick={() => {
                 setEvaluation(null);
+                setAnalyticsResult(null);
                 setMessages([{ role: 'Mootion', text: `Let's practice again! Let's explain ${task.topic} once and see if we can do even better!` }]);
                 setQuestionsAnswered(0);
                 setActivePlayState(activityName === 'Predict It' ? 'prediction' : 'explaining');
