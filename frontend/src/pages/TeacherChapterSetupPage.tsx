@@ -130,6 +130,7 @@ export function TeacherChapterSetupPage() {
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryPreview, setLibraryPreview] = useState<string | null>(null);
   const [adopting, setAdopting] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
 
   // Fetch chapter details and map assets
   useEffect(() => {
@@ -405,6 +406,7 @@ export function TeacherChapterSetupPage() {
     try {
       const response = await api.post(`/teachers/classes/${classId}/chapters/${chapterId}/assets/${activity.id}/generate`, {
         instructions: prompt || null,
+        language: selectedLanguage,
       });
 
       const generatedAsset = response.asset || response;
@@ -714,6 +716,26 @@ export function TeacherChapterSetupPage() {
                                 rows={2}
                                 onClick={(e) => e.stopPropagation()}
                               />
+                              {isDirectGeneratable && (
+                                <div className="flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                                    Target Language
+                                  </label>
+                                  <select
+                                    value={selectedLanguage}
+                                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                                    className="bg-[#f6f4ee] text-[#1800ad] text-[10px] font-bold border border-[#1800ad]/20 px-2 py-1 rounded-lg outline-none focus:border-[#1800ad] cursor-pointer"
+                                  >
+                                    <option value="english">English</option>
+                                    <option value="hindi">Hindi (हिंदी)</option>
+                                    <option value="gujarati">Gujarati (ગુજરાતી)</option>
+                                    <option value="marathi">Marathi (मराठी)</option>
+                                    <option value="telugu">Telugu (తెలుగు)</option>
+                                    <option value="tamil">Tamil (தமிழ்)</option>
+                                    <option value="bengali">Bengali (বাংলা)</option>
+                                  </select>
+                                </div>
+                              )}
                               <div className="flex justify-end gap-2 text-[10px] font-black" onClick={(e) => e.stopPropagation()}>
                                 <button 
                                   onClick={() => handleToggleRegenPrompt(act.id)}

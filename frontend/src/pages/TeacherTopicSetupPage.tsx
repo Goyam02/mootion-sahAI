@@ -297,6 +297,7 @@ export function TeacherTopicSetupPage() {
   };
 
   const [regenText, setRegenText] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
   const [generationEndsAt, setGenerationEndsAt] = useState<number | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -338,6 +339,7 @@ export function TeacherTopicSetupPage() {
     try {
       const response = await api.post(`/teachers/classes/${classId}/chapters/${chapterId}/topics/${activeTopic.topic_id}/assets/${selectedAsset.asset_id}/generate`, {
         instructions: regenText.trim() || null,
+        language: selectedLanguage,
       });
       const generatedAsset = response.asset || response;
       updateTopicAsset(generatedAsset);
@@ -485,6 +487,25 @@ export function TeacherTopicSetupPage() {
                     placeholder="Optional: add teacher notes, examples, or style guidance..."
                     className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
                   />
+
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                      Target Video/Audio Language
+                    </label>
+                    <select
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      className="bg-[#f6f4ee] text-[#1800ad] text-xs font-bold border border-[#1800ad]/20 px-3 py-1.5 rounded-xl outline-none focus:border-[#1800ad] cursor-pointer"
+                    >
+                      <option value="english">English</option>
+                      <option value="hindi">Hindi (हिंदी)</option>
+                      <option value="gujarati">Gujarati (ગુજરાતી)</option>
+                      <option value="marathi">Marathi (मराठी)</option>
+                      <option value="telugu">Telugu (తెలుగు)</option>
+                      <option value="tamil">Tamil (தமிழ்)</option>
+                      <option value="bengali">Bengali (বাংলা)</option>
+                    </select>
+                  </div>
 
                   {generationError && (
                     <div className="text-[11px] font-bold text-rose-600">{generationError}</div>

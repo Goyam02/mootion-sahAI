@@ -130,7 +130,7 @@ Error:
 
 MAX_RETRIES = 2
 
-def generate_manim(scenes, rag_context: str | None = None):
+def generate_manim(scenes, rag_context: str | None = None, language: str = "english"):
     # ---------- Generate Manim code ----------
     scenes_json = json.dumps(scenes)
     scenes_category = scenes["category"]
@@ -145,6 +145,13 @@ def generate_manim(scenes, rag_context: str | None = None):
             f"Use the following NCERT textbook excerpts to ensure the animation "
             f"accurately reflects the curriculum (correct terminology, structure, "
             f"and key concepts):\n{safe_rag}"
+        )
+    if language and language.lower() != "english":
+        prompt += (
+            f"\n\nIMPORTANT: Since the target language is {language}, the labels and text will contain non-English characters. "
+            f"You MUST use standard Manim `Text('...')` (or `MarkupText('...')`) for all non-English text labels and annotations. "
+            f"Do NOT use `Tex('...')` or `MathTex('...')` for non-English unicode text characters as they will fail to compile in LaTeX. "
+            f"Only use `MathTex` for pure mathematical formulas (like 'F = m a') using standard math variables."
         )
 
     manim_code = ""

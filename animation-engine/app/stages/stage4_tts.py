@@ -6,7 +6,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 AUDIO_DIR = OUTPUTS_DIR / "audio"
 
-def tts_generate(script, video_id: str, scene_ids: list):
+def tts_generate(script, video_id: str, scene_ids: list, language: str = "english"):
     output_dir = AUDIO_DIR / video_id
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -20,7 +20,32 @@ def tts_generate(script, video_id: str, scene_ids: list):
         subscription=speech_key,
         region=region
     )
-    speech_config.speech_synthesis_voice_name = "en-IN-NeerjaNeural"
+
+    # Map target language to Azure Neural voice names
+    VOICE_MAP = {
+        "english": "en-IN-NeerjaNeural",
+        "en": "en-IN-NeerjaNeural",
+        "hindi": "hi-IN-SwaraNeural",
+        "hi": "hi-IN-SwaraNeural",
+        "gujarati": "gu-IN-DhwaniNeural",
+        "gu": "gu-IN-DhwaniNeural",
+        "telugu": "te-IN-ShrutiNeural",
+        "te": "te-IN-ShrutiNeural",
+        "tamil": "ta-IN-PallaviNeural",
+        "ta": "ta-IN-PallaviNeural",
+        "marathi": "mr-IN-AarohiNeural",
+        "mr": "mr-IN-AarohiNeural",
+        "bengali": "bn-IN-TanishaNeural",
+        "bn": "bn-IN-TanishaNeural",
+        "kannada": "kn-IN-SapnaNeural",
+        "kn": "kn-IN-SapnaNeural",
+        "malayalam": "ml-IN-SobhanaNeural",
+        "ml": "ml-IN-SobhanaNeural"
+    }
+
+    voice_name = VOICE_MAP.get(language.lower(), "en-IN-NeerjaNeural")
+    speech_config.speech_synthesis_voice_name = voice_name
+    print(f"[tts] Selected Azure voice: {voice_name} for language: {language}")
 
     # Build lookup: normalise scene_ids that may or may not have the "scene_" prefix
     script_map = {
@@ -54,12 +79,14 @@ def tts_generate(script, video_id: str, scene_ids: list):
             audio_config=audio_config
         )
 
-        result = synthesizer.speak_text_async(text).get()
-
-        if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            raise RuntimeError(f"TTS failed for {scene_id}")
-
-        print(f"[✓] Generated audio for {scene_id}")
+        try:
+            result = synthesizer.speak_text_async(text).get()
+            if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
+                raise RuntimeError(f"Azure Speech Synthesis failed: {result.reason}")
+            print(f"[✓] Generated audio for {scene_id}")
+        except Exception as e:
+            print(f"[tts] Azure TTS failed for {scene_id} ({e}) — falling back to silence.")
+            _generate_silence(audio_path, duration=6)
 
 
 def _generate_silence(path: Path, duration: int = 6):
@@ -80,5 +107,3 @@ def _generate_silence(path: Path, duration: int = 6):
         stderr=subprocess.PIPE,
     )
     print(f"[tts] Generated silent audio → {path}")
-
-

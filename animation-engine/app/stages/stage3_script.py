@@ -4,7 +4,7 @@ from utils.json_safe import extract_json
 from pathlib import Path
 from paths import PROMPTS_DIR
 
-def generate_script(scenes, timestamps, persona, level, rag_context=None):
+def generate_script(scenes, timestamps, persona, level, rag_context=None, language: str = "english"):
     prompt = (PROMPTS_DIR / "script_writer.txt").read_text(encoding="utf-8")
     if rag_context and rag_context.strip():
         safe_rag = str(rag_context).replace("{", "{{").replace("}", "}}")
@@ -18,7 +18,8 @@ def generate_script(scenes, timestamps, persona, level, rag_context=None):
         scenes=json.dumps(scenes),
         timestamps=json.dumps(timestamps),
         persona=persona,
-        level=level
+        level=level,
+        language=language
     )
 
     output = call_llm(prompt)

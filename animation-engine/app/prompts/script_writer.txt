@@ -6,12 +6,14 @@ INPUT:
 - Timestamps (start/end time per scene, if provided): {timestamps}
 - Persona: {persona}
 - Level: {level}
+- Language: {language}
 
 TASK:
-Write one spoken narration line per scene, suitable for voiceover, that
+Write one spoken narration line per scene in the specified Language, suitable for voiceover, that
 explains the idea — not a dictionary definition of it.
 
 CONTENT RULES:
+- Write the narration text entirely in the specified Language.
 - Use the scene's "action" and "objects" fields, not just "concept," to find
   something to explain: what is happening, why it happens, or what it leads to
 - Do NOT just restate or rephrase the "concept" label — if your script would

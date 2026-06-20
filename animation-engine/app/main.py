@@ -37,14 +37,15 @@ def explain(
     persona: str = "teacher",
     face_enabled: bool = False,
     rag_context: str | None = None,
+    language: str = "english",
 ):
     video_id = generate_video_id()
 
     # -------- Stage 1: Scene planning --------
-    scenes = generate_scenes(topic, level, rag_context)
+    scenes = generate_scenes(topic, level, rag_context, language)
 
     # -------- Stage 2: Manim rendering --------
-    manim_data = generate_manim(scenes, rag_context)
+    manim_data = generate_manim(scenes, rag_context, language)
     scene_ids = manim_data["scene_ids"]   # list of (disk_index, scene_id) tuples
 
     # -------- Stage 3: Script generation --------
@@ -54,6 +55,7 @@ def explain(
         persona,
         level,
         rag_context,
+        language,
     )
 
     # -------- Stage 4: TTS (ONLY surviving scenes) --------
@@ -61,6 +63,7 @@ def explain(
         script=script,
         video_id=video_id,
         scene_ids=scene_ids,
+        language=language,
     )
 
     # -------- Stage 5: Audio + Video --------
