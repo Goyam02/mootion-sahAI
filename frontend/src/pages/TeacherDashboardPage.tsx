@@ -330,9 +330,11 @@ export function TeacherDashboardPage() {
           {/* Left Column: Classroom Portals */}
           <section className="flex flex-col order-1 gap-6">
             <div>
-              <h2 className="text-2xl font-black text-[#1800ad] tracking-tight uppercase">My Classrooms & Invite Keys</h2>
+              <h2 className="text-2xl font-black text-[#1800ad] tracking-tight uppercase">My Classrooms</h2>
               <p className="text-xs font-semibold text-[#1800ad]/60 leading-normal mt-0.5">
-                Share the code with your students and connect with them
+                {classes.length === 1
+                  ? `Share your ${classes[0].grade.toLowerCase().includes('class') ? classes[0].grade : `Class ${classes[0].grade}`} ${classes[0].subject.charAt(0).toUpperCase() + classes[0].subject.slice(1)} code with your students to connect with them`
+                  : "Share the code with your students and connect with them"}
               </p>
             </div>
 
