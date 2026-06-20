@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import require_teacher
 from app.schemas.assignment import AssignmentCreateRequest, AssignmentListItem, AssignmentResponse
-from app.services.assignment_service import create_teacher_assignment, get_teacher_assignment, list_teacher_assignments
+from app.services.assignment_service import approve_teacher_assignment, create_teacher_assignment, get_teacher_assignment, list_teacher_assignments
 
 
 router = APIRouter(prefix="/teachers/classes/{class_id}/assignments", tags=["assignments"])
@@ -30,3 +30,13 @@ def assignments(class_id: str, user=Depends(require_teacher), db: Session = Depe
 @router.get("/{assignment_id}", response_model=AssignmentResponse)
 def assignment_detail(class_id: str, assignment_id: str, user=Depends(require_teacher), db: Session = Depends(get_db)):
     return get_teacher_assignment(db, user, class_id, assignment_id)
+
+
+@router.patch("/{assignment_id}/approve", response_model=AssignmentResponse)
+def approve_assignment(
+    class_id: str,
+    assignment_id: str,
+    user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return approve_teacher_assignment(db, user, class_id, assignment_id)

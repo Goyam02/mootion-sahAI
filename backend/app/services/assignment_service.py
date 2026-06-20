@@ -325,6 +325,39 @@ def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_ty
     return content_json
 
 
+def _generate_interactive_quiz_content(
+    chapter_obj: Chapter | None,
+    topics: list,
+) -> dict:
+    """Generate quiz questions for an interactive_quiz assignment via LLM."""
+    topic_title = chapter_obj.title if chapter_obj else "General Science"
+
+    def _generate():
+        prompt = f"""
+You are a science teacher. Generate an interactive quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic_title}".
+For each question, provide 4 options and specify the index of the correct option (0-based).
+Return ONLY a valid JSON array of objects with the following keys:
+- "question" (string)
+- "options" (array of 4 strings)
+- "correctAnswer" (integer, 0 to 3)
+
+Do not include markdown tags like ```json or any other text. Output exactly the raw JSON.
+"""
+        res = query_llm(prompt)
+        text = res.get("response", "").strip()
+        data = _extract_json_helper(text)
+        if isinstance(data, list):
+            return {"questions": data}
+        if isinstance(data, dict) and "questions" in data:
+            return {"questions": data["questions"]}
+        raise GenerationParsingError("LLM response did not contain expected quiz format", raw_text=text)
+
+    try:
+        return _generation_retry(_generate)
+    except GenerationParsingError as e:
+        return {"error": f"Interactive Quiz generation failed: {str(e)}", "questions": []}
+
+
 def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
     jobs = get_assignment_jobs(db, assignment_id)
     assignment = get_assignment(db, assignment_id)
@@ -334,25 +367,33 @@ def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
     # If there are no jobs, assignment status is ready (if content is ready, or can be built)
     if not jobs:
         if assignment.assignment_type in INTERACTIVE_ASSIGNMENT_TYPES:
-            assignment.status = "ready"
-            if _is_content_placeholder(assignment.content_json):
-                chapter_obj = get_chapter(db, str(assignment.chapter_id))
-                topics = get_topics_for_chapter(db, str(assignment.chapter_id))
-                topic_list = []
-                for t in topics:
-                    snippet = (t.source_text or "")[:300] if t.source_text else ""
-                    topic_list.append({
-                        "title": t.title,
-                        "source_snippet": snippet,
-                    })
-                assignment.content_json = {
-                    "placeholder": False,
-                    "assignment_type": assignment.assignment_type,
-                    "activity": assignment.assignment_type,
-                    "chapter_id": str(assignment.chapter_id) if assignment.chapter_id else "",
-                    "chapter_title": chapter_obj.title if chapter_obj else "",
-                    "topics": topic_list,
-                }
+            chapter_obj = get_chapter(db, str(assignment.chapter_id))
+            topics = get_topics_for_chapter(db, str(assignment.chapter_id))
+            topic_list = []
+            for t in topics:
+                snippet = (t.source_text or "")[:300] if t.source_text else ""
+                topic_list.append({
+                    "title": t.title,
+                    "source_snippet": snippet,
+                })
+
+            base_content = {
+                "placeholder": False,
+                "assignment_type": assignment.assignment_type,
+                "activity": assignment.assignment_type,
+                "chapter_id": str(assignment.chapter_id) if assignment.chapter_id else "",
+                "chapter_title": chapter_obj.title if chapter_obj else "",
+                "topics": topic_list,
+            }
+
+            if assignment.assignment_type == "interactive_quiz":
+                quiz_data = _generate_interactive_quiz_content(chapter_obj, topics)
+                base_content["quiz"] = quiz_data.get("questions", [])
+                assignment.content_json = base_content
+                assignment.status = "pending_approval"
+            else:
+                assignment.content_json = base_content
+                assignment.status = "ready"
         elif _is_content_placeholder(assignment.content_json):
             new_content = _build_content_json_from_chapter(
                 db,
@@ -449,6 +490,19 @@ def create_teacher_assignment(
     return _assignment_to_response(db, assignment)
 
 
+def approve_teacher_assignment(db: Session, user: User, class_id: str, assignment_id: str) -> AssignmentResponse:
+    _ensure_teacher_has_access(db, user, class_id)
+    assignment = get_assignment(db, assignment_id)
+    if not assignment or str(assignment.class_id) != class_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    if assignment.status != "pending_approval":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assignment is not pending approval")
+    assignment.status = "ready"
+    db.commit()
+    db.refresh(assignment)
+    return _assignment_to_response(db, assignment)
+
+
 def list_teacher_assignments(db: Session, user: User, class_id: str) -> list[AssignmentListItem]:
     from sqlalchemy import func
     _ensure_teacher_has_access(db, user, class_id)
@@ -519,8 +573,11 @@ def list_student_assignments(db: Session, user: User, class_id: str) -> list[Stu
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
-    # Direct DB filtering by class_id
-    assignments = db.query(Assignment).filter(Assignment.class_id == class_id).order_by(Assignment.created_at.desc()).all()
+    # Direct DB filtering by class_id, exclude pending_approval (not yet approved by teacher)
+    assignments = db.query(Assignment).filter(
+        Assignment.class_id == class_id,
+        Assignment.status != "pending_approval",
+    ).order_by(Assignment.created_at.desc()).all()
     if not assignments:
         return []
 
@@ -555,6 +612,8 @@ def get_student_assignment(db: Session, user: User, class_id: str, assignment_id
 
     assignment = get_assignment(db, assignment_id)
     if not assignment or str(assignment.class_id) != class_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    if assignment.status == "pending_approval":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
 
     return _student_assignment_to_response(db, assignment)

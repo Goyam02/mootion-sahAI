@@ -108,6 +108,9 @@ export function TeacherChapterSetupPage() {
   const [specialNote, setSpecialNote] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [pendingQuizId, setPendingQuizId] = useState<string | null>(null);
+  const [quizPreviewData, setQuizPreviewData] = useState<any | null>(null);
+  const [approving, setApproving] = useState(false);
   const [resolvedChapter, setResolvedChapter] = useState<any | null>(null);
   const [resolvedClass, setResolvedClass] = useState<any | null>(null);
   const [teacherName, setTeacherName] = useState<string>('Teacher');
@@ -498,8 +501,22 @@ export function TeacherChapterSetupPage() {
       if (totalSelected === 0) {
         throw new Error('Please select at least one activity or interactive mode to assign.');
       }
-      
+
+      const quizMode = selectedInteractive.find(m => m.type === 'interactive_quiz');
+      const otherInteractive = selectedInteractive.filter(m => m.type !== 'interactive_quiz');
       const promises: Promise<any>[] = [];
+
+      // Create quiz assignment first (needs preview + approval before students see it)
+      let quizAssignmentId: string | null = null;
+      if (quizMode) {
+        const quizResp = await api.post(`/teachers/classes/${classId}/assignments`, {
+          chapter_id: chapterId,
+          assignment_type: quizMode.type,
+          title: `${quizMode.label} - ${resolvedChapter?.title || 'Chapter Activity'}`,
+          instructions: specialNote || null,
+        });
+        quizAssignmentId = quizResp.assignment_id;
+      }
 
       // Create assignments for chapter activities
       activeActs.forEach(act => {
@@ -514,8 +531,8 @@ export function TeacherChapterSetupPage() {
         );
       });
 
-      // Create assignments for interactive modes
-      selectedInteractive.forEach(mode => {
+      // Create assignments for other interactive modes
+      otherInteractive.forEach(mode => {
         promises.push(
           api.post(`/teachers/classes/${classId}/assignments`, {
             chapter_id: chapterId,
@@ -528,16 +545,57 @@ export function TeacherChapterSetupPage() {
 
       await Promise.all(promises);
 
-      setSuccess(true);
-      setTimeout(() => {
-        navigate(`/teacher/class/${classId || 'class-8-science'}`);
-      }, 1500);
+      if (quizAssignmentId) {
+        // Close config modal and show quiz preview instead
+        setShowConfig(false);
+        try {
+          const detail = await api.get(`/teachers/classes/${classId}/assignments/${quizAssignmentId}`);
+          setQuizPreviewData(detail);
+        } catch {
+          console.warn("Could not fetch quiz detail, showing preview from creation data");
+        }
+        setPendingQuizId(quizAssignmentId);
+      } else {
+        setSuccess(true);
+        setTimeout(() => {
+          navigate(`/teacher/class/${classId || 'class-8-science'}`);
+        }, 1500);
+      }
     } catch (err: any) {
       console.error("Failed to publish assignments:", err);
       setAssignError(err?.detail || err?.message || 'Failed to create assignments. Please try again.');
     } finally {
       setPublishing(false);
     }
+  };
+
+  const [approveSuccess, setApproveSuccess] = useState(false);
+
+  const handleApproveQuiz = async () => {
+    if (!pendingQuizId || !classId) return;
+    setApproving(true);
+    try {
+      await api.patch(`/teachers/classes/${classId}/assignments/${pendingQuizId}/approve`);
+      setPendingQuizId(null);
+      setQuizPreviewData(null);
+      setApproveSuccess(true);
+      setTimeout(() => {
+        navigate(`/teacher/class/${classId || 'class-8-science'}`);
+      }, 1500);
+    } catch (err: any) {
+      console.error("Failed to approve quiz:", err);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleRejectQuiz = () => {
+    setPendingQuizId(null);
+    setQuizPreviewData(null);
+    setApproveSuccess(true);
+    setTimeout(() => {
+      navigate(`/teacher/class/${classId || 'class-8-science'}`);
+    }, 1500);
   };
 
   return (
@@ -1195,6 +1253,111 @@ export function TeacherChapterSetupPage() {
                         </div>
                       );
                     })()}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ───────────────────────────────────────────────────────────────
+               QUIZ APPROVED SUCCESS TOAST
+          ─────────────────────────────────────────────────────────────── */}
+          {approveSuccess && (
+            <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold text-sm flex items-center gap-2 animate-fade-in">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Quiz approved and assigned to students!
+            </div>
+          )}
+
+          {/* ───────────────────────────────────────────────────────────────
+               QUIZ PREVIEW MODAL (for interactive_quiz pending approval)
+          ─────────────────────────────────────────────────────────────── */}
+          <AnimatePresence>
+            {pendingQuizId && quizPreviewData && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-[#1800ad]/40 z-50 flex items-center justify-center p-4"
+              >
+                <motion.div
+                  initial={{ scale: 0.95 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0.95 }}
+                  className="bg-[#f6f4ee] rounded-[32px] border-2 border-[#1800ad] w-full max-w-lg p-6 sm:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+                >
+                  <h3 className="text-xl font-black text-[#1800ad] tracking-tight mb-1">
+                    Preview Quiz
+                  </h3>
+                  <p className="text-xs font-semibold opacity-75 mb-5">
+                    Review the generated quiz questions before approving. Students will only see this quiz after you approve.
+                  </p>
+
+                  {quizPreviewData.content_json?.quiz?.length > 0 ? (
+                    <div className="flex flex-col gap-4 mb-6">
+                      {quizPreviewData.content_json.quiz.map((q: any, idx: number) => (
+                        <div key={idx} className="bg-white rounded-2xl border border-[#1800ad]/15 p-4">
+                          <p className="text-xs font-black text-[#1800ad] uppercase tracking-wider mb-2">
+                            Q{idx + 1}
+                          </p>
+                          <p className="text-sm font-bold text-[#1800ad] mb-2">
+                            {q.question}
+                          </p>
+                          <div className="flex flex-col gap-1.5">
+                            {(q.options || []).map((opt: string, oi: number) => (
+                              <div
+                                key={oi}
+                                className={`text-xs font-semibold px-3 py-2 rounded-xl border ${
+                                  q.correctAnswer === oi
+                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                                    : 'bg-gray-50 border-gray-200 text-[#1800ad]/70'
+                                }`}
+                              >
+                                {q.correctAnswer === oi && (
+                                  <span className="text-emerald-600 mr-1.5">&#10003;</span>
+                                )}
+                                {opt}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <p className="text-[10px] font-semibold text-[#1800ad]/40 text-center">
+                        Correct answers are highlighted in green
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-sm font-semibold text-[#1800ad]/50">
+                      No quiz questions were generated. You may want to delete this assignment and try again.
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleRejectQuiz}
+                      disabled={approving}
+                      className="flex-1 py-3 border-2 border-[#1800ad] rounded-full text-xs font-black uppercase tracking-wider text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors"
+                    >
+                      Skip for Now
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApproveQuiz}
+                      disabled={approving || !quizPreviewData.content_json?.quiz?.length}
+                      className="flex-1 py-3 bg-[#1800ad] text-white rounded-full text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#1800ad]/90 transition-colors disabled:opacity-50"
+                    >
+                      {approving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-t-white border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" />
+                          Approving...
+                        </>
+                      ) : (
+                        'Approve & Assign'
+                      )}
+                    </button>
                   </div>
                 </motion.div>
               </motion.div>

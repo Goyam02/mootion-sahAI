@@ -37,7 +37,7 @@ function QuizContent({ task }: { task: Task }) {
     if (!dbTask) return;
     submitAttemptedRef.current = true;
     let score = 0;
-    questions.forEach(q => { if (answers[q.id] === q.correctAnswer) score++; });
+    questions.forEach(q => { if (answers[q.id] === q.options[q.correctAnswer]) score++; });
     setSubmitting(true);
     api.post(`/students/classes/${dbTask.class_id}/assignments/${dbTask.assignment_id}/submit-quiz`, {
       score,
@@ -57,7 +57,13 @@ function QuizContent({ task }: { task: Task }) {
       const mainJob = (task as any).dbTask.jobs?.find((j: any) => j.asset_type === 'quiz' || j.asset_type === 'interactive_quiz');
       const questionsData = mainJob?.result_json?.questions || mainJob?.result_json?.quiz || (task as any).dbTask.content_json?.quiz;
       if (questionsData && Array.isArray(questionsData)) {
-        setQuestions(questionsData);
+        const normalized = questionsData.map((q: any, i: number) => ({
+          id: q.id ?? `q_${i}`,
+          questionText: q.questionText ?? q.question ?? '',
+          options: q.options ?? [],
+          correctAnswer: q.correctAnswer,
+        }));
+        setQuestions(normalized);
         setLoading(false);
         return;
       }
@@ -118,7 +124,7 @@ function QuizContent({ task }: { task: Task }) {
   if (isSubmitted) {
     let score = 0;
     questions.forEach(question => {
-      if (answers[question.id] === question.correctAnswer) score++;
+      if (answers[question.id] === question.options[question.correctAnswer]) score++;
     });
     const dbTask = (task as any).dbTask;
 
