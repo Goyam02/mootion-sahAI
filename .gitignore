@@ -11,3 +11,4 @@ thumbnails/
 *.db
 manimenv/
 outputs/
+chroma.sqlite3
