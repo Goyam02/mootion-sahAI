@@ -171,20 +171,39 @@ function QuizContent({ task }: { task: Task }) {
 
 function VideoSimulationContent({ task }: { task: Task }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const mainJob = (task as any).dbTask?.jobs?.[0];
-  const assetId = mainJob?.asset_id || task.id;
-  
-  const getBackendBaseUrl = () => {
-    if (typeof window !== 'undefined') {
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      return isLocalhost ? 'http://localhost:8000' : window.location.origin;
-    }
-    return 'http://localhost:8000';
-  };
-  
-  const mediaUrl = `${getBackendBaseUrl()}/media/assets/${assetId}`;
+
+  // ─── FIX: Prioritise content_json.external_url / embedUrl ──────────────
+  const dbTask = (task as any).dbTask;
+  const contentJson = dbTask?.content_json || {};
+
+  // If content_json provides a direct URL, use that
+  let mediaUrl: string | null = null;
+  if (contentJson.external_url) {
+    mediaUrl = contentJson.external_url;
+  } else if (contentJson.embedUrl) {
+    mediaUrl = contentJson.embedUrl;
+  }
+
+  // Fallback: old asset‑ID construction
+  if (!mediaUrl) {
+    const mainJob = dbTask?.jobs?.[0];
+    const assetId = mainJob?.asset_id || task.id;
+    const getBackendBaseUrl = () => {
+      if (typeof window !== 'undefined') {
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        return isLocalhost ? 'http://localhost:8000' : window.location.origin;
+      }
+      return 'http://localhost:8000';
+    };
+    mediaUrl = `${getBackendBaseUrl()}/media/assets/${assetId}`;
+  }
+
+  // For mock tasks (no dbTask) we use a sample video
+  const fallbackVideo = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+  const finalUrl = dbTask ? mediaUrl : fallbackVideo;
 
   const renderContent = (fullscreenMode = false) => {
+    // Simulation / 3D Model rendering
     if (task.type === 'Simulation' || task.typeLabel === '3D Model') {
       return (
         <div className={`w-full bg-white flex items-center justify-center relative flex-col shrink-0 ${
@@ -205,9 +224,9 @@ function VideoSimulationContent({ task }: { task: Task }) {
               </button>
             </div>
           )}
-          {(task as any).dbTask ? (
+          {dbTask ? (
             <iframe
-              src={mediaUrl}
+              src={finalUrl}
               title={task.topic}
               allowFullScreen
               className={`w-full h-full border-0 ${fullscreenMode ? 'pt-0' : 'pt-10'}`}
@@ -230,7 +249,7 @@ function VideoSimulationContent({ task }: { task: Task }) {
     }
 
     // Video
-    const videoSrc = (task as any).dbTask ? mediaUrl : "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+    const videoSrc = finalUrl;
     return (
       <div className={`w-full bg-black overflow-hidden relative shrink-0 font-montserrat font-semibold ${
         fullscreenMode 
@@ -250,7 +269,7 @@ function VideoSimulationContent({ task }: { task: Task }) {
           className="w-full h-full object-contain md:object-cover" 
           controls 
           src={videoSrc}
-          poster={!(task as any).dbTask ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg" : undefined}
+          poster={!dbTask ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg" : undefined}
         ></video>
       </div>
     );

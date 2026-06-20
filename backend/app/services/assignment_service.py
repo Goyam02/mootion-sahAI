@@ -18,7 +18,12 @@ from app.repositories.assignment_repository import (
     list_assignments_for_class,
     list_assignments_for_student,
 )
-from app.repositories.chapter_repository import get_assets_for_chapter, get_chapter
+from app.repositories.chapter_repository import (
+    get_assets_for_chapter,
+    get_chapter,
+    get_topics_for_chapter,
+    get_assets_for_topic,
+)
 from app.repositories.onboarding_repository import get_student_class_membership, get_student_ids_for_class, get_teacher_class_membership
 from app.schemas.assignment import (
     AssignmentCreateRequest,
@@ -85,7 +90,6 @@ INTERACTIVE_ASSIGNMENT_TYPES = {
 }
 
 
-
 def _ensure_teacher_has_access(db: Session, user: User, class_id: str) -> None:
     membership = get_teacher_class_membership(db, str(user.id), class_id)
     if not membership:
@@ -131,10 +135,35 @@ def _create_generation_jobs(db: Session, assignment: Assignment, chapter: Chapte
     if assignment.assignment_type in INTERACTIVE_ASSIGNMENT_TYPES:
         return created
 
-    assets = get_assets_for_chapter(db, str(chapter.id))
     expected_asset_type = ASSIGNMENT_TYPE_TO_ASSET_TYPE.get(assignment.assignment_type)
 
-    for asset in assets:
+    # Collect all assets (chapter + topics) and check which are ready
+    chapter_assets = get_assets_for_chapter(db, str(chapter.id))
+    topics = get_topics_for_chapter(db, str(chapter.id))
+    ready_by_type: dict[str, any] = {}   # asset_type -> one ready asset (chapter or topic)
+
+    # Check chapter assets
+    for asset in chapter_assets:
+        if asset.generation_status == "ready":
+            if expected_asset_type and asset.asset_type == expected_asset_type:
+                ready_by_type[asset.asset_type] = asset
+            elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
+                ready_by_type[asset.asset_type] = asset
+
+    # Check topic assets
+    for topic in topics:
+        topic_assets = get_assets_for_topic(db, str(topic.id))
+        for asset in topic_assets:
+            if asset.generation_status == "ready":
+                if expected_asset_type and asset.asset_type == expected_asset_type:
+                    if asset.asset_type not in ready_by_type:
+                        ready_by_type[asset.asset_type] = asset
+                elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
+                    if asset.asset_type not in ready_by_type:
+                        ready_by_type[asset.asset_type] = asset
+
+    # Now iterate over chapter assets and create jobs only if no ready asset exists for that type
+    for asset in chapter_assets:
         match = False
         if expected_asset_type:
             if asset.asset_type == expected_asset_type:
@@ -143,10 +172,15 @@ def _create_generation_jobs(db: Session, assignment: Assignment, chapter: Chapte
                 match = True
         else:
             match = True
-            
+
         if not match:
             continue
         if asset.provider not in GENERATIONABLE_PROVIDERS:
+            continue
+        # If there is already a ready asset of this type (from chapter or topic), skip job creation
+        if ready_by_type.get(asset.asset_type):
+            continue
+        if asset.generation_status in ("ready", "queued", "processing"):
             continue
 
         existing_job = (
@@ -198,21 +232,107 @@ def _create_generation_jobs(db: Session, assignment: Assignment, chapter: Chapte
     return created
 
 
+def _is_content_placeholder(content_json: dict) -> bool:
+    """Return True if content_json is still a placeholder (no actual media URL)."""
+    if not content_json:
+        return True
+    # If any of these keys exist with a non-null value, it's not a placeholder.
+    if content_json.get("external_url") or content_json.get("embedUrl") or content_json.get("quiz"):
+        return False
+    # Also check if the placeholder flag is explicitly set
+    if content_json.get("placeholder") is True:
+        return True
+    # Fallback: if there's no media, treat as placeholder.
+    return True
+
+
+def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_type: str) -> dict | None:
+    """Builds content_json from the newest ready asset (chapter or topic) of the matching type.
+    Returns None if no ready asset is found.
+    """
+    expected_asset_type = ASSIGNMENT_TYPE_TO_ASSET_TYPE.get(assignment_type)
+    chapter_assets = get_assets_for_chapter(db, chapter_id)
+    topics = get_topics_for_chapter(db, chapter_id)
+
+    # Collect all ready assets of the matching type
+    ready_assets = []
+    for asset in chapter_assets:
+        if asset.generation_status != "ready":
+            continue
+        if expected_asset_type and asset.asset_type == expected_asset_type:
+            ready_assets.append(asset)
+        elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
+            ready_assets.append(asset)
+
+    for topic in topics:
+        for asset in get_assets_for_topic(db, str(topic.id)):
+            if asset.generation_status != "ready":
+                continue
+            if expected_asset_type and asset.asset_type == expected_asset_type:
+                ready_assets.append(asset)
+            elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
+                ready_assets.append(asset)
+
+    if not ready_assets:
+        return None
+
+    # Sort by last_generated_at descending (newest first). If None, use created_at.
+    ready_assets.sort(
+        key=lambda a: (a.last_generated_at or a.created_at),
+        reverse=True
+    )
+    asset = ready_assets[0]
+
+    content_json = {
+        "assignment_type": assignment_type,
+        "activity": assignment_type,
+        "chapter_id": str(chapter_id),
+    }
+    if asset.asset_type in ("quiz", "interactive_quiz"):
+        content_json["quiz"] = (asset.payload_json or {}).get("quiz")
+    elif asset.asset_type == "three_d_model":
+        content_json["embedUrl"] = asset.external_url
+    elif asset.asset_type in ("concept_video", "simulation"):
+        content_json["external_url"] = asset.external_url
+    else:
+        payload = asset.payload_json or {}
+        for key in ("system_prompt", "initial_question", "student_persona", "scenario"):
+            if key in payload:
+                content_json[key] = payload[key]
+    return content_json
+
+
 def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
     jobs = get_assignment_jobs(db, assignment_id)
-    if not jobs:
-        assignment = get_assignment(db, assignment_id)
-        if assignment:
-            assignment.status = "ready"
-            db.commit()
-        return
-
-    statuses = {job.status for job in jobs}
     assignment = get_assignment(db, assignment_id)
     if not assignment:
         return
 
+    # If there are no jobs, assignment status is ready (if content is ready, or can be built)
+    if not jobs:
+        # If content is still placeholder, try to build from ready assets.
+        if _is_content_placeholder(assignment.content_json):
+            new_content = _build_content_json_from_chapter(db, str(assignment.chapter_id), assignment.assignment_type)
+            if new_content:
+                assignment.content_json = new_content
+                assignment.status = "ready"
+            else:
+                # No ready asset found – keep queued
+                assignment.status = "queued"
+        else:
+            # Already has content, keep ready
+            assignment.status = "ready"
+        db.commit()
+        return
+
+    statuses = {job.status for job in jobs}
+
     if statuses <= {"ready"}:
+        # All jobs are ready – update content if still placeholder
+        if _is_content_placeholder(assignment.content_json):
+            new_content = _build_content_json_from_chapter(db, str(assignment.chapter_id), assignment.assignment_type)
+            if new_content:
+                assignment.content_json = new_content
         assignment.status = "ready"
     elif "failed" in statuses:
         assignment.status = "failed"
@@ -273,9 +393,7 @@ def create_teacher_assignment(
             )
 
     _create_generation_jobs(db, assignment, chapter)
-    if not get_assignment_jobs(db, str(assignment.id)):
-        assignment.status = "ready"
-        db.commit()
+    # Refresh status will set content if jobs are skipped (fast path)
     _refresh_assignment_status(db, str(assignment.id))
     db.refresh(assignment)
     return _assignment_to_response(db, assignment)
@@ -378,7 +496,6 @@ def list_student_assignments(db: Session, user: User, class_id: str) -> list[Stu
         )
         for assignment in assignments
     ]
-
 
 
 def get_student_assignment(db: Session, user: User, class_id: str, assignment_id: str) -> StudentAssignmentResponse:
