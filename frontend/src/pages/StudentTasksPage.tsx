@@ -422,7 +422,7 @@ export function StudentTasksPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => api.logout()}
+                  onClick={() => setIsLogoutModalOpen(true)}
                   className="w-1/2 py-3 bg-red-600 border-2 border-red-600 hover:bg-red-700 text-white font-bold rounded-full text-center text-sm cursor-pointer"
                 >
                   Logout

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -94,6 +95,7 @@ const ASSET_TYPES_ORDER = [
 
 
 export function TeacherChapterSetupPage() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const { classId, chapterId } = useParams<{ classId: string, chapterId: string }>();
   const navigate = useNavigate();
 
@@ -349,7 +351,7 @@ export function TeacherChapterSetupPage() {
       case 'processing':
         return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">Generating...</span>;
       case 'placeholder':
-        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider">Not set up yet</span>;
+        return null;
       case 'failed':
         return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black uppercase tracking-wider">Unavailable</span>;
       default:
@@ -515,7 +517,7 @@ export function TeacherChapterSetupPage() {
           <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(classId ? `/teacher/analytics/${classId}` : '/teacher/analytics')} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
           <span className="text-[#1800ad] font-montserrat font-black text-lg">P</span>
         </div>
       </aside>
@@ -552,12 +554,8 @@ export function TeacherChapterSetupPage() {
                 <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
                   Extracting Content...
                 </h2>
-                <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
-                  Synthesizing concept videos, sandboxes & misconceptions
-                </p>
-                <p className="text-xs font-semibold text-[#1800ad]/70 mt-4 max-w-sm">
-                  Aligning curriculum to NCERT Class 8 Physics standards automatically. Please hold on.
-                </p>
+
+
               </motion.div>
             ) : (
               /* REAL CHAPTER BUILDER PANEL */
@@ -805,19 +803,7 @@ export function TeacherChapterSetupPage() {
 
 
 
-                {/* Bottom CTA for Configuration Settings trigger */}
-                <div className="mt-8 border-t-2 border-[#1800ad]/15 pt-6 flex justify-end">
-                  <button
-                    onClick={() => {
-                      setSuccess(false);
-                      setAssignError(null);
-                      setShowConfig(true);
-                    }}
-                    className="bg-[#1800ad] text-[#f6f4ee] py-4 px-10 rounded-full font-black text-sm uppercase tracking-widest hover:scale-102 transition-transform shadow-xl"
-                  >
-                    Assign To Class
-                  </button>
-                </div>
+
               </motion.div>
             )}
           </AnimatePresence>
@@ -1115,6 +1101,8 @@ export function TeacherChapterSetupPage() {
 
         </div>
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

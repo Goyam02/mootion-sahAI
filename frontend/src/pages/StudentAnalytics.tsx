@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -48,6 +49,7 @@ interface ChapterGroup {
 }
 
 export function StudentAnalytics() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const navigate = useNavigate();
   const { studentId } = useParams<{ studentId: string }>();
   const isReadOnly = !!studentId;
@@ -207,7 +209,7 @@ export function StudentAnalytics() {
             </>
           )}
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
           <span className="text-[#1800ad] font-bold text-lg">
             {isReadOnly ? 'T' : (studentInfo?.full_name?.charAt(0).toUpperCase() || 'S')}
           </span>
@@ -496,6 +498,8 @@ export function StudentAnalytics() {
           </div>
         )}
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

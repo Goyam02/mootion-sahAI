@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { 
@@ -11,6 +12,7 @@ import {
 import { NavItem } from '../components/NavItem';
 
 export function TeacherAnalyticsPage() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const navigate = useNavigate();
 
   return (
@@ -28,7 +30,7 @@ export function TeacherAnalyticsPage() {
           <NavItem icon={<MessageSquare size={20} />} label="Doubt Board" onClick={() => navigate('/teacher/doubts')} />
         </div>
         <div className="p-4 border-t border-white/10 flex flex-col items-center">
-          <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
+          <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
             <span className="text-[#1800ad] font-extrabold text-xl">
               T
             </span>
@@ -64,6 +66,8 @@ export function TeacherAnalyticsPage() {
           </button>
         </div>
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

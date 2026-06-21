@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -530,6 +531,7 @@ function buildPayloadFromAsset(asset: any): ChatMessage['payload'] | undefined {
 }
 
 export function StudentPlaygroundPage() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -2762,7 +2764,7 @@ export function StudentPlaygroundPage() {
           <NavItem icon={<Gamepad2 size={24} />} active onClick={() => navigate('/student/playground')} />
           <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
           <span className="text-[#1800ad] font-bold text-lg">{studentName ? studentName[0].toUpperCase() : 'S'}</span>
         </div>
       </aside>
@@ -3773,6 +3775,8 @@ export function StudentPlaygroundPage() {
         )}
       </AnimatePresence>
 
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

@@ -635,12 +635,8 @@ def generate_topic_asset(
             return ChapterTopicAssetGenerateResponse(
                 chapter_id=str(chapter.id),
                 topic_id=str(topic.id),
-                asset_id=str(asset.id),
-                asset_type=asset.asset_type,
-                external_url=asset.external_url,
-                generation_status=asset.generation_status,
-                payload_json=asset.payload_json,
-                last_generated_at=asset.last_generated_at,
+                estimated_seconds=0,
+                asset=_topic_asset_to_direct_response(asset),
             )
 
     payload_json = {

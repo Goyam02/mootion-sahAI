@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -16,7 +17,7 @@ import { ChatbotFab } from '../components/ChatbotFab';
 import { LayoutDashboard, CheckSquare, Gamepad2, BarChart2 } from 'lucide-react';
 
 // Import modular Teach AI activities and progress panels
-import { LiveVoiceActivity, AttemptHistoryPanel } from '../components/LiveVoiceActivity';
+import { LiveVoiceActivity } from '../components/LiveVoiceActivity';
 import ConnectItActivity from '../components/ConnectItActivity';
 
 // --- Content Components ---
@@ -301,6 +302,7 @@ function VideoSimulationContent({ task }: { task: Task }) {
 // --- Main Page ---
 
 export function StudentTaskActivityPage() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const { taskId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -449,7 +451,7 @@ export function StudentTaskActivityPage() {
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
           <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
            <span className="text-[#1800ad] font-bold text-lg">P</span>
         </div>
       </aside>
@@ -473,21 +475,18 @@ export function StudentTaskActivityPage() {
              <AnimatePresence mode="wait">
                {activeActivity === 'Explain It' && (
                  <motion.div key="ExplainIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
-                   <LiveVoiceActivity task={task} activityName="Explain It" instructions="Teach the concept and answer questions." onDone={() => navigate('/student/home')} />
+                   <LiveVoiceActivity task={task} activityName="Explain It" instructions="Teach the concept and answer questions." onDone={() => navigate(backUrl)} />
                  </motion.div>
                )}
                {activeActivity === 'Connect It' && (
                  <motion.div key="ConnectIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
-                   <ConnectItActivity task={task} onDone={() => setActiveActivity(null)} />
+                   <ConnectItActivity task={task} onDone={() => navigate(backUrl)} />
                  </motion.div>
                )}
               {!activeActivity && (
                   <motion.div key="default" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="h-full flex flex-col">
                       {(task.type === 'Quiz' || task.type === 'Interactive Quiz') ? <QuizContent task={task} /> : <VideoSimulationContent task={task} />}
                      
-                     {/* Multi-attempt logs & interactive teacher auditing board embedded cleanly right in the container flow */}
-                     <AttemptHistoryPanel taskId={task.id} />
-
                      {/* Mobile Activity Grid */}
                      <div className="lg:hidden w-full mt-6 pb-12">
                         <div className="bg-[#1800ad] rounded-[22px] p-4 shadow-lg relative overflow-hidden">
@@ -536,6 +535,8 @@ export function StudentTaskActivityPage() {
           )}
         </div>
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }
