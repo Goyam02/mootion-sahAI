@@ -15,7 +15,8 @@ import {
   Trash2,
   History,
   Check,
-  GraduationCap
+  GraduationCap,
+  RotateCcw
 } from 'lucide-react';
 import { Task } from '../data/tasks';
 
@@ -108,6 +109,7 @@ export function LiveVoiceActivity({
     gaps: string[];
     feedback: string;
     predictionAccuracy?: 'Correct' | 'Incorrect' | 'Not Applicable';
+    isEmpty?: boolean;
   } | null>(null);
 
   // Audio queue & web references
@@ -738,6 +740,20 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
     let predOutcome = "";
     let finalEvalData: any = null;
 
+    const studentText = finalTranscript
+      .filter(m => m.role === 'student')
+      .map(m => m.text)
+      .join(' ')
+      .trim();
+
+    const isTooShort = !studentText || studentText.split(/\s+/).length < 15;
+
+    if (isTooShort) {
+      setIsThinking(false);
+      setEvaluation({ isEmpty: true } as any);
+      return;
+    }
+
     try {
       const resp = await fetch('/api/evaluate-session', {
         method: 'POST',
@@ -778,11 +794,6 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       saveAttemptToStorage(finalTranscript, fallbackReport);
     }
 
-    const studentText = finalTranscript
-      .filter(m => m.role === 'student')
-      .map(m => m.text)
-      .join(' ')
-      .trim();
     if (studentText) {
       const dbTask = (task as any).dbTask;
       if (dbTask) {
@@ -978,8 +989,50 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
         </div>
       );
     }
+    if (evaluation?.isEmpty) {
+      return (
+        <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-6 md:p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[calc(100vh-80px)] md:min-h-0 md:h-full">
+          <div className="absolute -top-32 -left-32 w-80 h-80 bg-amber-500/15 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
+          
+          <button onClick={onDone} className="absolute top-6 right-6 text-white hover:opacity-75 transition-colors z-20">
+            <X size={26} className="stroke-[2.5]" />
+          </button>
 
-    const correctPredictions = evaluation?.predictionAccuracy === 'Correct';
+          <header className="text-center relative z-10 w-full max-w-2xl flex flex-col items-center gap-1 mt-4">
+            <div className="p-3 bg-amber-500/25 text-amber-300 rounded-full mb-2 shadow-lg">
+              <RotateCcw size={32} />
+            </div>
+            <h1 className="text-3xl md:text-5xl font-val text-white tracking-widest" style={{ textShadow: '3px 3px 0 #000' }}>
+              THANK YOU
+            </h1>
+          </header>
+
+          <div className="bg-white p-6 md:p-8 rounded-[28px] shadow-2xl w-full max-w-2xl flex flex-col relative z-10 border border-[#1800ad]/15">
+            <div className="flex justify-center gap-4 w-full">
+              <button
+                type="button"
+                onClick={onDone}
+                className="flex-1 py-3.5 rounded-full font-bold border-2 border-[#1800ad] text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors text-sm"
+              >
+                View More Tasks
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEvaluation(null);
+                  setMessages([]);
+                  setQuestionsAnswered(0);
+                  setActivePlayState(activityName === 'Predict It' ? 'prediction' : 'explaining');
+                }}
+                className="flex-1 py-3.5 rounded-full font-bold bg-[#1800ad] text-white hover:bg-[#1800ad]/90 transition-colors shadow-md text-sm"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-6 md:p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[calc(100vh-80px)] md:min-h-0 md:h-full">
@@ -992,116 +1045,30 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
 
         <header className="text-center relative z-10 w-full max-w-2xl flex flex-col items-center gap-1 mt-4">
           <div className="p-3 bg-emerald-500/25 text-emerald-300 rounded-full mb-2 shadow-lg">
-            <Award size={32} />
+            <CheckCircle2 size={32} />
           </div>
           <h1 className="text-3xl md:text-5xl font-val text-white tracking-widest" style={{ textShadow: '3px 3px 0 #000' }}>
-            EVALUATION COMPLETE
+            ACTIVITY COMPLETED
           </h1>
           <h2 className="text-sm md:text-base font-bold text-white/80">{activityName} Log • {task.topic}</h2>
         </header>
 
-        <div className="bg-white p-6 md:p-8 rounded-[28px] shadow-2xl w-full max-w-2xl flex flex-col gap-6 mt-6 relative z-10 border border-[#1800ad]/15 max-h-[60vh] overflow-y-auto custom-scrollbar">
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-[20px] p-4 flex flex-col items-center justify-center shadow-sm">
-              <span className="font-extrabold text-[10px] text-[#1800ad]/60 uppercase tracking-widest mb-1">Conceptual Understanding</span>
-              <span className="text-3xl font-black text-[#1800ad]">{evaluation?.understandingScore}%</span>
-              <div className="w-full bg-[#1800ad]/10 h-1.5 rounded-full overflow-hidden mt-3 max-w-[120px]">
-                <div className="h-full bg-[#1800ad]" style={{ width: `${evaluation?.understandingScore}%` }}></div>
-              </div>
-            </div>
-
-            <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-[20px] p-4 flex flex-col items-center justify-center shadow-sm">
-              <span className="font-extrabold text-[10px] text-[#1800ad]/60 uppercase tracking-widest mb-1">
-                {activityName === 'Explain It' ? 'Verbal Expression' : 'Scientific Reasoning'}
-              </span>
-              <span className="text-3xl font-black text-[#1800ad]">
-                {evaluation?.expressionScore || evaluation?.reasoningScore || 80}%
-              </span>
-              <div className="w-full bg-[#1800ad]/10 h-1.5 rounded-full overflow-hidden mt-3 max-w-[120px]">
-                <div className="h-full bg-[#1800ad]" style={{ width: `${evaluation?.expressionScore || evaluation?.reasoningScore || 82}%` }}></div>
-              </div>
-            </div>
+        <div className="bg-white p-6 md:p-8 rounded-[28px] shadow-2xl w-full max-w-2xl flex flex-col gap-6 mt-6 relative z-10 border border-[#1800ad]/15">
+          <div className="bg-blue-50 border border-blue-100 rounded-[20px] p-6 flex flex-col items-center text-center gap-3">
+            <span className="text-4xl">🎉</span>
+            <h3 className="font-black text-[#1800ad] text-lg">Thank You!</h3>
+            <p className="text-sm text-[#1800ad]/80 font-semibold leading-relaxed max-w-md">
+              Your response has been successfully recorded. Great job completing this activity! Keep up the excellent work.
+            </p>
           </div>
 
-          {activityName === 'Predict It' && evaluation?.predictionAccuracy && (
-            <div className={`p-4 rounded-[20px] border flex items-center justify-between shadow-sm ${correctPredictions
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-amber-50 border-amber-200 text-amber-800'
-              }`}>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] uppercase tracking-wider font-extrabold opacity-70">Outcome Prediction</span>
-                <span className="font-bold text-xs">You predicted that the sphere would {predictionChoice}!</span>
-              </div>
-              <span className={`px-4 py-1.5 text-xs font-black uppercase tracking-widest rounded-full shadow-sm text-white ${correctPredictions ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}>
-                {evaluation.predictionAccuracy} Prediction
-              </span>
-            </div>
-          )}
-
-          {evaluation?.feedback && (
-            <div className="bg-blue-50 border border-blue-100 rounded-[20px] p-4 flex items-start gap-3 text-left">
-              <span className="text-xl shrink-0">💬</span>
-              <div className="flex flex-col">
-                <span className="text-[11px] font-black text-[#1800ad]/60 uppercase tracking-wider">AI Tutor's Audit Report</span>
-                <p className="text-xs text-[#1800ad]/80 italic font-semibold leading-relaxed mt-1">
-                  "{evaluation.feedback}"
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-4 text-left">
-            <div className="flex flex-col gap-2">
-              <h5 className="font-black text-xs text-[#1800ad] uppercase tracking-widest flex items-center gap-1.5">
-                <CheckCircle2 size={14} className="text-emerald-500" />
-                Key Conceptual Strengths
-              </h5>
-              <div className="flex flex-wrap gap-1.5">
-                {evaluation?.strengths?.map((str, idx) => (
-                  <span key={idx} className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 font-bold text-xs rounded-full">
-                    {str}
-                  </span>
-                )) || <span className="text-xs text-gray-500">No strengths logged.</span>}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 mt-1">
-              <h5 className="font-black text-xs text-[#1800ad] uppercase tracking-widest flex items-center gap-1.5">
-                <Target size={14} className="text-amber-500" />
-                Gaps & Misconceptions Detected
-              </h5>
-              <div className="flex flex-col gap-1.5">
-                {evaluation?.gaps?.map((gap, idx) => (
-                  <div key={idx} className="bg-amber-50 text-amber-950 border border-amber-100 px-3 py-2 font-semibold text-xs rounded-xl flex items-start gap-1.5">
-                    <span className="text-xs text-amber-600 mt-0.5">•</span>
-                    <span>{gap}</span>
-                  </div>
-                )) || <p className="text-xs font-bold text-emerald-600 bg-emerald-50 p-3 rounded-xl w-full text-center">Perfect understanding! No learning gaps detected.</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#1800ad]/10">
-            <button
-              type="button"
-              onClick={() => {
-                setEvaluation(null);
-                setMessages([]);
-                setQuestionsAnswered(0);
-                setActivePlayState(activityName === 'Predict It' ? 'prediction' : 'explaining');
-              }}
-              className="px-5 py-2.5 rounded-full font-bold border-2 border-[#1800ad] text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors text-xs"
-            >
-              Try Again
-            </button>
+          <div className="flex justify-center pt-2">
             <button
               type="button"
               onClick={onDone}
-              className="px-5 py-2.5 rounded-full font-bold bg-[#1800ad] text-white hover:bg-[#1800ad]/90 transition-colors shadow-md text-xs"
+              className="px-8 py-3 rounded-full font-bold bg-[#1800ad] text-white hover:bg-[#1800ad]/90 transition-colors shadow-md text-sm"
             >
-              Completed Done
+              Back to Tasks
             </button>
           </div>
         </div>

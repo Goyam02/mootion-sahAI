@@ -350,8 +350,65 @@ export function TeacherTopicSetupPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const isGenerating = generationEndsAt !== null;
   const selectedAsset = activeAsset;
+  const isGenerating = generationEndsAt !== null || (selectedAsset && (selectedAsset.generation_status === 'queued' || selectedAsset.generation_status === 'processing'));
+
+  useEffect(() => {
+    if (selectedAsset && (selectedAsset.generation_status === 'queued' || selectedAsset.generation_status === 'processing')) {
+      const savedEndTime = localStorage.getItem(`mootion_gen_end_${selectedAsset.asset_id}`);
+      if (savedEndTime) {
+        setGenerationEndsAt(parseInt(savedEndTime, 10));
+      } else {
+        const estimatedSeconds = selectedAsset.asset_type === 'concept_video' ? 180 : selectedAsset.asset_type === 'simulation' ? 75 : 45;
+        const endTime = Date.now() + estimatedSeconds * 1000;
+        localStorage.setItem(`mootion_gen_end_${selectedAsset.asset_id}`, endTime.toString());
+        setGenerationEndsAt(endTime);
+      }
+    } else if (selectedAsset) {
+      localStorage.removeItem(`mootion_gen_end_${selectedAsset.asset_id}`);
+      setGenerationEndsAt(null);
+    }
+  }, [selectedAsset]);
+
+  useEffect(() => {
+    let intervalId: number;
+
+    const anyGenerating = 
+      (selectedAsset && (selectedAsset.generation_status === 'queued' || selectedAsset.generation_status === 'processing')) ||
+      topicAssets.some((a: any) => a.generation_status === 'queued' || a.generation_status === 'processing');
+
+    if (anyGenerating && classId && chapterId && topicId) {
+      intervalId = window.setInterval(async () => {
+        try {
+          const data = await api.get(`/teachers/classes/${classId}/chapters/${chapterId}`);
+          setResolvedChapter(data);
+          const topic = data?.topics?.find((t: any) => t.topic_id === topicId);
+          if (topic) {
+            setActiveTopic(topic);
+            const assets = [...(topic.assets || [])]
+              .filter((a: any) => !['predict_it', 'spot_it'].includes(a.asset_type))
+              .sort((a: any, b: any) => {
+                const order = ['concept_video', 'simulation', 'three_d_model'];
+                return order.indexOf(a.asset_type) - order.indexOf(b.asset_type);
+              });
+            setTopicAssets(assets);
+            if (selectedAssetId) {
+               const updatedActiveAsset = assets.find((a: any) => a.asset_id === selectedAssetId) || topic.assets?.find((a: any) => a.asset_id === selectedAssetId);
+               if (updatedActiveAsset) {
+                  setActiveAsset(updatedActiveAsset);
+               }
+            }
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 5000);
+    }
+
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [classId, chapterId, topicId, selectedAsset, topicAssets, selectedAssetId]);
 
   // Check if payload_json is empty or minimal (scaffolding only)
   const isMinimalOrPlaceholder = 
@@ -365,7 +422,6 @@ export function TeacherTopicSetupPage() {
   const updateTopicAsset = (nextAsset: any) => {
     setSelectedAssetId(nextAsset.asset_id);
     setActiveAsset(nextAsset);
-    setGenerationEndsAt(null);
     setGenerationError(null);
     if (activeTopic) {
       setTopicAssets(prev => prev.map(asset => asset.asset_id === nextAsset.asset_id ? nextAsset : asset));
@@ -377,7 +433,9 @@ export function TeacherTopicSetupPage() {
 
     setGenerationError(null);
     const estimatedSeconds = selectedAsset.asset_type === 'concept_video' ? 180 : selectedAsset.asset_type === 'simulation' ? 75 : 45;
-    setGenerationEndsAt(Date.now() + estimatedSeconds * 1000);
+    const endTime = Date.now() + estimatedSeconds * 1000;
+    localStorage.setItem(`mootion_gen_end_${selectedAsset.asset_id}`, endTime.toString());
+    setGenerationEndsAt(endTime);
 
     try {
       const response = await api.post(`/teachers/classes/${classId}/chapters/${chapterId}/topics/${activeTopic.topic_id}/assets/${selectedAsset.asset_id}/generate`, {
@@ -387,10 +445,10 @@ export function TeacherTopicSetupPage() {
       const generatedAsset = response.asset || response;
       updateTopicAsset(generatedAsset);
       setRegenText('');
-      setGenerationEndsAt(null);
     } catch (err: any) {
       console.error('Failed to generate topic asset:', err);
       setGenerationError(err?.detail || err?.message || 'Generation failed.');
+      localStorage.removeItem(`mootion_gen_end_${selectedAsset.asset_id}`);
       setGenerationEndsAt(null);
     }
   };
@@ -533,24 +591,26 @@ export function TeacherTopicSetupPage() {
                     className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
                   />
 
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
-                      Target Video/Audio Language
-                    </label>
-                    <select
-                      value={selectedLanguage}
-                      onChange={(e) => setSelectedLanguage(e.target.value)}
-                      className="bg-[#f6f4ee] text-[#1800ad] text-xs font-bold border border-[#1800ad]/20 px-3 py-1.5 rounded-xl outline-none focus:border-[#1800ad] cursor-pointer"
-                    >
-                      <option value="english">English</option>
-                      <option value="hindi">Hindi (हिंदी)</option>
-                      <option value="gujarati">Gujarati (ગુજરાતી)</option>
-                      <option value="marathi">Marathi (मराठी)</option>
-                      <option value="telugu">Telugu (తెలుగు)</option>
-                      <option value="tamil">Tamil (தமிழ்)</option>
-                      <option value="bengali">Bengali (বাংলা)</option>
-                    </select>
-                  </div>
+                  {!(selectedAsset.asset_type === 'simulation' || selectedAsset.asset_type === 'three_d_model') && (
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                        Target Video/Audio Language
+                      </label>
+                      <select
+                        value={selectedLanguage}
+                        onChange={(e) => setSelectedLanguage(e.target.value)}
+                        className="bg-[#f6f4ee] text-[#1800ad] text-xs font-bold border border-[#1800ad]/20 px-3 py-1.5 rounded-xl outline-none focus:border-[#1800ad] cursor-pointer"
+                      >
+                        <option value="english">English</option>
+                        <option value="hindi">Hindi (हिंदी)</option>
+                        <option value="gujarati">Gujarati (ગુજરાતી)</option>
+                        <option value="marathi">Marathi (मराठी)</option>
+                        <option value="telugu">Telugu (తెలుగు)</option>
+                        <option value="tamil">Tamil (தமிழ்)</option>
+                        <option value="bengali">Bengali (বাংলা)</option>
+                      </select>
+                    </div>
+                  )}
 
                   {generationError && (
                     <div className="text-[11px] font-bold text-rose-600">{generationError}</div>

@@ -88,6 +88,14 @@ def submit_explanation(
     ).scalar() or 0
     attempt_number = existing_count + 1
 
+    # Check if transcript is meaningful (> 15 words)
+    transcript_words = len(request.transcript.strip().split())
+    if not request.transcript.strip() or transcript_words < 15:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, 
+            detail="no_submission"
+        )
+
     # Call LLM
     client = _get_client()
     try:
