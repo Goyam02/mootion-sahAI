@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  MessageSquare
+  MessageSquare,
+  BookOpen
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
@@ -47,6 +48,11 @@ interface ChapterGroup {
   scores: ScoreAttempt[];
   trend: 'improving' | 'stable' | 'declining';
 }
+
+const cleanStudentName = (name: string) => {
+  if (!name) return '';
+  return name.replace(/^student\s+/i, '').trim();
+};
 
 export function StudentAnalytics() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -169,24 +175,54 @@ export function StudentAnalytics() {
     setExpandedChapterId(prev => prev === chapterId ? null : chapterId);
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 w-full bg-[#1800ad] h-screen flex flex-col items-center justify-center text-[#f6f4ee]">
-        <div className="relative flex items-center justify-center">
-          <span className="absolute animate-ping w-16 h-16 rounded-full bg-white/20"></span>
-          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-        </div>
-        <h2 className="text-xl font-bold tracking-wide mt-4 animate-pulse">
-          {isReadOnly ? "Loading Student Analytics (Teacher View)..." : "Loading Analytics Board..."}
-        </h2>
-      </div>
-    );
-  }
+
 
   return (
     <div className="flex flex-1 w-full h-[100dvh] bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
       <ChatbotFab context={isReadOnly ? "Teacher is viewing student analytics report" : "User is viewing their student analytics history dashboard"} />
       
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2 flex justify-between items-center z-40 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
+        {isReadOnly ? (
+          <>
+            <NavItem icon={<LayoutDashboard size={22} />} onClick={() => navigate('/teacher/home')} />
+            <NavItem icon={<BookOpen size={22} />} onClick={() => {
+              const lastClassId = localStorage.getItem('mootion_last_class_id');
+              if (lastClassId) {
+                navigate(`/teacher/class/${lastClassId}`);
+              } else {
+                navigate('/teacher/home');
+              }
+            }} />
+            <NavItem icon={<BarChart2 size={22} />} active onClick={() => navigate('/teacher/analytics')} />
+            <NavItem icon={<MessageSquare size={22} />} onClick={() => navigate('/teacher/doubts')} />
+            <div 
+              onClick={() => setIsLogoutModalOpen(true)}
+              className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+            >
+              <span className="text-[#1800ad] font-bold text-xs">
+                T
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <NavItem icon={<LayoutDashboard size={22} />} onClick={() => navigate('/student/home')} />
+            <NavItem icon={<CheckSquare size={22} />} onClick={() => navigate('/student/tasks')} />
+            <NavItem icon={<Gamepad2 size={22} />} onClick={() => navigate('/student/playground')} />
+            <NavItem icon={<BarChart2 size={22} />} active onClick={() => navigate('/student/analytics')} />
+            <div 
+              onClick={() => setIsLogoutModalOpen(true)}
+              className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+            >
+              <span className="text-[#1800ad] font-bold text-xs">
+                {studentInfo?.full_name ? cleanStudentName(studentInfo.full_name).charAt(0).toUpperCase() : 'S'}
+              </span>
+            </div>
+          </>
+        )}
+      </nav>
+
       {/* Sidebar */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
         <div className="flex items-center justify-center mt-4 cursor-pointer" onClick={() => navigate('/')}>
@@ -211,51 +247,59 @@ export function StudentAnalytics() {
         </nav>
         <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
           <span className="text-[#1800ad] font-bold text-lg">
-            {isReadOnly ? 'T' : (studentInfo?.full_name?.charAt(0).toUpperCase() || 'S')}
+            {isReadOnly ? 'T' : (studentInfo?.full_name ? cleanStudentName(studentInfo.full_name).charAt(0).toUpperCase() : 'S')}
           </span>
         </div>
       </aside>
 
-      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] p-5 md:p-8 flex flex-col overflow-hidden h-[100dvh]">
+      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] p-5 md:p-8 flex flex-col overflow-y-auto lg:overflow-hidden h-auto lg:h-[100dvh]">
         
         {/* Header Section */}
-        <header className="shrink-0 mb-6 flex items-center justify-between">
+        <header className="shrink-0 mb-8 lg:mb-10 flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6 w-full relative">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => {
-                if (isReadOnly) {
-                  navigate(-1);
-                } else {
-                  navigate('/student/home');
-                }
-              }} 
-              className="p-2 border-2 border-[#1800ad]/10 rounded-full text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div className="flex flex-col text-left">
-              <span className="text-[#1800ad]/60 font-bold text-xs uppercase tracking-wider">
-                {isReadOnly ? "Teacher View Mode" : "Student Profile Analytics"}
-              </span>
-              <h1 className="text-xl md:text-2xl font-black text-[#1800ad] leading-none mt-1">
-                {isReadOnly ? `Understanding Scores: ${studentInfo?.full_name}` : "My Understanding Scores"}
+            {isReadOnly && (
+              <button 
+                onClick={() => navigate(-1)} 
+                className="p-2 border-2 border-[#1800ad]/10 rounded-full text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
+            <div className="flex flex-col gap-2 text-left">
+              <h1 className="text-3xl md:text-3xl lg:text-4xl font-bold tracking-tight text-[#1800ad]">
+                {isReadOnly ? `Understanding Scores: ${studentInfo?.full_name ? cleanStudentName(studentInfo.full_name) : ''}` : "My Understanding Scores"}
               </h1>
+              <p className="text-[#1800ad]/70 font-medium mt-1">
+                {isReadOnly ? "Teacher View Mode" : "Student Profile Analytics"}
+              </p>
             </div>
           </div>
-          {studentInfo && (
-            <div className="bg-[#1800ad]/5 border border-[#1800ad]/10 px-4 py-2 rounded-2xl flex items-center gap-2">
+          {isReadOnly && studentInfo && (
+            <div className="bg-[#1800ad]/5 border border-[#1800ad]/10 px-4 py-2 rounded-2xl flex items-center gap-2 w-fit mb-1.5">
               <div className="w-8 h-8 rounded-full bg-[#1800ad] text-white font-black text-sm flex items-center justify-center">
-                {isReadOnly ? 'T' : studentInfo.full_name?.charAt(0).toUpperCase()}
+                T
               </div>
               <span className="text-xs font-black text-[#1800ad]">
-                {isReadOnly ? `Reviewing ${studentInfo.full_name}` : studentInfo.full_name}
+                Reviewing {studentInfo.full_name ? cleanStudentName(studentInfo.full_name) : ''}
               </span>
             </div>
           )}
         </header>
 
-        {analyticsData.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
+        {loading ? (
+          <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-center px-4 w-full">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-full border-4 border-t-[#1800ad] border-r-transparent border-b-transparent border-l-transparent animate-spin duration-1000"></div>
+            </div>
+            <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
+              {isReadOnly ? "Loading Student Analytics (Teacher View)..." : "Loading Analytics Board..."}
+            </h2>
+            <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
+              Please hold on
+            </p>
+          </div>
+        ) : analyticsData.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center mb-24 md:mb-0">
             <div className="max-w-md bg-white border-2 border-[#1800ad]/10 rounded-[32px] p-8 text-center flex flex-col items-center gap-4 shadow-md">
               <div className="p-4 bg-amber-500/10 text-amber-600 rounded-full">
                 <AlertTriangle size={36} />
@@ -277,10 +321,10 @@ export function StudentAnalytics() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-6 min-h-0 pb-4">
+          <div className="flex-1 flex flex-col lg:flex-row overflow-y-visible lg:overflow-hidden gap-6 min-h-0 pb-24 lg:pb-4">
             
             {/* Left side: Chapter cards list + Weakest Topics */}
-            <div className="w-full lg:w-7/12 flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-2 min-h-0">
+            <div className="w-full lg:w-7/12 flex flex-col gap-5 overflow-y-visible lg:overflow-y-auto custom-scrollbar pr-0 lg:pr-2 min-h-0">
               
               {/* Chapter-wise Score Cards */}
               <div className="flex flex-col gap-3">
@@ -442,7 +486,7 @@ export function StudentAnalytics() {
             </div>
 
             {/* Right side: Radar Chart */}
-            <div className="flex-1 bg-white border-2 border-[#1800ad]/10 rounded-[32px] p-5 flex flex-col min-h-0 shadow-sm overflow-hidden justify-between">
+            <div className="flex-1 bg-white border-2 border-[#1800ad]/10 rounded-[32px] p-5 flex flex-col min-h-[350px] lg:min-h-0 shadow-sm overflow-hidden justify-between">
               <div className="flex flex-col text-left shrink-0">
                 <span className="text-[10px] font-extrabold text-[#1800ad]/50 uppercase tracking-widest font-mono">Conceptual Strengths Map</span>
                 <h3 className="text-lg font-black text-[#1800ad] mt-0.5 leading-snug">Latest Scoring Radar</h3>

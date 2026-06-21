@@ -101,6 +101,7 @@ export function LiveVoiceActivity({
   const maxQuestions = activityName === 'Explain It' ? 4 : 1;
 
   // Evaluation details
+  const [analyticsResult, setAnalyticsResult] = useState<any>(null);
   const [evaluation, setEvaluation] = useState<{
     understandingScore: number;
     expressionScore?: number;
@@ -977,7 +978,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
   if (activePlayState === 'grading' || evaluation) {
     if (isThinking) {
       return (
-        <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[500px]">
+        <div className="h-full w-full min-h-[60dvh] bg-[#1800ad] rounded-[32px] p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden">
           <div className="flex flex-col items-center gap-5 justify-center relative z-10 text-[#f6f4ee]">
             <div className="relative flex items-center justify-center">
               <span className="absolute animate-ping w-16 h-16 rounded-full bg-white/20"></span>
@@ -993,7 +994,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       return (
         <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-6 md:p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[calc(100vh-80px)] md:min-h-0 md:h-full">
           <div className="absolute -top-32 -left-32 w-80 h-80 bg-amber-500/15 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
-          
+
           <button onClick={onDone} className="absolute top-6 right-6 text-white hover:opacity-75 transition-colors z-20">
             <X size={26} className="stroke-[2.5]" />
           </button>
@@ -1077,7 +1078,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
   }
 
   return (
-    <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-5 md:p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[calc(100vh-80px)] md:min-h-0 md:h-full">
+    <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-4 md:p-8 flex flex-col items-center justify-center relative shadow-xl overflow-y-auto min-h-[calc(100dvh-80px)] md:min-h-0 md:h-full">
       <button onClick={onDone} className="absolute top-6 right-6 text-white hover:opacity-75 transition-colors z-20">
         <X size={26} className="stroke-[2.5]" />
       </button>

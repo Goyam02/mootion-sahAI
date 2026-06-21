@@ -1,173 +1,232 @@
+version: "3.9"
+
 services:
-  # ==========================================
-  # Database (PostgreSQL)
-  # ==========================================
+
   db:
     image: postgres:15-alpine
-    container_name: mootion-postgres
     restart: always
+
     environment:
-      POSTGRES_USER: neondb_owner
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: neondb
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U neondb_owner -d neondb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # ==========================================
-  # Redis Queue / Cache
-  # ==========================================
+
+
   redis:
     image: redis:7-alpine
-    container_name: mootion-redis
     restart: always
-    ports:
-      - "6379:6379"
+
     volumes:
       - redis_data:/data
+
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  # ==========================================
-  # Core FastAPI Backend
-  # ==========================================
+
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: mootion-backend
+
     restart: always
-    env_file:
-      - ./backend/.env
+
     environment:
-      - DATABASE_URL=postgresql://neondb_owner:password123@db:5432/neondb
-      - REDIS_URL=redis://redis:6379/0
-      - BACKEND_PUBLIC_URL=http://localhost
-      - MANIM_SERVICE_BASE_URL=http://animation-engine:8001
-      - MANIM_SERVICE_URL=http://animation-engine:8001/explain
-      - GOOGLE_OAUTH_REDIRECT_URI=http://localhost/auth/google/callback
-    ports:
-      - "8000:8000"
+
+      DATABASE_URL: ${DATABASE_URL}
+
+      REDIS_URL: redis://redis:6379/0
+
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL}
+
+      MANIM_SERVICE_BASE_URL: http://animation-engine:8001
+      MANIM_SERVICE_URL: http://animation-engine:8001/explain
+
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI}
+
+      SKETCHFAB_API_URL: ${SKETCHFAB_API_URL}
+
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+
+      AZURE_VISION_ENDPOINT: ${AZURE_VISION_ENDPOINT}
+      AZURE_VISION_API_KEY: ${AZURE_VISION_API_KEY}
+
+      R2_BUCKET: ${R2_BUCKET}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+
+    expose:
+      - "8000"
+
     depends_on:
       db:
         condition: service_healthy
+
       redis:
         condition: service_healthy
+
     volumes:
       - backend_media:/app/media
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
 
-  # ==========================================
-  # Media Background Worker
-  # ==========================================
+
+
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: mootion-worker
+
     restart: always
+
     command: python -m app.services.media_worker
-    env_file:
-      - ./backend/.env
+
     environment:
-      - DATABASE_URL=postgresql://neondb_owner:password123@db:5432/neondb
-      - REDIS_URL=redis://redis:6379/0
-      - BACKEND_PUBLIC_URL=http://localhost
-      - MANIM_SERVICE_BASE_URL=http://animation-engine:8001
-      - MANIM_SERVICE_URL=http://animation-engine:8001/explain
+
+      DATABASE_URL: ${DATABASE_URL}
+
+      REDIS_URL: redis://redis:6379/0
+
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL}
+
+      MANIM_SERVICE_BASE_URL: http://animation-engine:8001
+      MANIM_SERVICE_URL: http://animation-engine:8001/explain
+
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+
+      AZURE_VISION_ENDPOINT: ${AZURE_VISION_ENDPOINT}
+      AZURE_VISION_API_KEY: ${AZURE_VISION_API_KEY}
+
+      R2_BUCKET: ${R2_BUCKET}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+
     depends_on:
       db:
         condition: service_healthy
+
       redis:
         condition: service_healthy
+
     volumes:
       - backend_media:/app/media
 
-  # ==========================================
-  # Animation Engine (Manim)
-  # ==========================================
+
+
+
   animation-engine:
     build:
       context: ./animation-engine
       dockerfile: dockerfile
-    container_name: mootion-animation-engine
+
     restart: always
-    ports:
-      - "8001:8001"
+
     environment:
-      - PYTHONPATH=/app/app
+
+      PYTHONPATH: /app/app
+
+      LLM_PROVIDER: ${LLM_PROVIDER}
+
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_API_KEY: ${AZURE_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION}
+
+      BEDROCK_BASE_URL: ${BEDROCK_BASE_URL}
+      BEDROCK_API_KEY: ${BEDROCK_API_KEY}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID}
+
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL}
+
+      R2_BUCKET: ${R2_BUCKET}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+
+    expose:
+      - "8001"
+
     volumes:
       - animation_media:/app/media
 
-  # ==========================================
-  # Frontend Server (React + Node)
-  # ==========================================
+
+
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: mootion-frontend
-    restart: always
-    env_file:
-      - ./frontend/.env
-    ports:
-      - "3000:3000"
-    depends_on:
-      backend:
-        condition: service_healthy
 
-  # ==========================================
-  # Nginx Reverse Proxy / Gateway
-  # ==========================================
+    restart: always
+
+    environment:
+
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+
+      VITE_API_URL: /api
+
+      VITE_VIDEO_API_URL: /video-api
+
+    expose:
+      - "3000"
+
+    depends_on:
+      - backend
+
+
+
+
   nginx:
     image: nginx:alpine
-    container_name: mootion-nginx
+
     restart: always
+
     ports:
-      - "80:80"
+      - "1313:80"
+
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
     depends_on:
       - frontend
       - backend
       - animation-engine
 
-  # ==========================================
-  # One-time Setup: Migrations + Seed Data
-  # ==========================================
-  setup:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: mootion-setup
-    restart: "no"
-    env_file:
-      - ./backend/.env
-    environment:
-      - DATABASE_URL=postgresql://neondb_owner:password123@db:5432/neondb
-      - REDIS_URL=redis://redis:6379/0
-    command: >
-      sh -c "python migration.py && python seed_ncert.py"
-    depends_on:
-      db:
-        condition: service_healthy
+
+
 
 volumes:
+
   postgres_data:
+
   redis_data:
+
   backend_media:
+
   animation_media:

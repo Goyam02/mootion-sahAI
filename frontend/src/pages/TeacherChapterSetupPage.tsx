@@ -96,6 +96,21 @@ const ASSET_TYPES_ORDER = [
 
 export function TeacherChapterSetupPage() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
+
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
   const { classId, chapterId } = useParams<{ classId: string, chapterId: string }>();
   const navigate = useNavigate();
 
@@ -346,16 +361,16 @@ export function TeacherChapterSetupPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ready':
-        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider">Ready</span>;
+        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">Ready</span>;
       case 'queued':
       case 'processing':
-        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">Generating...</span>;
+        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse whitespace-nowrap mt-1.5">Generating...</span>;
       case 'placeholder':
         return null;
       case 'failed':
-        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black uppercase tracking-wider">Unavailable</span>;
+        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">Unavailable</span>;
       default:
-        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider">{status}</span>;
+        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">{status}</span>;
     }
   };
 
@@ -504,6 +519,14 @@ export function TeacherChapterSetupPage() {
         <NavItem icon={<BookOpen size={24} />} active onClick={() => navigate(`/teacher/class/${classId}`)} />
         <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(classId ? `/teacher/analytics/${classId}` : '/teacher/analytics')} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
+        <div 
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+        >
+          <span className="text-[#1800ad] font-bold text-xs">
+            {teacherName ? teacherName[0].toUpperCase() : 'T'}
+          </span>
+        </div>
       </nav>
 
       {/* Desktop Sidebar */}
@@ -518,7 +541,9 @@ export function TeacherChapterSetupPage() {
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
         <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
-          <span className="text-[#1800ad] font-montserrat font-black text-lg">P</span>
+          <span className="text-[#1800ad] font-montserrat font-black text-lg">
+            {teacherName ? teacherName[0].toUpperCase() : 'T'}
+          </span>
         </div>
       </aside>
 
@@ -618,9 +643,9 @@ export function TeacherChapterSetupPage() {
                       >
                         <div>
                           {/* Upper row: icon and status badge */}
-                          <div className="flex items-center justify-between mb-3.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className="p-2.5 bg-[#1800ad]/5 rounded-xl border border-[#1800ad]/15 text-[#1800ad]">
+                          <div className="flex items-start justify-between mb-3.5">
+                            <div className="flex items-start gap-2.5">
+                              <span className="p-2.5 bg-[#1800ad]/5 rounded-xl border border-[#1800ad]/15 text-[#1800ad] shrink-0 mt-0.5">
                                 {act.asset_type === 'concept_video' && <Film size={18} />}
                                 {act.asset_type === 'simulation' && <Beaker size={18} />}
                                 {act.asset_type === 'three_d_model' && <Layers size={18} />}
@@ -631,7 +656,7 @@ export function TeacherChapterSetupPage() {
                                 {act.asset_type === 'spot_it' && <AlertCircle size={18} />}
                                 {act.asset_type === 'connect_it' && <BookOpen size={18} />}
                               </span>
-                              <h3 className="font-black text-sm tracking-tight text-[#1800ad]">
+                              <h3 className="font-black text-sm tracking-tight text-[#1800ad] mt-1.5 leading-snug">
                                 {act.title}
                               </h3>
                             </div>
@@ -905,10 +930,7 @@ export function TeacherChapterSetupPage() {
                           className="flex-1 bg-[#1800ad] hover:bg-[#1800ad]/90 text-white rounded-full py-3.5 text-xs font-black uppercase tracking-widest text-center flex items-center justify-center gap-2"
                         >
                           {publishing ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-t-white border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" />
-                              <span>Publishing...</span>
-                            </>
+                            <span className="animate-pulse">Publishing...</span>
                           ) : (
                             <span>Publish</span>
                           )}
@@ -948,13 +970,7 @@ export function TeacherChapterSetupPage() {
                           <Library size={16} className="text-[#f6f4ee]" />
                         </div>
                         <h2 className="text-2xl font-black text-[#1800ad] tracking-tight">Content Library</h2>
-                        <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full">
-                          Free • No generation cost
-                        </span>
                       </div>
-                      <p className="text-xs font-semibold text-[#1800ad]/65 ml-11">
-                        Pick a ready-made video for <span className="font-black text-[#1800ad]">{libraryTargetAsset?.title}</span> — same curriculum, zero wait time.
-                      </p>
                     </div>
                     <button
                       onClick={() => setShowLibrary(false)}

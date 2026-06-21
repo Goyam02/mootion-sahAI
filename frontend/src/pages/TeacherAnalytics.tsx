@@ -48,8 +48,29 @@ interface ClusterGroup {
   computed_at: string;
 }
 
+const cleanStudentName = (name: string) => {
+  if (!name) return '';
+  return name.replace(/^student\s+/i, '').trim();
+};
+
 export function TeacherAnalytics() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [teacherName, setTeacherName] = useState<string>('Teacher');
+
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const user = await api.get('/teachers/me');
+        if (user && user.full_name) {
+          setTeacherName(user.full_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile:", err);
+      }
+    };
+    fetchTeacherProfile();
+  }, []);
+
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
   
@@ -189,22 +210,27 @@ export function TeacherAnalytics() {
     }));
   }, [clusters]);
 
-  if (loading) {
-    return (
-      <div className="flex-1 w-full bg-[#1800ad] h-screen flex flex-col items-center justify-center text-[#f6f4ee]">
-        <div className="relative flex items-center justify-center">
-          <span className="absolute animate-ping w-16 h-16 rounded-full bg-white/20"></span>
-          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-        </div>
-        <h2 className="text-xl font-bold tracking-wide mt-4 animate-pulse">Loading Classroom Analytics...</h2>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-1 w-full h-[100dvh] bg-[#1800ad] font-montserrat text-[#1800ad] overflow-hidden relative">
       <ChatbotFab context={`Teacher is reviewing class-level understanding metrics on analytics dashboard`} />
       
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2.5 flex justify-between items-center z-40 rounded-full border-[2px] border-[#f6f4ee] shadow-xl font-montserrat">
+        <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/teacher/home')} />
+        <NavItem icon={<BookOpen size={24} />} onClick={() => navigate(classId ? `/teacher/class/${classId}` : '/teacher/home')} />
+        <NavItem icon={<BarChart2 size={24} />} active onClick={() => navigate(classId ? `/teacher/analytics/${classId}` : '/teacher/analytics')} />
+        <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
+        <div 
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+        >
+          <span className="text-[#1800ad] font-bold text-xs">
+            {teacherName ? teacherName[0].toUpperCase() : 'T'}
+          </span>
+        </div>
+      </nav>
+
       {/* Teacher Sidebar */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
         <div className="flex items-center justify-center mt-4 cursor-pointer" onClick={() => navigate('/')}>
@@ -217,38 +243,48 @@ export function TeacherAnalytics() {
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
         <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
-          <span className="text-[#1800ad] font-bold text-lg">T</span>
+          <span className="text-[#1800ad] font-bold text-lg">
+            {teacherName ? teacherName[0].toUpperCase() : 'T'}
+          </span>
         </div>
       </aside>
 
       <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] p-5 md:p-8 flex flex-col overflow-hidden h-[100dvh]">
         
         {/* Top Header */}
-        <header className="shrink-0 mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate(classId ? `/teacher/class/${classId}` : '/teacher/home')} className="p-2 border-2 border-[#1800ad]/10 rounded-full text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors">
-              <ArrowLeft size={20} />
-            </button>
-            <div className="flex flex-col text-left">
-              <span className="text-[#1800ad]/60 font-bold text-xs uppercase tracking-wider">{classInfo?.display_name} • {classInfo?.subject}</span>
-              <h1 className="text-xl md:text-2xl font-black text-[#1800ad] leading-none mt-1">Classroom Diagnostics & Analytics</h1>
-            </div>
+        <header className="shrink-0 mb-8 lg:mb-10 flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6 w-full relative">
+          <div className="flex flex-col gap-2 text-left">
+            <h1 className="text-3xl md:text-3xl lg:text-4xl font-bold tracking-tight text-[#1800ad]">Classroom Diagnostics & Analytics</h1>
+            <p className="text-[#1800ad]/70 font-medium mt-1">{classInfo?.display_name} • {classInfo?.subject}</p>
           </div>
         </header>
 
         {/* Scrollable Diagnostics Workspace */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-8 pr-1 pb-10 min-h-0">
+        {loading ? (
+          <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-center px-4 w-full">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-full border-4 border-t-[#1800ad] border-r-transparent border-b-transparent border-l-transparent animate-spin duration-1000"></div>
+            </div>
+            <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
+              Loading Classroom Analytics...
+            </h2>
+            <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
+              Please hold on
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-8 pr-1 pb-24 md:pb-10 min-h-0">
           
           {/* 1. Class Overview Card */}
-          <section className="bg-white rounded-[32px] p-6 border-2 border-[#1800ad]/10 shadow-sm text-left flex flex-col gap-4">
-            <div className="flex justify-between items-center pb-2 border-b border-[#1800ad]/10">
+          <section className="bg-white rounded-[32px] p-4 sm:p-6 border-2 border-[#1800ad]/10 shadow-sm text-left flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pb-2 border-b border-[#1800ad]/10">
               <div className="flex items-center gap-2">
                 <Award size={22} className="text-[#1800ad]" />
                 <h2 className="text-lg font-black text-[#1800ad] uppercase tracking-wide">Class Overview</h2>
               </div>
               <button 
                 onClick={toggleSort}
-                className="px-4 py-1.5 bg-[#1800ad]/15 hover:bg-[#1800ad]/25 rounded-full font-extrabold text-[11px] uppercase tracking-wider transition-colors flex items-center gap-1.5"
+                className="px-4 py-1.5 bg-[#1800ad]/15 hover:bg-[#1800ad]/25 rounded-full font-extrabold text-[11px] uppercase tracking-wider transition-colors flex items-center gap-1.5 w-fit"
               >
                 Sort by Avg Score {sortAsc ? '▲ (Weakest First)' : '▼ (Strongest First)'}
               </button>
@@ -263,25 +299,25 @@ export function TeacherAnalytics() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-[#1800ad]/15 text-[#1800ad]/75 font-mono uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4 font-black">Chapter</th>
-                      <th className="py-3 px-4 font-black text-center">Avg Score</th>
-                      <th className="py-3 px-4 font-black text-center">Students Attempted</th>
-                      <th className="py-3 px-4 font-black">Weakest Students</th>
+                      <th className="py-2 sm:py-3 px-2 sm:px-4 font-black">Chapter</th>
+                      <th className="py-2 sm:py-3 px-2 sm:px-4 font-black text-center">Avg Score</th>
+                      <th className="py-2 sm:py-3 px-2 sm:px-4 font-black text-center">Attempted</th>
+                      <th className="py-2 sm:py-3 px-2 sm:px-4 font-black">Weakest</th>
                     </tr>
                   </thead>
                   <tbody>
                     {overview.map((item, idx) => (
                       <tr key={idx} className="border-b border-[#1800ad]/5 hover:bg-[#f6f4ee]/30 transition-colors">
-                        <td className="py-3.5 px-4 font-black text-[#1800ad]">{item.chapter_title}</td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className={`px-3 py-1 rounded-full font-black text-xs ${
+                        <td className="py-2 sm:py-3.5 px-2 sm:px-4 font-black text-[#1800ad]">{item.chapter_title}</td>
+                        <td className="py-2 sm:py-3.5 px-2 sm:px-4 text-center">
+                          <span className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full font-black text-xs ${
                             item.avg_score >= 7.5 ? 'bg-emerald-50 text-emerald-800' : item.avg_score >= 5.0 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-800'
                           }`}>
                             {item.avg_score}/10
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-center font-bold text-[#1800ad]/80">{item.student_count} students</td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2 sm:py-3.5 px-2 sm:px-4 text-center font-bold text-[#1800ad]/80">{item.student_count} students</td>
+                        <td className="py-2 sm:py-3.5 px-2 sm:px-4">
                           <div className="flex flex-wrap gap-1.5">
                             {item.weakest_students.map((st, sidx) => (
                               <button
@@ -290,7 +326,7 @@ export function TeacherAnalytics() {
                                 className="bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-900 rounded-lg px-2.5 py-1 text-[10.5px] font-bold flex items-center gap-1 transition-all hover:scale-102"
                                 title="Click to view student scores log"
                               >
-                                {st.full_name} ({st.score})
+                                {cleanStudentName(st.full_name)} ({st.score})
                               </button>
                             ))}
                             {item.weakest_students.length === 0 && <span className="text-gray-400 italic">None logged</span>}
@@ -305,7 +341,7 @@ export function TeacherAnalytics() {
           </section>
 
           {/* 2 & 3. Student Clusters Section */}
-          <section className="bg-white rounded-[32px] p-6 border-2 border-[#1800ad]/10 shadow-sm text-left flex flex-col gap-4">
+          <section className="bg-white rounded-[32px] p-4 sm:p-6 border-2 border-[#1800ad]/10 shadow-sm text-left flex flex-col gap-4">
             <div className="flex items-center gap-2 pb-2 border-b border-[#1800ad]/10">
               <Users size={22} className="text-[#1800ad]" />
               <h2 className="text-lg font-black text-[#1800ad] uppercase tracking-wide">Conceptual Student Clusters</h2>
@@ -392,10 +428,10 @@ export function TeacherAnalytics() {
 
                       {/* Expanded Section: showing student names inside each cluster */}
                       {isExpanded && (
-                        <div className="border-t border-[#1800ad]/10 bg-white p-5 flex flex-col md:flex-row gap-4 text-left">
+                        <div className="border-t border-[#1800ad]/10 bg-white p-4 sm:p-5 flex flex-col md:flex-row gap-4 text-left">
                           
                           {/* Struggling */}
-                          <div className="flex-1 bg-rose-50/40 border border-rose-100 rounded-2xl p-4 flex flex-col gap-2.5">
+                          <div className="flex-1 bg-rose-50/40 border border-rose-100 rounded-2xl p-3 sm:p-4 flex flex-col gap-2.5">
                             <span className="font-extrabold text-[10px] text-rose-800 uppercase tracking-widest font-mono border-b border-rose-100 pb-1 flex items-center justify-between">
                               <span>🔴 Struggling</span>
                               <span>{group.struggling.length}</span>
@@ -408,7 +444,7 @@ export function TeacherAnalytics() {
                                   className="w-full text-left bg-white hover:bg-rose-50 border border-rose-50 hover:border-rose-100 rounded-xl px-3 py-2 text-xs font-bold text-rose-950 transition-all flex justify-between items-center shadow-sm"
                                   title="View student scores profile"
                                 >
-                                  <span>{st.full_name}</span>
+                                  <span>{cleanStudentName(st.full_name)}</span>
                                   <span className="text-[10px] text-rose-500 opacity-60">Audit →</span>
                                 </button>
                               ))}
@@ -417,7 +453,7 @@ export function TeacherAnalytics() {
                           </div>
 
                           {/* Average */}
-                          <div className="flex-1 bg-amber-50/40 border border-amber-100 rounded-2xl p-4 flex flex-col gap-2.5">
+                          <div className="flex-1 bg-amber-50/40 border border-amber-100 rounded-2xl p-3 sm:p-4 flex flex-col gap-2.5">
                             <span className="font-extrabold text-[10px] text-amber-800 uppercase tracking-widest font-mono border-b border-amber-100 pb-1 flex items-center justify-between">
                               <span>🟡 Average</span>
                               <span>{group.average.length}</span>
@@ -430,7 +466,7 @@ export function TeacherAnalytics() {
                                   className="w-full text-left bg-white hover:bg-amber-50 border border-amber-50 hover:border-amber-100 rounded-xl px-3 py-2 text-xs font-bold text-amber-950 transition-all flex justify-between items-center shadow-sm"
                                   title="View student scores profile"
                                 >
-                                  <span>{st.full_name}</span>
+                                  <span>{cleanStudentName(st.full_name)}</span>
                                   <span className="text-[10px] text-amber-500 opacity-60">Audit →</span>
                                 </button>
                               ))}
@@ -439,7 +475,7 @@ export function TeacherAnalytics() {
                           </div>
 
                           {/* Strong */}
-                          <div className="flex-1 bg-emerald-50/40 border border-emerald-100 rounded-2xl p-4 flex flex-col gap-2.5">
+                          <div className="flex-1 bg-emerald-50/40 border border-emerald-100 rounded-2xl p-3 sm:p-4 flex flex-col gap-2.5">
                             <span className="font-extrabold text-[10px] text-emerald-800 uppercase tracking-widest font-mono border-b border-emerald-100 pb-1 flex items-center justify-between">
                               <span>🟢 Strong</span>
                               <span>{group.strong.length}</span>
@@ -452,7 +488,7 @@ export function TeacherAnalytics() {
                                   className="w-full text-left bg-white hover:bg-emerald-50 border border-emerald-50 hover:border-emerald-100 rounded-xl px-3 py-2 text-xs font-bold text-emerald-950 transition-all flex justify-between items-center shadow-sm"
                                   title="View student scores profile"
                                 >
-                                  <span>{st.full_name}</span>
+                                  <span>{cleanStudentName(st.full_name)}</span>
                                   <span className="text-[10px] text-emerald-500 opacity-60">Audit →</span>
                                 </button>
                               ))}
@@ -469,29 +505,8 @@ export function TeacherAnalytics() {
             )}
           </section>
 
-          {/* Trigger recomputation for any other chapter in the classroom */}
-          <section className="bg-white rounded-[32px] p-6 border-2 border-[#1800ad]/10 shadow-sm text-left flex flex-col gap-3">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-[#1800ad]/60 ml-1">Manual Action Board</h3>
-            <span className="text-xs font-semibold text-[#1800ad]/75">Manually recalculate clusters for any syllabus chapter:</span>
-            <div className="flex flex-wrap gap-2.5 mt-1">
-              {chapters.map((ch: any) => {
-                const isRecomputing = recomputingId === ch.chapter_id;
-                return (
-                  <button
-                    key={ch.chapter_id}
-                    onClick={() => handleRecomputeClusters(ch.chapter_id)}
-                    disabled={recomputingId !== null}
-                    className="px-4 py-2 bg-white hover:bg-[#1800ad]/5 border border-[#1800ad]/20 text-[#1800ad] rounded-xl font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
-                  >
-                    <RefreshCw size={12} className={isRecomputing ? 'animate-spin' : ''} />
-                    {isRecomputing ? "Computing..." : ch.title}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-        </div>
+          </div>
+        )}
       </main>
       {/* MODAL: Logout Confirmation */}
       <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />

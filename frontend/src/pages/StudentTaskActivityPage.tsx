@@ -411,9 +411,11 @@ export function StudentTaskActivityPage() {
 
   if (loadingDbTask) {
     return (
-      <div className="flex flex-1 w-full h-[100dvh] bg-[#f6f4ee] font-montserrat text-[#1800ad] flex-col items-center justify-center">
-        <div className="w-16 h-16 border-4 border-[#1800ad]/20 border-t-[#1800ad] rounded-full animate-spin mb-4"></div>
-        <p className="font-bold text-lg animate-pulse">Loading assignment details...</p>
+      <div className="flex w-full h-[100dvh] bg-[#f6f4ee] font-montserrat text-[#1800ad] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-14 h-14 border-4 border-[#1800ad]/20 border-t-[#1800ad] rounded-full animate-spin"></div>
+          <p className="font-bold text-base animate-pulse text-center">Loading assignment...</p>
+        </div>
       </div>
     );
   }
@@ -456,7 +458,7 @@ export function StudentTaskActivityPage() {
         </div>
       </aside>
 
-      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] p-5 md:p-8 flex flex-col overflow-hidden h-[100dvh]">
+      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] p-5 md:p-8 flex flex-col overflow-hidden">
         {!activeActivity && (
           <header className="shrink-0 mb-6 flex items-center gap-4">
             <button onClick={() => navigate(backUrl)} className="p-2 border-2 border-[#1800ad]/10 rounded-full text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors">
@@ -471,15 +473,15 @@ export function StudentTaskActivityPage() {
 
         <div className="flex flex-1 overflow-hidden min-h-0 gap-8">
           {/* Main Content Area */}
-          <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pb-20 md:pb-0 ${activeActivity ? 'max-w-none' : ''}`}>
+          <div className={`flex-1 flex flex-col min-h-0 h-full overflow-y-auto custom-scrollbar pb-20 md:pb-0 ${activeActivity ? 'max-w-none' : ''}`}>
              <AnimatePresence mode="wait">
                {activeActivity === 'Explain It' && (
-                 <motion.div key="ExplainIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
+                 <motion.div key="ExplainIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full flex flex-col">
                    <LiveVoiceActivity task={task} activityName="Explain It" instructions="Teach the concept and answer questions." onDone={() => navigate(backUrl)} />
                  </motion.div>
                )}
                {activeActivity === 'Connect It' && (
-                 <motion.div key="ConnectIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
+                 <motion.div key="ConnectIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full flex flex-col">
                    <ConnectItActivity task={task} onDone={() => navigate(backUrl)} />
                  </motion.div>
                )}
@@ -488,15 +490,23 @@ export function StudentTaskActivityPage() {
                       {(task.type === 'Quiz' || task.type === 'Interactive Quiz') ? <QuizContent task={task} /> : <VideoSimulationContent task={task} />}
                      
                      {/* Mobile Activity Grid */}
-                     <div className="lg:hidden w-full mt-6 pb-12">
-                        <div className="bg-[#1800ad] rounded-[22px] p-4 shadow-lg relative overflow-hidden">
-                          <h3 className="font-bold text-md text-white mb-2 pb-1 border-b border-white/10 tracking-wide">Activity</h3>
-                          <div className="grid grid-cols-2 gap-2.5 relative z-10 w-full">
-                             <button onClick={() => setActiveActivity('Explain It')} className="bg-[#f6f4ee] rounded-[16px] h-14 flex flex-col items-center justify-center shadow-md hover:scale-102 transition-transform">
-                                <span className="font-bold text-sm text-[#1800ad] text-center leading-tight">Explain It</span>
+                     <div className="lg:hidden w-full mt-6 pb-24">
+                        <div className="bg-[#1800ad] rounded-[28px] p-5 shadow-lg">
+                          <h3 className="font-bold text-sm text-white/70 mb-3 uppercase tracking-widest">Activities</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                             <button
+                               onClick={() => setActiveActivity('Explain It')}
+                               className="bg-[#f6f4ee] rounded-[20px] h-20 flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform gap-1"
+                             >
+                               <span className="text-xl">🎙️</span>
+                               <span className="font-bold text-sm text-[#1800ad] text-center leading-tight">Explain It</span>
                              </button>
-                             <button onClick={() => setActiveActivity('Connect It')} className="bg-[#f6f4ee] rounded-[16px] h-14 flex flex-col items-center justify-center shadow-md hover:scale-102 transition-transform">
-                                <span className="font-bold text-sm text-[#1800ad] text-center leading-tight">Connect It</span>
+                             <button
+                               onClick={() => setActiveActivity('Connect It')}
+                               className="bg-[#f6f4ee] rounded-[20px] h-20 flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform gap-1"
+                             >
+                               <span className="text-xl">🔗</span>
+                               <span className="font-bold text-sm text-[#1800ad] text-center leading-tight">Connect It</span>
                              </button>
                           </div>
                         </div>

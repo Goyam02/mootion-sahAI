@@ -267,7 +267,7 @@ export function TeacherDashboardPage() {
         {/* Top Header */}
         <header className="flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6 mb-8 lg:mb-10 w-full relative">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl md:text-3xl lg:text-4xl font-bold tracking-tight text-[#1800ad]">
+            <h1 className="text-4xl md:text-3xl lg:text-4xl font-bold tracking-tight text-[#1800ad]">
               Welcome Back, {teacherName} 👋
             </h1>
             <div className="flex flex-wrap items-center gap-3 mt-1">
@@ -276,15 +276,26 @@ export function TeacherDashboardPage() {
           </div>
 
           {/* Search Bar & Language Selector */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 relative w-[calc(100%+16px)] -ml-2 translate-y-1.5 xl:translate-y-0 xl:ml-0 xl:w-auto">
-            <div ref={langDropdownRef} className="relative mr-5 -left-2 z-40">
+          <div className="flex flex-row items-center gap-3 relative w-[calc(100%+16px)] -ml-2 translate-y-1.5 xl:translate-y-0 xl:ml-0 w-full xl:w-auto z-45">
+            <div className="relative flex-1 sm:max-w-[380px]">
+              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <Search size={18} className="text-[#1800ad]/60" />
+              </div>
+              <input 
+                type="text" 
+                placeholder="Search your lectures..." 
+                className="w-full pl-12 pr-4 py-3 md:py-3.5 bg-transparent border-2 border-[#1800ad]/30 rounded-full text-sm outline-none focus:border-[#1800ad] focus:ring-4 focus:ring-[#1800ad]/10 transition-all placeholder:text-[#1800ad]/50 font-medium text-[#1800ad]"
+              />
+            </div>
+
+            <div ref={langDropdownRef} className="relative z-40 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="pl-6 pr-12 py-3.5 bg-[#f6f4ee] border-2 border-[#1800ad] rounded-full text-xs sm:text-sm outline-none focus:ring-4 focus:ring-[#1800ad]/10 transition-all font-black text-[#1800ad] cursor-pointer shadow-sm tracking-wide flex items-center justify-between min-w-[130px]"
+                className="pl-4 pr-10 py-3.5 bg-[#f6f4ee] border-2 border-[#1800ad] rounded-full text-xs sm:text-sm outline-none focus:ring-4 focus:ring-[#1800ad]/10 transition-all font-black text-[#1800ad] cursor-pointer shadow-sm tracking-wide flex items-center justify-between min-w-[100px] sm:min-w-[130px]"
               >
                 <span>{getTranslationLanguage() === 'hi' ? 'हिन्दी' : 'English'}</span>
-                <div className="absolute right-7 flex items-center pointer-events-none text-[#1800ad]">
+                <div className="absolute right-5 flex items-center pointer-events-none text-[#1800ad]">
                   <ChevronDown size={16} className={`stroke-[3] transition-transform duration-300 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
                 </div>
               </button>
@@ -321,17 +332,6 @@ export function TeacherDashboardPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-
-            <div className="relative w-full sm:w-[380px]">
-              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <Search size={18} className="text-[#1800ad]/60" />
-              </div>
-              <input 
-                type="text" 
-                placeholder="Search your lectures..." 
-                className="w-full pl-12 pr-4 py-3 md:py-3.5 bg-transparent border-2 border-[#1800ad]/30 rounded-full text-sm outline-none focus:border-[#1800ad] focus:ring-4 focus:ring-[#1800ad]/10 transition-all placeholder:text-[#1800ad]/50 font-medium text-[#1800ad]"
-              />
             </div>
           </div>
         </header>

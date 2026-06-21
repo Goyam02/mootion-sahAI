@@ -3335,21 +3335,7 @@ export function StudentPlaygroundPage() {
                       className="flex gap-3 items-center"
                     >
                       <div className="flex-1 flex items-center bg-[#f6f4ee] border-2 border-[#1800ad] rounded-2xl px-3.5 py-2">
-                        {/* Hidden file input for Attachments */}
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={(e) => handleAttachmentUpload(e, selectedDoubt.doubt_id)}
-                          className="hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="text-[#1800ad]/60 hover:text-[#1800ad] transition-all p-1 hover:bg-[#1800ad]/5 rounded-full shrink-0 mr-1.5"
-                          title="Attach document/screenshot"
-                        >
-                          <Paperclip size={16} />
-                        </button>
+
                         
                         <input
                           type="text"
@@ -3561,58 +3547,7 @@ export function StudentPlaygroundPage() {
                     </span>
                   )}
                   
-                  {/* OCR inputs */}
-                  <input
-                    type="file"
-                    ref={ocrInputRef}
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleOcrUpload}
-                  />
-                  <input
-                    type="file"
-                    ref={cameraInputRef}
-                    className="hidden"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleOcrUpload}
-                  />
 
-                  {/* OCR Buttons */}
-                  <div className="flex gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => ocrInputRef.current?.click()}
-                      disabled={isOcrLoading}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border-2 transition-all ${
-                        isOcrLoading 
-                          ? 'border-[#1800ad]/20 text-[#1800ad]/40 animate-pulse' 
-                          : 'border-[#1800ad]/20 text-[#1800ad]/70 hover:border-[#1800ad] hover:text-[#1800ad]'
-                      }`}
-                    >
-                      {isOcrLoading ? (
-                        <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 12a9 9 0 11-6.219-8.56" />
-                        </svg>
-                      ) : (
-                        <Paperclip size={14} />
-                      )}
-                      Upload Image
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      disabled={isOcrLoading}
-                      className={`md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border-2 transition-all ${
-                        isOcrLoading 
-                          ? 'border-[#1800ad]/20 text-[#1800ad]/40 animate-pulse' 
-                          : 'border-[#1800ad]/20 text-[#1800ad]/70 hover:border-[#1800ad] hover:text-[#1800ad]'
-                      }`}
-                    >
-                      <Camera size={14} />
-                      Take Photo
-                    </button>
-                  </div>
 
                 </div>
 

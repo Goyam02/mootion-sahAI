@@ -255,6 +255,14 @@ export function TeacherClassViewPage() {
         />
         <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate(`/teacher/analytics/${resolvedClass?.class_id || resolvedClass?.id || id}`)} />
         <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
+        <div 
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="shrink-0 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full border border-[#f6f4ee] bg-[#f6f4ee] hover:opacity-90 transition-opacity"
+        >
+          <span className="text-[#1800ad] font-bold text-xs">
+            {teacherName ? teacherName[0].toUpperCase() : 'T'}
+          </span>
+        </div>
       </nav>
 
       {/* Sidebar - Desktop styled with Montserrat */}
