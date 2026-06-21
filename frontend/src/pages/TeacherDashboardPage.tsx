@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ChatbotFab } from '../components/ChatbotFab';
 import { NavItem } from '../components/NavItem';
+import { LogoutModal } from '../components/LogoutModal';
 import { 
   getStoredTasks, 
   getPlaygroundQuota, 
@@ -38,17 +39,25 @@ export function TeacherDashboardPage() {
 
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [expandedCodeDropdown, setExpandedCodeDropdown] = useState<string | null>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
+  const codeDropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
         setIsLangDropdownOpen(false);
       }
+      if (expandedCodeDropdown) {
+        const ref = codeDropdownRefs.current[expandedCodeDropdown];
+        if (ref && !ref.contains(event.target as Node)) {
+          setExpandedCodeDropdown(null);
+        }
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [expandedCodeDropdown]);
 
   const handleLanguageChange = async (langCode: string) => {
     try {
@@ -245,12 +254,14 @@ export function TeacherDashboardPage() {
 
         {/* Profile Avatar */}
         <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-opacity duration-300 shadow-sm relative">
-           <span className="text-[#1800ad] font-bold text-lg">{teacherName.charAt(0)}</span>
+           <span className="text-[#1800ad] font-bold text-lg transition-colors duration-300">
+             {teacherName ? teacherName[0].toUpperCase() : 'T'}
+           </span>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] lg:rounded-l-[50px] p-5 md:pl-10 lg:pl-12 xl:pl-16 md:pr-8 lg:pr-10 w-full relative flex flex-col min-h-[100dvh]">
+      <main className="flex-1 md:ml-[80px] lg:ml-[100px] bg-[#f6f4ee] md:rounded-l-[40px] lg:rounded-l-[50px] p-5 pb-32 lg:pb-12 md:pl-10 lg:pl-12 xl:pl-16 md:pr-8 lg:pr-10 w-full relative flex flex-col min-h-[100dvh]">
         <div className="max-w-[1300px] w-full mx-auto">
         
         {/* Top Header */}
@@ -360,24 +371,90 @@ export function TeacherDashboardPage() {
                         </div>
                         
                         <div className="flex items-center flex-wrap gap-2.5">
-                          {/* Copyable invitation key for the whole class */}
-                          <button
-                            type="button"
-                            onClick={(e) => handleCopyInviteCode(e, classCodes, grade)}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border-[2px] text-[11px] font-extrabold tracking-wide transition-all ${
-                              isClassCopied 
-                                ? 'bg-[#1800ad] text-[#f6f4ee] border-[#1800ad] scale-102' 
-                                : 'bg-transparent text-[#1800ad] border-[#1800ad]/30 hover:border-[#1800ad]'
-                            }`}
-                            title="Click to copy class invitation code"
-                          >
-                            <span className="opacity-70">code:</span>
-                            <span className="font-mono uppercase tracking-wider">{classCodes}</span>
-                            {isClassCopied ? <Check size={11} className="stroke-[3]" /> : <Copy size={11} />}
-                          </button>
+                          {gradeClasses.length > 1 ? (
+                            <div
+                              className="relative"
+                              ref={(el) => (codeDropdownRefs.current[grade] = el)}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedCodeDropdown(
+                                    expandedCodeDropdown === grade ? null : grade
+                                  );
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full border-[2px] text-[11px] font-extrabold tracking-wide transition-all bg-transparent text-[#1800ad] border-[#1800ad]/30 hover:border-[#1800ad]`}
+                                title="Click to view class invitation codes"
+                              >
+                                <span className="uppercase tracking-wider">Codes</span>
+                                <ChevronDown
+                                  size={11}
+                                  className={`transition-transform duration-300 ${
+                                    expandedCodeDropdown === grade ? 'rotate-180' : ''
+                                  }`}
+                                />
+                              </button>
+
+                              <AnimatePresence>
+                                {expandedCodeDropdown === grade && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-max min-w-[200px] max-w-[calc(100vw-32px)] bg-[#f6f4ee] border-2 border-[#1800ad] rounded-2xl shadow-xl overflow-hidden flex flex-col py-1.5 z-[60]"
+                                  >
+                                    {gradeClasses.map((cls) => {
+                                      const isRowCopied = copiedId === `${grade}-${cls.class_id}`;
+                                      const formattedSubj = cls.subject.charAt(0).toUpperCase() + cls.subject.slice(1);
+                                      return (
+                                        <div
+                                          key={cls.class_id}
+                                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-4 px-4 py-2 hover:bg-[#1800ad]/5 transition-colors cursor-pointer"
+                                          onClick={(e) => {
+                                            handleCopyInviteCode(e, cls.class_code, `${grade}-${cls.class_id}`);
+                                          }}
+                                        >
+                                          <span className="text-xs font-bold text-[#1800ad]/70">
+                                            {formattedSubj}
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-mono font-extrabold text-[#1800ad] uppercase tracking-wider">
+                                              {cls.class_code}
+                                            </span>
+                                            {isRowCopied ? (
+                                              <Check size={12} className="text-[#1800ad] stroke-[3]" />
+                                            ) : (
+                                              <Copy size={12} className="text-[#1800ad]/50 hover:text-[#1800ad] transition-colors" />
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyInviteCode(e, classCodes, grade)}
+                              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border-[2px] text-[11px] font-extrabold tracking-wide transition-all ${
+                                isClassCopied 
+                                  ? 'bg-[#1800ad] text-[#f6f4ee] border-[#1800ad] scale-102' 
+                                  : 'bg-transparent text-[#1800ad] border-[#1800ad]/30 hover:border-[#1800ad]'
+                              }`}
+                              title="Click to copy class invitation code"
+                            >
+                              <span className="opacity-70">code:</span>
+                              <span className="font-mono uppercase tracking-wider">{classCodes}</span>
+                              {isClassCopied ? <Check size={11} className="stroke-[3]" /> : <Copy size={11} />}
+                            </button>
+                          )}
 
                           <div className="text-[10px] sm:text-xs font-bold text-[#1800ad]/70 bg-[#1800ad]/10 px-3 py-1 rounded-full uppercase tracking-wider">
-                            {gradeClasses.length} Subjects Configured
+                            {gradeClasses.length} Subjects
                           </div>
                         </div>
                       </div>
@@ -497,11 +574,11 @@ export function TeacherDashboardPage() {
                     
                     return (
                       <div key={cls.class_id} className="p-3.5 rounded-2xl bg-white border border-[#1800ad]/10 flex flex-col gap-1.5 hover:border-[#1800ad]/30 transition-colors">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                           <span className="text-[9px] font-black uppercase text-[#1800ad]/55 tracking-widest leading-none">
                             Class {cls.grade} • {cls.subject}
                           </span>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 shrink-0">
                             <TrendingDown size={11} className="text-[#1800ad]/70" />
                             <span className="text-[10px] font-bold text-[#1800ad]/80 font-mono">
                               {score}% accuracy
@@ -525,38 +602,7 @@ export function TeacherDashboardPage() {
     </main>
 
       {/* MODAL: Logout Confirmation */}
-      <AnimatePresence>
-        {isLogoutModalOpen && (
-          <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#f6f4ee] border-2 border-[#1800ad] rounded-[32px] shadow-2xl p-6 md:p-8 max-w-sm w-full font-montserrat text-[#1800ad] flex flex-col gap-4 relative"
-            >
-              <h2 className="text-xl md:text-2xl font-black text-center uppercase tracking-wide">Logout</h2>
-              <p className="text-sm text-[#1800ad]/80 font-bold text-center -mt-2">Are you sure you want to log out of Mootion?</p>
-              
-              <div className="flex gap-3 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsLogoutModalOpen(false)}
-                  className="w-1/2 py-3 bg-transparent border-2 border-[#1800ad] hover:bg-[#1800ad]/5 font-bold rounded-full text-center text-sm cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => api.logout()}
-                  className="w-1/2 py-3 bg-red-600 border-2 border-red-600 hover:bg-red-700 text-white font-bold rounded-full text-center text-sm cursor-pointer"
-                >
-                  Logout
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
 
     </div>
   );

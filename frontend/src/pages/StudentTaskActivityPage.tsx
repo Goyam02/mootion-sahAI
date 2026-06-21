@@ -13,7 +13,7 @@ import { TASKS, Task } from '../data/tasks';
 import { NavItem } from '../components/NavItem';
 import { api } from '../lib/api';
 import { ChatbotFab } from '../components/ChatbotFab';
-import { LayoutDashboard, CheckSquare, Compass, Gamepad2, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Compass, Gamepad2, BarChart2, Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
 
 // Import modular Teach AI activities and progress panels
 import { LiveVoiceActivity, AttemptHistoryPanel } from '../components/LiveVoiceActivity';
@@ -209,6 +209,194 @@ function QuizContent({ task }: { task: Task }) {
   );
 }
 
+function CustomVideoPlayer({ src, poster, isFullscreen, setIsFullscreen }: { src: string, poster?: string, isFullscreen: boolean, setIsFullscreen: (val: boolean) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) videoRef.current.pause();
+      else videoRef.current.play();
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) setDuration(videoRef.current.duration);
+  };
+
+  const skip = (amount: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.min(Math.max(videoRef.current.currentTime + amount, 0), duration);
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = Number(e.target.value);
+    if (videoRef.current) videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = Number(e.target.value);
+    setVolume(newVol);
+    if (videoRef.current) {
+      videoRef.current.volume = newVol;
+      videoRef.current.muted = newVol === 0;
+    }
+    setIsMuted(newVol === 0);
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+      if (isMuted && volume === 0) {
+        setVolume(1);
+        videoRef.current.volume = 1;
+      }
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return "0:00";
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleMouseMove = () => {
+    setShowControls(true);
+    if (hideControlsTimeoutRef.current) clearTimeout(hideControlsTimeoutRef.current);
+    hideControlsTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) setShowControls(false);
+    }, 3000);
+  };
+
+  const handleMouseLeave = () => {
+    if (isPlaying) setShowControls(false);
+  };
+
+  return (
+    <div 
+      className="relative w-full h-full bg-black flex items-center justify-center group font-montserrat"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={togglePlay}
+    >
+      <video
+        ref={videoRef}
+        className="w-full h-full object-contain"
+        src={src}
+        poster={poster}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => setIsPlaying(false)}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+        playsInline
+      />
+      
+      {/* Controls Overlay */}
+      <div 
+        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 md:px-6 md:pb-6 md:pt-16 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'} z-20`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Scrubber */}
+        <div className="flex items-center gap-3 mb-3 md:mb-4">
+          <input
+            type="range"
+            min={0}
+            max={duration || 100}
+            value={currentTime}
+            onChange={handleSeek}
+            className="w-full h-1.5 md:h-2 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#1800ad] hover:accent-[#361de4] transition-all"
+            style={{ 
+              background: `linear-gradient(to right, #1800ad ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.3) ${duration ? (currentTime / duration) * 100 : 0}%)` 
+            }}
+          />
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 md:gap-6">
+            {/* Play/Pause */}
+            <button onClick={togglePlay} className="text-white hover:text-[#361de4] transition-colors p-1" title={isPlaying ? "Pause" : "Play"}>
+              {isPlaying ? <Pause size={24} className="fill-current" /> : <Play size={24} className="fill-current" />}
+            </button>
+            
+            {/* Skip Back */}
+            <button onClick={() => skip(-15)} className="text-white hover:text-[#361de4] transition-colors relative group/skip p-1" title="Skip backward 15s">
+              <RotateCcw size={20} />
+              <span className="absolute text-[8px] font-bold top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[1px]">15</span>
+            </button>
+            
+            {/* Skip Forward */}
+            <button onClick={() => skip(15)} className="text-white hover:text-[#361de4] transition-colors relative group/skip p-1" title="Skip forward 15s">
+              <RotateCw size={20} />
+              <span className="absolute text-[8px] font-bold top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[1px]">15</span>
+            </button>
+            
+            {/* Volume */}
+            <div className="flex items-center gap-2 group/vol">
+              <button onClick={toggleMute} className="text-white hover:text-[#361de4] transition-colors p-1" title="Mute/Unmute">
+                {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={isMuted ? 0 : volume}
+                onChange={handleVolumeChange}
+                className="w-0 md:w-16 h-1.5 opacity-0 md:group-hover/vol:w-20 md:group-hover/vol:opacity-100 bg-white/30 rounded-full appearance-none cursor-pointer accent-white transition-all duration-300"
+                style={{ 
+                  background: `linear-gradient(to right, white ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.3) ${(isMuted ? 0 : volume) * 100}%)` 
+                }}
+              />
+            </div>
+            
+            {/* Time */}
+            <div className="text-white text-xs md:text-sm font-mono tracking-wider font-semibold opacity-90 hidden sm:block">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-white text-xs md:text-sm font-mono tracking-wider font-semibold opacity-90 sm:hidden">
+              {formatTime(currentTime)}
+            </div>
+            {/* Fullscreen Toggle */}
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-white hover:text-[#361de4] transition-colors p-1" title="Toggle Fullscreen">
+              {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Big Play Button Overlay (when paused) */}
+      {!isPlaying && (
+        <button 
+          onClick={togglePlay}
+          className="absolute inset-0 m-auto w-16 h-16 md:w-20 md:h-20 bg-[#1800ad]/80 hover:bg-[#1800ad] text-white rounded-full flex items-center justify-center transition-transform hover:scale-110 shadow-2xl backdrop-blur-sm z-10"
+        >
+          <Play size={32} className="fill-current ml-2" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function VideoSimulationContent({ task }: { task: Task }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -296,21 +484,12 @@ function VideoSimulationContent({ task }: { task: Task }) {
           ? 'h-full flex items-center justify-center' 
           : 'aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
       }`}>
-        {!fullscreenMode && (
-          <button 
-            onClick={() => setIsFullscreen(true)}
-            className="absolute top-3 right-3 bg-[#1800ad] text-white border-2 border-white hover:bg-[#14008a] hover:scale-105 transition-all p-2 rounded-full z-10 flex items-center justify-center shadow-lg"
-            title="Enter Full Screen"
-          >
-            <Maximize2 size={16} />
-          </button>
-        )}
-        <video 
-          className="w-full h-full object-contain md:object-cover" 
-          controls 
-          src={videoSrc}
+        <CustomVideoPlayer 
+          src={videoSrc} 
           poster={!dbTask ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg" : undefined}
-        ></video>
+          isFullscreen={fullscreenMode}
+          setIsFullscreen={setIsFullscreen}
+        />
       </div>
     );
   };
