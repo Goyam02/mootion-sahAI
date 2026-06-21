@@ -344,16 +344,16 @@ export function TeacherChapterSetupPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ready':
-        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider">Ready</span>;
+        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">Ready</span>;
       case 'queued':
       case 'processing':
-        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">Generating...</span>;
+        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse whitespace-nowrap mt-1.5">Generating...</span>;
       case 'placeholder':
-        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider">Not set up yet</span>;
+        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">Not set up yet</span>;
       case 'failed':
-        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black uppercase tracking-wider">Unavailable</span>;
+        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">Unavailable</span>;
       default:
-        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider">{status}</span>;
+        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-300 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap mt-1.5">{status}</span>;
     }
   };
 
@@ -552,11 +552,8 @@ export function TeacherChapterSetupPage() {
                 <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
                   Extracting Content...
                 </h2>
-                <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
-                  Synthesizing concept videos, sandboxes & misconceptions
-                </p>
-                <p className="text-xs font-semibold text-[#1800ad]/70 mt-4 max-w-sm">
-                  Aligning curriculum to NCERT Class 8 Physics standards automatically. Please hold on.
+                <p className="text-xs font-semibold text-[#1800ad]/70 mt-3 max-w-sm">
+                  Aligning curriculum automatically. Please hold on.
                 </p>
               </motion.div>
             ) : (
@@ -620,9 +617,9 @@ export function TeacherChapterSetupPage() {
                       >
                         <div>
                           {/* Upper row: icon and status badge */}
-                          <div className="flex items-center justify-between mb-3.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className="p-2.5 bg-[#1800ad]/5 rounded-xl border border-[#1800ad]/15 text-[#1800ad]">
+                          <div className="flex items-start justify-between mb-3.5">
+                            <div className="flex items-start gap-2.5">
+                              <span className="p-2.5 bg-[#1800ad]/5 rounded-xl border border-[#1800ad]/15 text-[#1800ad] shrink-0 mt-0.5">
                                 {act.asset_type === 'concept_video' && <Film size={18} />}
                                 {act.asset_type === 'simulation' && <Beaker size={18} />}
                                 {act.asset_type === 'three_d_model' && <Layers size={18} />}
@@ -633,7 +630,7 @@ export function TeacherChapterSetupPage() {
                                 {act.asset_type === 'spot_it' && <AlertCircle size={18} />}
                                 {act.asset_type === 'connect_it' && <BookOpen size={18} />}
                               </span>
-                              <h3 className="font-black text-sm tracking-tight text-[#1800ad]">
+                              <h3 className="font-black text-sm tracking-tight text-[#1800ad] mt-1.5 leading-snug">
                                 {act.title}
                               </h3>
                             </div>
@@ -962,13 +959,7 @@ export function TeacherChapterSetupPage() {
                           <Library size={16} className="text-[#f6f4ee]" />
                         </div>
                         <h2 className="text-2xl font-black text-[#1800ad] tracking-tight">Content Library</h2>
-                        <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full">
-                          Free • No generation cost
-                        </span>
                       </div>
-                      <p className="text-xs font-semibold text-[#1800ad]/65 ml-11">
-                        Pick a ready-made video for <span className="font-black text-[#1800ad]">{libraryTargetAsset?.title}</span> — same curriculum, zero wait time.
-                      </p>
                     </div>
                     <button
                       onClick={() => setShowLibrary(false)}

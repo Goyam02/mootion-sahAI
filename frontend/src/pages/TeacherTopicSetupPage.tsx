@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -23,7 +23,8 @@ import {
   Sliders,
   AlertCircle,
   Check,
-  Sparkles
+  Sparkles,
+  ChevronDown
 } from 'lucide-react';
 import { NavItem } from '../components/NavItem';
 import { api } from '../lib/api';
@@ -56,6 +57,29 @@ export function TeacherTopicSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as { payload_json?: any, external_url?: string } | null;
+
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setIsLangDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const languagesList = [
+    { value: 'english', label: 'English' },
+    { value: 'hindi', label: 'Hindi (हिंदी)' },
+    { value: 'gujarati', label: 'Gujarati (ગુજરાતી)' },
+    { value: 'marathi', label: 'Marathi (मराठी)' },
+    { value: 'telugu', label: 'Telugu (తెలుగు)' },
+    { value: 'tamil', label: 'Tamil (தமிழ்)' },
+    { value: 'bengali', label: 'Bengali (বাংলা)' }
+  ];
 
   const [resolvedChapter, setResolvedChapter] = useState<any | null>(null);
   const [activeTopic, setActiveTopic] = useState<any | null>(null);
@@ -339,7 +363,7 @@ export function TeacherTopicSetupPage() {
 
   const [regenText, setRegenText] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
-  const [generationEndsAt, setGenerationEndsAt] = useState<number | null>(null);
+  const [generatingAssets, setGeneratingAssets] = useState<Record<string, { endsAt: number; duration: number }>>({});
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -348,8 +372,40 @@ export function TeacherTopicSetupPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const isGenerating = generationEndsAt !== null;
   const selectedAsset = activeAsset;
+  const isGenerating = selectedAsset ? generatingAssets[selectedAsset.asset_id] !== undefined : false;
+  const currentGen = selectedAsset ? generatingAssets[selectedAsset.asset_id] : undefined;
+
+  let remainingSeconds = 0;
+  let progressPercent = 0;
+  if (currentGen) {
+    remainingSeconds = Math.max(0, Math.ceil((currentGen.endsAt - now) / 1000));
+    progressPercent = (remainingSeconds / currentGen.duration) * 100;
+  }
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const loaderText = selectedAsset ? {
+    concept_video: {
+      title: 'Generating Premium Video',
+      desc: 'Our AI model is synthesizing your topic content, matching visual animations, and generating scripts. Please hold on.'
+    },
+    simulation: {
+      title: 'Generating Interactive Simulation',
+      desc: 'Our AI model is setting up your simulation parameters, configuring physics models, and preparing active learning sandboxes. Please hold on.'
+    },
+    three_d_model: {
+      title: 'Generating 3D Model',
+      desc: 'Our AI model is creating 3D structures, applying textures, and rendering spatial resources for interactive viewing. Please hold on.'
+    }
+  }[selectedAsset.asset_type as 'concept_video' | 'simulation' | 'three_d_model'] || {
+    title: 'Generating Resource',
+    desc: 'Our AI model is preparing this learning resource for your class. Please hold on.'
+  } : { title: 'Generating Resource', desc: 'Preparing resource...' };
 
   // Check if payload_json is empty or minimal (scaffolding only)
   const isMinimalOrPlaceholder = 
@@ -363,7 +419,6 @@ export function TeacherTopicSetupPage() {
   const updateTopicAsset = (nextAsset: any) => {
     setSelectedAssetId(nextAsset.asset_id);
     setActiveAsset(nextAsset);
-    setGenerationEndsAt(null);
     setGenerationError(null);
     if (activeTopic) {
       setTopicAssets(prev => prev.map(asset => asset.asset_id === nextAsset.asset_id ? nextAsset : asset));
@@ -373,23 +428,51 @@ export function TeacherTopicSetupPage() {
   const handleGenerateSelectedAsset = async () => {
     if (!activeTopic || !selectedAsset || !classId || !chapterId) return;
 
+    const assetId = selectedAsset.asset_id;
     setGenerationError(null);
-    const estimatedSeconds = selectedAsset.asset_type === 'concept_video' ? 180 : selectedAsset.asset_type === 'simulation' ? 75 : 45;
-    setGenerationEndsAt(Date.now() + estimatedSeconds * 1000);
+    const isVideo = selectedAsset.asset_type === 'concept_video';
+    const isSimulation = selectedAsset.asset_type === 'simulation';
+    const isModel = selectedAsset.asset_type === 'three_d_model';
+    const estimatedSeconds = isVideo ? 300 : (isSimulation || isModel) ? 120 : 45;
+    const endsAt = Date.now() + estimatedSeconds * 1000;
+
+    setGeneratingAssets(prev => ({
+      ...prev,
+      [assetId]: { endsAt, duration: estimatedSeconds }
+    }));
 
     try {
-      const response = await api.post(`/teachers/classes/${classId}/chapters/${chapterId}/topics/${activeTopic.topic_id}/assets/${selectedAsset.asset_id}/generate`, {
+      const response = await api.post(`/teachers/classes/${classId}/chapters/${chapterId}/topics/${activeTopic.topic_id}/assets/${assetId}/generate`, {
         instructions: regenText.trim() || null,
         language: selectedLanguage,
       });
       const generatedAsset = response.asset || response;
-      updateTopicAsset(generatedAsset);
+      
+      if (activeTopic) {
+        setTopicAssets(prev => prev.map(asset => asset.asset_id === generatedAsset.asset_id ? generatedAsset : asset));
+      }
+
+      setSelectedAssetId(currentId => {
+        if (currentId === assetId) {
+          setActiveAsset(generatedAsset);
+        }
+        return currentId;
+      });
+
       setRegenText('');
-      setGenerationEndsAt(null);
+      setGeneratingAssets(prev => {
+        const next = { ...prev };
+        delete next[assetId];
+        return next;
+      });
     } catch (err: any) {
       console.error('Failed to generate topic asset:', err);
       setGenerationError(err?.detail || err?.message || 'Generation failed.');
-      setGenerationEndsAt(null);
+      setGeneratingAssets(prev => {
+        const next = { ...prev };
+        delete next[assetId];
+        return next;
+      });
     }
   };
 
@@ -499,7 +582,7 @@ export function TeacherTopicSetupPage() {
                   setAssignError(null);
                   setIsSuccessModalOpen(true);
                 }}
-                className="shrink-0 bg-[#1800ad] text-[#f6f4ee] hover:bg-amber-300 hover:text-[#1800ad] px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5 h-fit self-end sm:self-start"
+                className="shrink-0 bg-[#1800ad] text-[#f6f4ee] border-2 border-transparent hover:bg-[#f6f4ee] hover:text-[#1800ad] hover:border-[#1800ad] px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5 h-fit self-end sm:self-start"
               >
                 <CheckCircle2 size={13} className="stroke-[3]" /> Assign to Class
               </button>
@@ -518,71 +601,137 @@ export function TeacherTopicSetupPage() {
                       <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/60">Generation Workspace</div>
                       <div className="text-sm font-black text-[#1800ad]">{selectedAsset.asset_type === 'simulation' ? 'Predict It' : selectedAsset.title}</div>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${selectedAsset.generation_status === 'ready' ? 'bg-emerald-100 text-emerald-800' : isGenerating ? 'bg-amber-100 text-amber-800 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
-                      {selectedAsset.generation_status === 'ready' ? 'Ready' : isGenerating ? 'Generating...' : 'Not set up yet'}
-                    </span>
                   </div>
 
-                  <textarea
-                    value={regenText}
-                    onChange={(e) => setRegenText(e.target.value)}
-                    rows={3}
-                    placeholder="Optional: add teacher notes, examples, or style guidance..."
-                    className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
-                  />
+                  {isGenerating ? (
+                    <div className="flex flex-col items-center justify-center py-6 px-4 text-center">
+                      <div className="relative w-24 h-24 mb-4 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle
+                            cx="48"
+                            cy="48"
+                            r="40"
+                            className="stroke-[#1800ad]/10"
+                            strokeWidth="8"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="48"
+                            cy="48"
+                            r="40"
+                            className="stroke-[#1800ad] transition-all duration-1000 ease-linear"
+                            strokeWidth="8"
+                            fill="transparent"
+                            strokeDasharray={251.2}
+                            strokeDashoffset={251.2 * (1 - progressPercent / 100)}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute font-mono text-base font-black text-[#1800ad]">
+                          {formatTime(remainingSeconds)}
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
-                      Target Video/Audio Language
-                    </label>
-                    <select
-                      value={selectedLanguage}
-                      onChange={(e) => setSelectedLanguage(e.target.value)}
-                      className="bg-[#f6f4ee] text-[#1800ad] text-xs font-bold border border-[#1800ad]/20 px-3 py-1.5 rounded-xl outline-none focus:border-[#1800ad] cursor-pointer"
-                    >
-                      <option value="english">English</option>
-                      <option value="hindi">Hindi (हिंदी)</option>
-                      <option value="gujarati">Gujarati (ગુજરાતી)</option>
-                      <option value="marathi">Marathi (मराठी)</option>
-                      <option value="telugu">Telugu (తెలుగు)</option>
-                      <option value="tamil">Tamil (தமிழ்)</option>
-                      <option value="bengali">Bengali (বাংলা)</option>
-                    </select>
-                  </div>
-
-                  {generationError && (
-                    <div className="text-[11px] font-bold text-rose-600">{generationError}</div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
-                      {isGenerating ? `Expected time left: ${Math.max(0, Math.ceil((generationEndsAt! - now) / 1000))}s` : 'Generation ETA depends on asset type'}
+                      <h4 className="text-sm font-black text-[#1800ad] uppercase tracking-wider mb-1">
+                        {loaderText.title}
+                      </h4>
+                      <p className="text-xs font-semibold text-[#1800ad]/75 max-w-sm leading-relaxed">
+                        {loaderText.desc}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                  ) : (
+                    <>
+                      <textarea
+                        value={regenText}
+                        onChange={(e) => setRegenText(e.target.value)}
+                        rows={3}
+                        placeholder="Optional: add teacher notes, examples, or style guidance..."
+                        className="w-full bg-[#f6f4ee] text-[#1800ad] placeholder-[#1800ad]/40 border border-[#1800ad]/20 p-3 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
+                      />
+
                       {selectedAsset.asset_type === 'concept_video' && (
-                        <button
-                          type="button"
-                          onClick={() => openLibrary(selectedAsset)}
-                          disabled={isGenerating}
-                          className={`px-3.5 py-2 border rounded-full text-[11px] font-black flex items-center gap-1 leading-none transition-all ${
-                            isGenerating
-                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                              : 'border-[#1800ad]/40 text-[#1800ad] hover:bg-[#1800ad]/5'
-                          }`}
-                          title="Pick from shared content library"
-                        >
-                          <Library size={11} /> Library
-                        </button>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                            Target Video/Audio Language
+                          </label>
+                          <div ref={langDropdownRef} className="relative w-full sm:w-auto">
+                            <button
+                              type="button"
+                              onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                              className="w-full sm:w-[200px] bg-[#f6f4ee] text-[#1800ad] text-xs font-bold border border-[#1800ad]/20 pl-4 pr-12 py-1.5 rounded-xl outline-none focus:border-[#1800ad] cursor-pointer flex items-center justify-between relative"
+                            >
+                              <span>{languagesList.find(l => l.value === selectedLanguage)?.label || 'English'}</span>
+                              <ChevronDown size={14} className="absolute right-7 top-1/2 -translate-y-1/2 text-[#1800ad] pointer-events-none stroke-[3]" />
+                            </button>
+                            
+                            <AnimatePresence>
+                              {isLangDropdownOpen && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -5 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -5 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="absolute right-0 top-full mt-1.5 w-full sm:w-[200px] bg-[#f6f4ee] border border-[#1800ad]/30 rounded-2xl shadow-xl z-30 py-1.5 overflow-hidden"
+                                >
+                                  {languagesList.map((lang) => (
+                                    <button
+                                      key={lang.value}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedLanguage(lang.value);
+                                        setIsLangDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors ${
+                                        selectedLanguage === lang.value
+                                          ? 'bg-[#1800ad] text-[#f6f4ee]'
+                                          : 'text-[#1800ad] hover:bg-[#1800ad]/5'
+                                      }`}
+                                    >
+                                      {lang.label}
+                                    </button>
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
                       )}
-                      <button
-                        onClick={handleGenerateSelectedAsset}
-                        disabled={isGenerating}
-                        className="px-4 py-2 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
-                      </button>
-                    </div>
-                  </div>
+
+                      {generationError && (
+                        <div className="text-[11px] font-bold text-rose-600">{generationError}</div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-[#1800ad]/65">
+                          {isGenerating && currentGen ? `Expected time left: ${formatTime(remainingSeconds)}` : 'Generation ETA depends on asset type'}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {selectedAsset.asset_type === 'concept_video' && (
+                            <button
+                              type="button"
+                              onClick={() => openLibrary(selectedAsset)}
+                              disabled={isGenerating}
+                              className={`px-3.5 h-9 border rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
+                                isGenerating
+                                  ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                  : 'border-[#1800ad]/40 text-[#1800ad] hover:bg-[#1800ad]/5'
+                              }`}
+                              title="Pick from shared content library"
+                            >
+                              <Library size={11} /> Library
+                            </button>
+                          )}
+                          <button
+                            onClick={handleGenerateSelectedAsset}
+                            disabled={isGenerating}
+                            className="px-4 h-9 rounded-full bg-[#1800ad] text-[#f6f4ee] text-[11px] font-black uppercase tracking-widest flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {isGenerating ? 'Generating...' : selectedAsset.generation_status === 'ready' ? 'Regenerate' : 'Generate'}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               
@@ -642,17 +791,23 @@ export function TeacherTopicSetupPage() {
                     <h3 className="text-sm font-black uppercase tracking-widest text-[#1800ad]">
                       Interactive Live Preview
                     </h3>
-                    <a 
-                      href={activeAsset.external_url} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="text-xs font-bold text-[#1800ad] hover:underline flex items-center gap-1"
-                    >
-                      Open in new tab &rarr;
-                    </a>
+                    {activeAsset.asset_type !== 'simulation' && (
+                      <a 
+                        href={activeAsset.external_url} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-xs font-bold text-[#1800ad] hover:underline flex items-center gap-1"
+                      >
+                        Open in new tab &rarr;
+                      </a>
+                    )}
                   </div>
 
-                  <div className="w-full bg-[#1800ad]/5 rounded-2xl overflow-hidden relative border-2 border-[#1800ad] shadow-inner animate-fadeIn" style={{ height: '450px' }}>
+                  <div className={`w-full bg-[#1800ad]/5 rounded-2xl overflow-hidden relative border-2 border-[#1800ad] shadow-inner animate-fadeIn ${
+                    activeAsset.asset_type === 'simulation' 
+                      ? 'h-[500px] md:h-[750px]' 
+                      : 'h-[450px]'
+                  }`}>
                     {activeAsset.asset_type === 'concept_video' ? (
                       activeAsset.external_url.includes('youtube.com') || activeAsset.external_url.includes('youtu.be') ? (
                         <iframe
@@ -1052,13 +1207,7 @@ export function TeacherTopicSetupPage() {
                       <Library size={16} className="text-[#f6f4ee]" />
                     </div>
                     <h2 className="text-2xl font-black text-[#1800ad] tracking-tight">Content Library</h2>
-                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full">
-                      Free • No generation cost
-                    </span>
                   </div>
-                  <p className="text-xs font-semibold text-[#1800ad]/65 ml-11">
-                    Pick a ready-made video for <span className="font-black text-[#1800ad]">{libraryTargetAsset?.title}</span> — same curriculum, zero wait time.
-                  </p>
                 </div>
                 <button
                   onClick={() => setShowLibrary(false)}

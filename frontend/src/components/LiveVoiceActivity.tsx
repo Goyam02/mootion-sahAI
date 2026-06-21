@@ -26,6 +26,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { Task } from '../data/tasks';
+import { api } from '../lib/api';
 
 // --- Shared Utilities for Audio ---
 function pcmToBase64(pcmData: Float32Array) {
@@ -108,6 +109,7 @@ export function LiveVoiceActivity({
   const maxQuestions = activityName === 'Explain It' ? 4 : 1;
 
   // Evaluation details
+  const [analyticsResult, setAnalyticsResult] = useState<any>(null);
   const [evaluation, setEvaluation] = useState<{
     understandingScore: number;
     expressionScore?: number;
@@ -690,16 +692,13 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       setIsThinking(false);
       const errReply = "My teddy and I are dizzy! Can you simplify that more?";
       setMessages(p => [...p, { role: 'Mootion' as const, text: errReply }]);
-<<<<<<< HEAD
-      speakVoiceSynthesis(errReply);
-=======
     }
   };
 
   const submitExplanationForAnalysis = async (transcriptText: string, chapterId: string | null, classId: string | null, gaps: string[] | null) => {
     try {
-      let finalClassId = classId || resolvedClassId;
-      let finalChapterId = chapterId || resolvedChapterId;
+      let finalClassId = classId || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('class_id') : null) || null;
+      let finalChapterId = chapterId || null;
 
       if (!finalClassId || !finalChapterId) {
         const classes = await api.get('/students/classes');
@@ -753,7 +752,6 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       }
     } catch (err) {
       console.error("Error submitting explanation for analysis:", err);
->>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
     }
   };
 
@@ -763,13 +761,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
     setIsThinking(true);
 
     let predOutcome = "";
-<<<<<<< HEAD
-    if (activityName === 'Predict It' && predictionChoice) {
-      predOutcome = `Prediction choice: '${predictionChoice}', Actual outcome: 'Medium stone sank instantly while wooden block floated cleanly'.`;
-    }
-=======
     let finalEvalData: any = null;
->>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
 
     try {
       const resp = await fetch('/api/evaluate-session', {
@@ -808,13 +800,10 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       };
       finalEvalData = fallbackReport;
       setEvaluation(fallbackReport);
-<<<<<<< HEAD
       saveAttemptToStorage(finalTranscript, fallbackReport);
-=======
-      saveAttemptToStorage(transcriptToUse, fallbackReport);
     }
 
-    const studentText = transcriptToUse
+    const studentText = finalTranscript
       .filter(m => m.role === 'student')
       .map(m => m.text)
       .join(' ')
@@ -833,9 +822,8 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
           console.error("Failed to submit interactive assignment:", err);
         });
       } else {
-        submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId, finalEvalData?.gaps || null);
+        submitExplanationForAnalysis(studentText, null, null, finalEvalData?.gaps || null);
       }
->>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
     }
   };
 

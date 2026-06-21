@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye } from '../components/Eye';
-import { ArrowRight, ArrowLeft, Check, BookOpen } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, BookOpen, Eye as EyeIcon, EyeOff as EyeOffIcon } from 'lucide-react';
 import { api } from '../lib/api';
 import { syncOnboardingLanguage } from '../lib/translation';
 
@@ -20,6 +20,7 @@ export function TeacherOnboardingPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [isLoadingChapters, setIsLoadingChapters] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const mousePosRef = useRef({ 
     x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, 
@@ -280,13 +281,22 @@ export function TeacherOnboardingPage() {
                     className="w-full px-6 py-2 md:py-2.5 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad]"
                   />
 
-                  <input 
-                    type="password" 
-                    placeholder="Password (min 8 chars)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-6 py-2 md:py-2.5 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad]"
-                  />
+                  <div className="relative w-full flex items-center">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="Password (min 8 chars)"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-12 py-2 md:py-2.5 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 text-[#1800ad]/60 hover:text-[#1800ad] focus:outline-none p-1 flex items-center justify-center"
+                    >
+                      {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                    </button>
+                  </div>
                 </div>
 
 
@@ -350,9 +360,8 @@ export function TeacherOnboardingPage() {
                 </div>
 
                 {showExclusiveNote && (
-                  <p className="text-[10px] text-amber-600 font-semibold text-center mt-1 max-w-[280px] mx-auto leading-normal">
-                    Note: Middle school (5-10) and high school (11-12) grades cannot be mixed. Your previous selection was reset.
-                    Note: Middle school (Class 6–10) and high school (Class 11–12) grades are mutually exclusive. Selecting this grade has deselected your previous choices.
+                  <p className="text-[9px] text-amber-600 font-semibold text-center mt-0.5 max-w-[240px] mx-auto leading-tight">
+                    Note: Middle school (Class 6–10) and high school (Class 11–12) grades are mutually exclusive and cannot be mixed.
                   </p>
                 )}
 

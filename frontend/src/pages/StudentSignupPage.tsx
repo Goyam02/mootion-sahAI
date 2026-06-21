@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye } from '../components/Eye';
-import { Check } from 'lucide-react';
+import { Check, Eye as EyeIcon, EyeOff as EyeOffIcon } from 'lucide-react';
 import { api } from '../lib/api';
 import { syncOnboardingLanguage } from '../lib/translation';
 
@@ -21,6 +21,7 @@ export function StudentSignupPage() {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const mousePosRef = useRef({ 
     x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, 
@@ -237,14 +238,23 @@ export function StudentSignupPage() {
                   disabled={isLoading}
                   className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
                 />
-                <input 
-                  type="password" 
-                  placeholder="Password (min 8 chars)" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                  className="w-full px-6 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
-                />
+                <div className="relative w-full flex items-center">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Password (min 8 chars)" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full px-12 py-2 md:py-3 text-[13px] sm:text-sm md:text-base bg-transparent border border-[#1800ad] rounded-full text-center text-[#2c2c2c] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1800ad] font-montserrat"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 text-[#1800ad]/60 hover:text-[#1800ad] focus:outline-none p-1 flex items-center justify-center"
+                  >
+                    {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                  </button>
+                </div>
               </motion.div>
             )}
 
