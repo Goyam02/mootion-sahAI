@@ -7,6 +7,7 @@ import shutil
 from utils.llm import call_llm
 from utils.json_safe import extract_json
 from utils.timestamps_extractor import extract_timestamps
+from utils.json_safe import _strip_code_fences
 
 # ============================================================
 # PATHS (ABSOLUTE, SINGLE SOURCE OF TRUTH)
@@ -37,6 +38,36 @@ SCENE_CLASS_RE = re.compile(
 # HELPERS
 # ============================================================
 
+def split_manim_code_to_files(manim_code: str) -> dict[str, Path]:
+    """
+    Split full animation.py into one file per scene class.
+    Returns {scene_class_name: file_path}
+    """
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Split on class boundaries, keeping the class definition with its body
+    parts = re.split(r"(?=^class\s+Scene)", manim_code, flags=re.MULTILINE)
+    
+    header_lines = []
+    scene_files = {}
+    
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        
+        match = SCENE_CLASS_RE.search(part)
+        if match:
+            class_name = match.group(1)
+            file_path = OUTPUTS_DIR / f"{class_name}.py"
+            file_path.write_text("\n".join(header_lines) + "\n\n" + part + "\n", encoding="utf-8")
+            scene_files[class_name] = file_path
+        else:
+            # This is the header (imports, helpers before first class)
+            header_lines = part.splitlines()
+    
+    return scene_files
+
 def extract_scene_classes(manim_code: str):
     return SCENE_CLASS_RE.findall(manim_code)
 
@@ -52,16 +83,12 @@ def clean_manim_temp():
         shutil.rmtree(p, ignore_errors=True)
 
 
-def render_scene(scene_class_name: str):
-    """Render exactly ONE scene."""
+def render_scene(scene_class_name: str, scene_file: Path = None):
+    """Render exactly ONE scene from its own file."""
+    target = scene_file or ANIMATION_PY
     subprocess.run(
-        [
-            "manim",
-            "-ql",
-            str(ANIMATION_PY),
-            scene_class_name,
-        ],
-        cwd=PROJECT_ROOT,  # 🔥 CRITICAL: prevents app/media
+        ["manim", "-ql", str(target), scene_class_name],
+        cwd=PROJECT_ROOT,
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -106,26 +133,21 @@ def extract_scene_video(scene_class_name: str, scene_id: str, index: int):
     return dst
 
 
-def fix_manim_code_with_llm(manim_code: str, error: str) -> str:
-    prompt = f"""
-You are an expert Manim debugger.
+def fix_manim_code_with_llm(scene_code: str, error: str) -> str:
+    prompt = f"""You are an expert Manim debugger.
 
 Rules:
-- Fix ONLY runtime or syntax errors
-- Do NOT rename Scene classes
-- Do NOT add or remove scenes
-- Return ONLY valid Python code
-- Do NOT include markdown
-- Do NOT include explanations
+- Fix ONLY the runtime or syntax error shown
+- Do NOT rename the Scene class
+- Return ONLY valid Python code, no markdown fences, no explanation
 
 Broken Manim code:
-{manim_code}
+{scene_code}
 
 Error:
 {error}
 """
-    output = call_llm(prompt)
-    return output.strip()
+    return call_llm(prompt).strip()
 
 
 MAX_RETRIES = 2
@@ -188,6 +210,10 @@ def generate_manim(scenes, rag_context: str | None = None, language: str = "engl
                 print(f"⚠️ Scene count mismatch on attempt {attempt+1}: expected {len(scenes['scenes'])}, got {len(scene_classes)}")
         except Exception as e:
             print(f"⚠️ Error during Manim generation attempt {attempt+1}: {e}")
+            import traceback
+            traceback.print_exc()
+            if 'output' in locals():
+                print(f"DEBUG: Raw LLM output (first 1000 chars):\n{output[:1000]}")
 
     if len(scene_classes) != len(scenes["scenes"]):
         raise RuntimeError(
@@ -195,67 +221,69 @@ def generate_manim(scenes, rag_context: str | None = None, language: str = "engl
         )
 
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
-    ANIMATION_PY.write_text(manim_code)
+# Write the monolithic file (keep for reference/timestamps)
+    ANIMATION_PY.write_text(manim_code, encoding="utf-8")
 
-    # ---------- Timestamps ----------
     timestamps = extract_timestamps(manim_code)
     TIMESTAMPS_JSON.write_text(json.dumps(timestamps, indent=2))
 
-    final_scene_ids = []   # list of (disk_index, scene_id)
+    # Split into per-scene files
+    scene_files = split_manim_code_to_files(manim_code)
 
-    # ---------- Per-scene rendering ----------
+    final_scene_ids = []
+
     for idx, scene_class in enumerate(scene_classes, start=1):
         scene_id = f"scene_{idx}"
-        retries = 0
+        scene_file = scene_files.get(scene_class)
 
-        while retries <= MAX_RETRIES:
+        if not scene_file or not scene_file.exists():
+            print(f"⚠️ No file found for {scene_class} — inserting placeholder.")
+            generate_placeholder_video(scene_id, idx)
+            final_scene_ids.append((idx, scene_id))
+            continue
+
+        success = False
+        for attempt in range(1, MAX_RETRIES + 2):  # attempts 1..MAX_RETRIES+1
             try:
                 clean_manim_temp()
-                render_scene(scene_class)
+                render_scene(scene_class, scene_file)
                 extract_scene_video(scene_class, scene_id, idx)
                 final_scene_ids.append((idx, scene_id))
                 print(f"✅ Rendered {scene_class}")
+                success = True
                 break
 
             except (subprocess.CalledProcessError, RuntimeError) as e:
-
-                retries += 1
                 stderr_text = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
+                print(f"\n{'='*80}")
+                print(f"❌ Manim error in {scene_class} (attempt {attempt}/{MAX_RETRIES})")
+                print(f"{'-'*80}\n{stderr_text}\n{'='*80}")
 
-                print("\n" + "=" * 80)
-                print(f"❌ Manim error in {scene_class} (attempt {retries}/{MAX_RETRIES})")
-                print("-" * 80)
-                print(stderr_text)
-                print("=" * 80)
+                if attempt <= MAX_RETRIES:
+                    scene_code = scene_file.read_text(encoding="utf-8")
+                    fixed_code = fix_manim_code_with_llm(scene_code, stderr_text)
+                    fixed_code = _strip_code_fences(fixed_code)   # from json_safe
 
-                if retries <= MAX_RETRIES:
-                    fixed_code = fix_manim_code_with_llm(manim_code, stderr_text)
-
-                    print("\n🛠 LLM FIX APPLIED (preview):")
-                    print("-" * 80)
-                    print("\n".join(fixed_code.splitlines()[:30]))
-                    print("-" * 80)
-
-                    manim_code = fixed_code
-                    ANIMATION_PY.write_text(manim_code)
-                else:
-                    # All retries exhausted — generate a black placeholder so
-                    # downstream stages (TTS, mux, stitch) don't crash.
-                    print(f"⬛ Scene {scene_class} failed all retries — inserting placeholder.")
+                    # Validate before writing
                     try:
-                        generate_placeholder_video(scene_id, idx)
-                        final_scene_ids.append((idx, scene_id))
-                    except Exception as placeholder_err:
-                        print(f"⚠️  Could not generate placeholder for {scene_id}: {placeholder_err}")
-                    break
+                        compile(fixed_code, str(scene_file), "exec")
+                    except SyntaxError as se:
+                        print(f"⚠️ LLM fix has SyntaxError ({se}) — skipping write.")
+                        continue
 
+                    scene_file.write_text(fixed_code, encoding="utf-8")
+                    print(f"🛠 Fix written to {scene_file.name}")
+
+        if not success:
+            print(f"⬛ {scene_class} failed all retries — inserting placeholder.")
+            generate_placeholder_video(scene_id, idx)
+            final_scene_ids.append((idx, scene_id))
 
     return {
         "manim_code": manim_code,
         "timestamps": timestamps,
-        "scene_ids": final_scene_ids,   # list of (disk_index, scene_id)
+        "scene_ids": final_scene_ids,
     }
-
 
 def clean_manim_output():
     video_dir = Path("media/videos/animation/480p15")
