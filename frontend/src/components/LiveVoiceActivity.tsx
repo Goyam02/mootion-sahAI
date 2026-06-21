@@ -690,9 +690,6 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       setIsThinking(false);
       const errReply = "My teddy and I are dizzy! Can you simplify that more?";
       setMessages(p => [...p, { role: 'Mootion' as const, text: errReply }]);
-<<<<<<< HEAD
-      speakVoiceSynthesis(errReply);
-=======
     }
   };
 
@@ -753,7 +750,6 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       }
     } catch (err) {
       console.error("Error submitting explanation for analysis:", err);
->>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
     }
   };
 
@@ -763,13 +759,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
     setIsThinking(true);
 
     let predOutcome = "";
-<<<<<<< HEAD
-    if (activityName === 'Predict It' && predictionChoice) {
-      predOutcome = `Prediction choice: '${predictionChoice}', Actual outcome: 'Medium stone sank instantly while wooden block floated cleanly'.`;
-    }
-=======
     let finalEvalData: any = null;
->>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
 
     try {
       const resp = await fetch('/api/evaluate-session', {
@@ -808,9 +798,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       };
       finalEvalData = fallbackReport;
       setEvaluation(fallbackReport);
-<<<<<<< HEAD
       saveAttemptToStorage(finalTranscript, fallbackReport);
-=======
       saveAttemptToStorage(transcriptToUse, fallbackReport);
     }
 
@@ -835,7 +823,6 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       } else {
         submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId, finalEvalData?.gaps || null);
       }
->>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
     }
   };
 

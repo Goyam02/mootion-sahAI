@@ -68,7 +68,12 @@ class CostTracker:
         llm_cost = 0.0
         for call in self.llm_calls:
             model = call["model_name"].lower()
-            if "mini" in model:
+            if "claude" in model:
+                if "haiku" in model:
+                    rates = {"input_per_million": 0.80, "output_per_million": 4.00}
+                else:  # Default to Claude 3.5 Sonnet pricing
+                    rates = {"input_per_million": 3.00, "output_per_million": 15.00}
+            elif "mini" in model:
                 rates = LLM_PRICING["mini"]
             else:
                 rates = LLM_PRICING["standard"]
