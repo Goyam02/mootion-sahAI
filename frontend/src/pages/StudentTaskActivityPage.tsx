@@ -259,15 +259,7 @@ function VideoSimulationContent({ task }: { task: Task }) {
           ? 'h-full flex items-center justify-center' 
           : 'aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
       }`}>
-        {!fullscreenMode && (
-          <button 
-            onClick={() => setIsFullscreen(true)}
-            className="absolute top-3 right-3 bg-[#1800ad] text-white border-2 border-white hover:bg-[#14008a] hover:scale-105 transition-all p-2 rounded-full z-10 flex items-center justify-center shadow-lg"
-            title="Enter Full Screen"
-          >
-            <Maximize2 size={16} />
-          </button>
-        )}
+
         <video 
           className="w-full h-full object-contain md:object-cover" 
           controls 

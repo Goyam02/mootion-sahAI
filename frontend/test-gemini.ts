@@ -21,10 +21,10 @@ async function run() {
     }
 
     try {
-      session.send({ clientContent: { turns: [{ role: "user", parts: [{ text: "Hello again!" }] }] } });
-      console.log("Sent via send()");
+      session.sendClientContent({ turns: [{ role: "user", parts: [{ text: "Hello again!" }] }] });
+      console.log("Sent via sendClientContent()");
     } catch(e) {
-      console.error("send() error:", e);
+      console.error("sendClientContent() error:", e);
     }
     
     setTimeout(() => session.close(), 5000);
