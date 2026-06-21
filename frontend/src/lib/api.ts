@@ -24,7 +24,9 @@ async function performRequest(path: string, options: RequestInit, isRetry = fals
   }
 
   if (options.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
+    if (!(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
   }
 
   let response: Response;
@@ -119,11 +121,14 @@ async function request(path: string, options: RequestInit = {}) {
 
 export const api = {
   get: (path: string, options: RequestInit = {}) => request(path, { ...options, method: 'GET' }),
-  post: (path: string, body?: any, options: RequestInit = {}) => request(path, {
-    ...options,
-    method: 'POST',
-    body: body ? JSON.stringify(body) : undefined,
-  }),
+  post: (path: string, body?: any, options: RequestInit = {}) => {
+    const isFormData = body instanceof FormData;
+    return request(path, {
+      ...options,
+      method: 'POST',
+      body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
+    });
+  },
   put: (path: string, body?: any, options: RequestInit = {}) => request(path, {
     ...options,
     method: 'PUT',
