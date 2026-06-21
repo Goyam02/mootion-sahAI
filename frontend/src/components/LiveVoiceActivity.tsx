@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
-import { 
-  ArrowLeft, 
-  Mic, 
+import {
+  ArrowLeft,
+  Mic,
   Square,
   PlayCircle,
   Beaker,
@@ -49,10 +47,10 @@ function downsampleAndEncode(buffer: Float32Array, inputSampleRate: number, outp
   const sampleRateRatio = inputSampleRate / outputSampleRate;
   const newLength = Math.round(buffer.length / sampleRateRatio);
   const result = new Int16Array(newLength);
-  
+
   let offsetResult = 0;
   let offsetBuffer = 0;
-  
+
   while (offsetResult < result.length) {
     const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
     let accum = 0;
@@ -67,7 +65,7 @@ function downsampleAndEncode(buffer: Float32Array, inputSampleRate: number, outp
     offsetResult++;
     offsetBuffer = nextOffsetBuffer;
   }
-  
+
   let binary = '';
   const bytes = new Uint8Array(result.buffer);
   for (let i = 0; i < bytes.byteLength; i++) {
@@ -77,35 +75,22 @@ function downsampleAndEncode(buffer: Float32Array, inputSampleRate: number, outp
 }
 
 // --- Activity Base Component ---
-export function LiveVoiceActivity({ 
-  task, 
-  activityName, 
+export function LiveVoiceActivity({
+  task,
+  activityName,
   instructions,
-  onDone 
-}: { 
-  task: Task, 
-  activityName: string, 
+  onDone
+}: {
+  task: Task,
+  activityName: string,
   instructions: string,
-  onDone: () => void 
+  onDone: () => void
 }) {
   // Activity Specific Steps & Flow State
-  const navigate = useNavigate();
-  const [resolvedClassId, setResolvedClassId] = useState<string | null>(null);
-  const [resolvedChapterId, setResolvedChapterId] = useState<string | null>(null);
-  const [analyticsResult, setAnalyticsResult] = useState<{
-    concept_score_id: string;
-    clarity_score: number;
-    accuracy_score: number;
-    depth_score: number;
-    overall_score: number;
-    llm_feedback: string;
-    attempt_number: number;
-    created_at: string;
-  } | null>(null);
-
-  const fallbackTranscriptRef = useRef('');
-
-  const [activePlayState, setActivePlayState] = useState<'intro' | 'explaining' | 'grading'>('intro');
+  const [activePlayState, setActivePlayState] = useState<'intro' | 'prediction' | 'simulation' | 'explaining' | 'grading'>('intro');
+  const [predictionChoice, setPredictionChoice] = useState<'sink' | 'float' | null>(null);
+  const [simulationRunning, setSimulationRunning] = useState(false);
+  const [simulationPercentage, setSimulationPercentage] = useState(0);
 
   // General Audio / Mic State
   const [isRecording, setIsRecording] = useState(false);
@@ -130,11 +115,13 @@ export function LiveVoiceActivity({
     strengths: string[];
     gaps: string[];
     feedback: string;
+    predictionAccuracy?: 'Correct' | 'Incorrect' | 'Not Applicable';
   } | null>(null);
 
   // Audio queue & web references
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const playbackAudioContextRef = useRef<AudioContext | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const mstreamRef = useRef<MediaStream | null>(null);
@@ -146,6 +133,7 @@ export function LiveVoiceActivity({
   const questionsAnsweredRef = useRef(0);
   const messagesRef = useRef<{ role: 'student' | 'Mootion', text: string }[]>([]);
   const nextStartTimeRef = useRef(0);
+  const activeAudioNodesRef = useRef(0);
 
   // Keep references in sync with active React state to avoid closure errors in callbacks
   useEffect(() => {
@@ -166,79 +154,35 @@ export function LiveVoiceActivity({
 
   const audioQueue = useRef<Float32Array[]>([]);
   const isPlayingQueue = useRef(false);
+  const isModelTurnCompleteRef = useRef(false);
 
-  // Get dynamic local summary for Explain It / topics
-  const getSyllabusSummary = () => {
-    if (task.subject === 'Physics') {
-      if (task.topic.toLowerCase().includes('buoyancy')) {
-        return "Floating and Sinking principles, Archimedes' law of fluid upward upthrust, relative fluid densities, and gravitational pull balances on immersed objects.";
-      }
-      return "Kinetic motion vectors, speed velocity equations, Uniform acceleration multipliers, Newton's mechanical forces, and air resistance friction formulas.";
-    }
-    if (task.subject === 'Chemistry') {
-      return "Subatomic orbital balances, atomic nucleus isotopes, Electron group trends, chemical element reaction combinations, balanced redox formulations, and acid-base pH color indicators.";
-    }
-    return "Polynomial factors, quadratic complex root grids, Unit circles trigonometry identities, differential derivative limits, or cell double-helix organelle mutations.";
-  };
+  const hasGreetedRef = useRef(false);
 
   // Init default introduction text based on activity mode
   useEffect(() => {
+    if (hasGreetedRef.current) return;
+    hasGreetedRef.current = true;
+
     let initialGreeting = "";
-    setAnalyticsResult(null);
     if (activityName === 'Explain It') {
-      initialGreeting = `Teacher! I'm so excited to learn. Can you explain ${task.topic} to me like I'm a 10-year-old? I prepared some building blocks!`;
+      initialGreeting = `Hey there! Whenever you're ready, tell me a bit about ${task.topic}. I'm all ears, and then we can explore it together!`;
       setActivePlayState('explaining');
+    } else if (activityName === 'Predict It') {
+      initialGreeting = `Today we're predicting: Will a massive 5kg solid metal ball sink or float inside full fresh water? What's your prediction? Select SINK or FLOAT below so we can start!`;
+      setActivePlayState('prediction');
     } else if (activityName === 'Spot It') {
-      initialGreeting = `Teacher, look! I spotted a riddle in real life: "A giant ocean container ship of 100,000 tons floats perfectly, but my tiny paperclip sinks instantly." Why does this happen? Explain the physics forces to me!`;
+      initialGreeting = `Consider this phenomenon: "A giant ocean container ship of 100,000 tons floats perfectly, but a tiny paperclip sinks instantly." Why does this happen? Explain the physics forces to me.`;
       setActivePlayState('explaining');
     } else if (activityName === 'Connect It') {
-      initialGreeting = `Let's connect blocks! I have three cards for us: Upthrust Force, Liquid Density, and Immersed Volume. Can you explain how they all connect together physically?`;
+      initialGreeting = `Let's connect blocks. I have three cards for us: Upthrust Force, Liquid Density, and Immersed Volume. Can you explain how they all connect together physically?`;
       setActivePlayState('explaining');
     }
 
     setMessages([
       { role: 'Mootion', text: initialGreeting }
     ]);
+    speakVoiceSynthesis(initialGreeting);
   }, [activityName, task]);
-
-  useEffect(() => {
-    async function fetchClassAndChapter() {
-      try {
-        const classes = await api.get('/students/classes');
-        if (classes && classes.length > 0) {
-          const firstClass = classes[0];
-          const classId = firstClass.class_id || firstClass.id;
-          setResolvedClassId(classId);
-
-          const chapters = await api.get(`/students/classes/${classId}/chapters`);
-          if (chapters && chapters.length > 0) {
-            let matchedChapter = chapters.find((ch: any) => {
-              if (task.id && task.id.includes('_c')) {
-                const parts = task.id.split('_');
-                const cPart = parts.find(p => p.startsWith('c'));
-                if (cPart) {
-                  const num = cPart.replace('c', '');
-                  return String(ch.chapter_number) === num || ch.chapter_id?.includes(cPart);
-                }
-              }
-              return false;
-            });
-            if (!matchedChapter) {
-              matchedChapter = chapters.find((ch: any) => 
-                ch.title.toLowerCase().includes(task.topic.toLowerCase()) ||
-                task.topic.toLowerCase().includes(ch.title.toLowerCase())
-              );
-            }
-            if (!matchedChapter) matchedChapter = chapters[0];
-            setResolvedChapterId(matchedChapter.chapter_id || matchedChapter.id);
-          }
-        }
-      } catch (err) {
-        console.error("Error resolving class/chapter IDs:", err);
-      }
-    }
-    fetchClassAndChapter();
-  }, [task]);
 
   // Handle scrolling of captions
   useEffect(() => {
@@ -253,6 +197,9 @@ export function LiveVoiceActivity({
   }, []);
 
   const stopAllAudioDevices = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     try {
       if (wsRef.current) {
         wsRef.current.close();
@@ -263,7 +210,10 @@ export function LiveVoiceActivity({
         mstreamRef.current.getTracks().forEach(track => track.stop());
       }
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
+        audioContextRef.current.close().catch(() => { });
+      }
+      if (playbackAudioContextRef.current && playbackAudioContextRef.current.state !== 'closed') {
+        playbackAudioContextRef.current.close().catch(() => { });
       }
       if (recognitionRef.current) {
         recognitionRef.current.stop();
@@ -273,95 +223,152 @@ export function LiveVoiceActivity({
     }
   };
 
+  const speakVoiceSynthesis = async (text: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log("Skipping API TTS because dynamic Live WebSocket stream is open.");
+      return;
+    }
 
-
-  // Play incoming Base64 PCM audio chunk
-  const playReturnedAudio = (base64Audio: string) => {
     try {
-      const binaryString = atob(base64Audio);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (data.audio) {
+        isModelTurnCompleteRef.current = true;
+        playReturnedAudio(data.audio);
+        return;
       }
-      const int16Array = new Int16Array(bytes.buffer);
-      
-      const float32Array = new Float32Array(int16Array.length);
-      for (let i = 0; i < int16Array.length; i++) {
-        float32Array[i] = int16Array[i] / 32768.0;
+    } catch (e) {
+      console.error("Failed TTS generation from API", e);
+    }
+
+    // Fallback to browser synthesis
+    speakBrowserTTS(text);
+  };
+
+  // Speaks using browser speech synthesis for captions + voice sync (fallback / high fidelity)
+  const speakBrowserTTS = (text: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log("Skipping browser speech synthesis because dynamic Live WebSocket stream is open.");
+      return;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onstart = () => setAiIsSpeaking(true);
+      utterance.onend = () => setAiIsSpeaking(false);
+      utterance.onerror = () => setAiIsSpeaking(false);
+
+      // Select a natural, premium sounding English voice for a realistic human feel
+      const voices = window.speechSynthesis.getVoices();
+      const preferredKeywords = ['google us english', 'natural', 'premium', 'en-us', 'en-gb', 'samantha', 'daniel'];
+      let selectedVoice = null;
+      for (const keyword of preferredKeywords) {
+        selectedVoice = voices.find(v => v.name.toLowerCase().includes(keyword) && v.lang.toLowerCase().includes('en'));
+        if (selectedVoice) break;
+      }
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => v.lang.toLowerCase().includes('en'));
+      }
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
       }
 
-      audioQueue.current.push(float32Array);
-      if (!isPlayingQueue.current) {
-        playNextPCMChunk();
-      }
-    } catch (err) {
-      console.error("PCM decoding failed", err);
+      utterance.pitch = 1.02; // Warm, natural human pitch (reverted from 1.35 robotic chipmunk pitch)
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
     }
   };
 
-  const playNextPCMChunk = () => {
-    if (audioQueue.current.length === 0) {
-      isPlayingQueue.current = false;
-      setAiIsSpeaking(false);
-      
-      // Commit Mootion's live model streaming speech transcript to dialogue log when they finish talking
-      if (liveModelTranscriptRef.current) {
-        const text = liveModelTranscriptRef.current;
-        setMessages(prev => [...prev, { role: 'Mootion', text }]);
-        updateLiveModelTranscript('');
-        
-        const nextCount = questionsAnsweredRef.current + 1;
-        setQuestionsAnswered(nextCount);
-        
-        const isFinished = nextCount >= maxQuestions;
-        if (isFinished) {
-          setTimeout(() => {
-            triggerGradingEvaluation([...messagesRef.current, { role: 'Mootion', text }]);
-          }, 1500);
-        }
-      }
-      return;
+  // Play incoming Base64 PCM audio chunk safely
+  const processAudioQueue = async () => {
+    if (!playbackAudioContextRef.current) {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      playbackAudioContextRef.current = new AudioCtx({ sampleRate: 24000 });
     }
 
-    isPlayingQueue.current = true;
-    setAiIsSpeaking(true);
-
-    const chunk = audioQueue.current.shift()!;
-    if (!audioContextRef.current) {
-      isPlayingQueue.current = false;
-      setAiIsSpeaking(false);
-      return;
+    const playCtx = playbackAudioContextRef.current;
+    if (playCtx.state === 'suspended') {
+      try { await playCtx.resume(); } catch (e) { }
     }
 
-    try {
-      // Create a 24000Hz (24kHz) sample rate buffer for high-fidelity native voice output
-      const audioBuffer = audioContextRef.current.createBuffer(1, chunk.length, 24000);
+    const currentTime = playCtx.currentTime;
+
+    // If the next start time is in the past, or too close, align to current time (with larger buffer)
+    if (nextStartTimeRef.current < currentTime) {
+      nextStartTimeRef.current = currentTime + 0.2; // 200ms buffer to prevent starvation jitter
+    }
+
+    while (audioQueue.current.length > 0) {
+      const chunk = audioQueue.current.shift()!;
+
+      const audioBuffer = playCtx.createBuffer(1, chunk.length, 24000);
       audioBuffer.getChannelData(0).set(chunk);
 
-      const bufferSource = audioContextRef.current.createBufferSource();
+      const bufferSource = playCtx.createBufferSource();
       bufferSource.buffer = audioBuffer;
-      bufferSource.connect(audioContextRef.current.destination);
-
-      // Perform jitter-free consecutive audio scheduling
-      const currentTime = audioContextRef.current.currentTime;
-      if (nextStartTimeRef.current < currentTime) {
-        nextStartTimeRef.current = currentTime; // Align to now if queue was silent
-      }
-
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(e => console.warn("Failed to resume AudioContext", e));
-      }
+      bufferSource.connect(playCtx.destination);
 
       bufferSource.start(nextStartTimeRef.current);
       nextStartTimeRef.current += audioBuffer.duration;
 
+      activeAudioNodesRef.current += 1;
+
       bufferSource.onended = () => {
-        playNextPCMChunk();
+        activeAudioNodesRef.current -= 1;
+        // Only trigger completion logic when ALL playing nodes have finished, queue is empty, and turn is complete
+        if (activeAudioNodesRef.current === 0 && audioQueue.current.length === 0 && isModelTurnCompleteRef.current) {
+          isPlayingQueue.current = false;
+          setAiIsSpeaking(false);
+          isModelTurnCompleteRef.current = false; // reset for next turn
+
+          if (liveModelTranscriptRef.current) {
+            const text = liveModelTranscriptRef.current;
+            setMessages(prev => [...prev, { role: 'Mootion', text }]);
+            updateLiveModelTranscript('');
+
+            const nextCount = questionsAnsweredRef.current + 1;
+            setQuestionsAnswered(nextCount);
+
+            const isFinished = nextCount >= maxQuestions;
+            if (isFinished) {
+              setTimeout(() => {
+                triggerGradingEvaluation([...messagesRef.current, { role: 'Mootion', text }]);
+              }, 1500);
+            }
+          }
+        }
       };
-    } catch (e) {
-      console.error("PCM segment failed, continuing...", e);
-      playNextPCMChunk();
+    }
+  };
+
+  const playReturnedAudio = (base64Audio: string) => {
+    try {
+      const binaryString = atob(base64Audio);
+      const len = binaryString.length;
+      const samplesCount = Math.floor(len / 2);
+      const float32Array = new Float32Array(samplesCount);
+
+      for (let i = 0; i < samplesCount; i++) {
+        const low = binaryString.charCodeAt(i * 2);
+        const high = binaryString.charCodeAt(i * 2 + 1);
+        let val = low | (high << 8);
+        if (val & 0x8000) {
+          val |= ~0xffff; // Sign extension
+        }
+        float32Array[i] = val / 32768.0;
+      }
+
+      audioQueue.current.push(float32Array);
+      isPlayingQueue.current = true;
+      setAiIsSpeaking(true);
+
+      processAudioQueue();
+    } catch (err) {
+      console.error("PCM decoding failed", err);
     }
   };
 
@@ -373,11 +380,25 @@ export function LiveVoiceActivity({
     }
 
     try {
-      // 1. Get micro input
+      // Get microphone device stream
       const mstream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mstreamRef.current = mstream;
 
-      // 2. Setup WebSocket Live Connection passing activity details as query parameters
+      // Establish separate input (microphone) context and output (24kHz playback) context proactively
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const actx = new AudioCtx();
+      if (actx.state === 'suspended') {
+        await actx.resume();
+      }
+      audioContextRef.current = actx;
+
+      const playCtx = new AudioCtx({ sampleRate: 24000 });
+      if (playCtx.state === 'suspended') {
+        await playCtx.resume();
+      }
+      playbackAudioContextRef.current = playCtx;
+
+      // Setup WebSocket Live Connection passing activity details as query parameters
       const isSec = window.location.protocol === 'https:';
       const wsUrl = `${isSec ? 'wss' : 'ws'}://${window.location.host}/live?activity=${encodeURIComponent(activityName)}&topic=${encodeURIComponent(task.topic)}&subject=${encodeURIComponent(task.subject)}`;
       const ws = new WebSocket(wsUrl);
@@ -391,17 +412,40 @@ export function LiveVoiceActivity({
       ws.onmessage = (event) => {
         try {
           const parsed = JSON.parse(event.data);
-          console.log("[LiveVoiceActivity] Received msg from server proxy. Keys:", Object.keys(parsed));
-          
+
           if (parsed.audio) {
             playReturnedAudio(parsed.audio);
           }
-          
+
           if (parsed.interrupted) {
             audioQueue.current = [];
             isPlayingQueue.current = false;
             setAiIsSpeaking(false);
+            isModelTurnCompleteRef.current = false; // Reset
             updateLiveModelTranscript('');
+          }
+
+          if (parsed.turnComplete) {
+            isModelTurnCompleteRef.current = true;
+            // In case we underran AND there is no future chunks AND we're already idle...
+            // that means onended fired BEFORE turnComplete arrived!
+            if (activeAudioNodesRef.current === 0 && audioQueue.current.length === 0) {
+              isPlayingQueue.current = false;
+              setAiIsSpeaking(false);
+              isModelTurnCompleteRef.current = false;
+
+              if (liveModelTranscriptRef.current) {
+                const text = liveModelTranscriptRef.current;
+                setMessages(prev => [...prev, { role: 'Mootion', text }]);
+                updateLiveModelTranscript('');
+
+                const nextCount = questionsAnsweredRef.current + 1;
+                setQuestionsAnswered(nextCount);
+                if (nextCount >= maxQuestions) {
+                  setTimeout(() => { triggerGradingEvaluation([...messagesRef.current, { role: 'Mootion', text }]); }, 1500);
+                }
+              }
+            }
           }
 
           if (parsed.userTranscript) {
@@ -428,12 +472,7 @@ export function LiveVoiceActivity({
         setIsWebSocketActive(false);
       };
 
-      // 3. Bind AudioContext (native sample rate) and downsample in processor to 16kHz Mono PCM
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const actx = new AudioCtx();
-      audioContextRef.current = actx;
-      nextStartTimeRef.current = 0;
-
+      // Set up client-side microphone streaming processor
       const source = actx.createMediaStreamSource(mstream);
       sourceRef.current = source;
 
@@ -451,49 +490,76 @@ export function LiveVoiceActivity({
         ws.send(JSON.stringify({ audio: base64PCM }));
       };
 
-      // Browser-native SpeechRecognition Fallback
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-        
-        recognition.onresult = (event: any) => {
-          let interimTranscript = '';
-          let finalTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
+      // Set up proactive local speech recognition fallback
+      const SpeechReg = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechReg) {
+        const recog = new SpeechReg();
+        recog.continuous = true;
+        recog.interimResults = true;
+        recog.lang = 'en-US';
+
+        recog.onresult = (e: any) => {
+          let interimTrans = '';
+          let finalTrans = '';
+          for (let i = e.resultIndex; i < e.results.length; ++i) {
+            if (e.results[i].isFinal) {
+              finalTrans += e.results[i][0].transcript;
             } else {
-              interimTranscript += event.results[i][0].transcript;
+              interimTrans += e.results[i][0].transcript;
             }
           }
-          if (finalTranscript) {
-            fallbackTranscriptRef.current = (fallbackTranscriptRef.current + " " + finalTranscript).trim();
+          const currentText = (finalTrans || interimTrans).trim();
+          if (currentText) {
+            // Only capture local fallback transcripts if WebSockets is inactive/not sending live transcripts
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+              setLiveTranscript(currentText);
+            }
           }
         };
 
-        recognition.onend = () => {
-          console.log("SpeechRecognition fallback ended");
+        recog.onerror = (e: any) => {
+          console.warn("Local speech recognition error:", e);
         };
 
-        recognition.start();
-        recognitionRef.current = recognition;
+        recognitionRef.current = recog;
+        recog.start();
       }
 
       setIsRecording(true);
     } catch (err) {
       console.warn("Hardware mic blocked or unavailable", err);
-      // Fallback: Let speech caption typing text handle input
+
+      // Fallback: Set up proactive local speech recognition anyway if audio context fails
+      const SpeechReg = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechReg) {
+        const recog = new SpeechReg();
+        recog.continuous = true;
+        recog.interimResults = true;
+        recog.lang = 'en-US';
+        recog.onresult = (e: any) => {
+          let interimTrans = '';
+          let finalTrans = '';
+          for (let i = e.resultIndex; i < e.results.length; ++i) {
+            if (e.results[i].isFinal) {
+              finalTrans += e.results[i][0].transcript;
+            } else {
+              interimTrans += e.results[i][0].transcript;
+            }
+          }
+          setLiveTranscript((finalTrans || interimTrans).trim());
+        };
+        recognitionRef.current = recog;
+        recog.start();
+      }
+
       setIsRecording(true);
     }
   };
 
   const stopRecordingVoice = () => {
     setIsRecording(false);
-    
-    // Stop Microphone device recording and close websocket connection
+
+    // Stop Microphone device recording and close connections safely
     if (scriptProcessorRef.current) {
       scriptProcessorRef.current.disconnect();
       scriptProcessorRef.current = null;
@@ -507,13 +573,19 @@ export function LiveVoiceActivity({
       mstreamRef.current = null;
     }
     if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current.close().catch(() => { });
       audioContextRef.current = null;
+    }
+    if (playbackAudioContextRef.current) {
+      playbackAudioContextRef.current.close().catch(() => { });
+      playbackAudioContextRef.current = null;
     }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
+
+    const wasWebSocketActive = isWebSocketActive;
     setIsWebSocketActive(false);
 
     if (recognitionRef.current) {
@@ -522,15 +594,16 @@ export function LiveVoiceActivity({
     }
 
     // Submit any remaining student live speech transcript
-    let finalStudentText = liveTranscript.trim();
-    if (!finalStudentText && fallbackTranscriptRef.current.trim()) {
-      finalStudentText = fallbackTranscriptRef.current.trim();
-    }
-    fallbackTranscriptRef.current = '';
-
-    if (finalStudentText) {
-      setMessages(prev => [...prev, { role: 'student', text: finalStudentText }]);
+    if (liveTranscript.trim()) {
+      const textToSubmit = liveTranscript.trim();
       setLiveTranscript('');
+
+      if (!wasWebSocketActive) {
+        // Submit using API chat fallback so Mootion answers back and speaks out loud
+        submitVoiceTranscript(textToSubmit);
+      } else {
+        setMessages(prev => [...prev, { role: 'student', text: textToSubmit }]);
+      }
     }
 
     // Submit any remaining model live speech transcript
@@ -571,18 +644,26 @@ export function LiveVoiceActivity({
     const isCurrentStepFinished = (questionsAnswered + 1) >= maxQuestions;
 
     try {
-      // Build clever context prompting for Mootion child dialog simulation
+      // Build clever context prompting for tutor simulation
       const promptText = `Dialogue History:
 ${messages.map(m => `${m.role}: ${m.text}`).join('\n')}
 Student: ${text}
 
-You are Mootion, a curious 10-year-old child who loves building blocks and exploring science.
-Explain mode: "${activityName}" on subject topic "${task.topic}" under class "${task.subject}".
-${activityName === 'Explain It' ? "Act completely amazed! Ask a naive, slightly innocent but clever question to challenge the student's physics/concept statement." : ""}
-${activityName === 'Spot It' ? "Ask one curious naive question about flotation balances and forces." : ""}
-${activityName === 'Connect It' ? "Acknowledge their explanation. Ask one final question tying density or gravity together." : ""}
+You are an expert, empathetic, and highly engaging tutor. Your goal is to help the user learn and deeply understand: "${task.topic}" under class "${task.subject}".
+Follow these core behaviors:
+1. Be Conversational & Natural: Speak like a friendly human mentor.
+2. Socratic Method: Ask guiding questions instead of just giving answers.
+3. Bite-Sized Information: Ask ONLY ONE question at a time to check understanding. NEVER ask multiple consecutive questions!
+4. Adapt to the User: Simplify if they struggle, advance if they understand.
+5. Use Vivid Analogies.
 
-Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not repeat greeting messages. Keep response highly concise.`;
+Activity: ${activityName}
+${activityName === 'Explain It' ? "Follow up on the student's explanation with exactly ONE Socratic question to probe their logic." : ""}
+${activityName === 'Predict It' ? "Acknowledge the simulation outcome. Ask EXACTLY ONE follow-up question about why water density differences make steel float or sink." : ""}
+${activityName === 'Spot It' ? "Ask EXACTLY ONE question about flotation balances and forces." : ""}
+${activityName === 'Connect It' ? "Acknowledge their explanation. Ask EXACTLY ONE question tying density or gravity together." : ""}
+
+Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer to yourself as an AI.`;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -591,11 +672,12 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
       });
 
       const data = await response.json();
-      const mootionReply = data.text || "Wow! My brain is spinny but I want to know more! Explain that again?";
+      const mootionReply = data.text || "Could you simplify that and explain why it happens?";
 
       setMessages(p => [...p, { role: 'Mootion' as const, text: mootionReply }]);
       setQuestionsAnswered(q => q + 1);
       setIsThinking(false);
+      speakVoiceSynthesis(mootionReply);
 
       // If we reached the end of the activity turns, trigger dynamic evaluation immediately
       if (isCurrentStepFinished) {
@@ -608,61 +690,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
       setIsThinking(false);
       const errReply = "My teddy and I are dizzy! Can you simplify that more?";
       setMessages(p => [...p, { role: 'Mootion' as const, text: errReply }]);
-    }
-  };
-
-  const submitExplanationForAnalysis = async (transcriptText: string, chapterId: string | null, classId: string | null) => {
-    try {
-      let finalClassId = classId || resolvedClassId;
-      let finalChapterId = chapterId || resolvedChapterId;
-
-      if (!finalClassId || !finalChapterId) {
-        const classes = await api.get('/students/classes');
-        if (classes && classes.length > 0) {
-          const firstClass = classes[0];
-          finalClassId = finalClassId || firstClass.class_id || firstClass.id;
-
-          const chapters = await api.get(`/students/classes/${finalClassId}/chapters`);
-          if (chapters && chapters.length > 0) {
-            let matchedChapter = chapters.find((ch: any) => {
-              if (task.id && task.id.includes('_c')) {
-                const parts = task.id.split('_');
-                const cPart = parts.find(p => p.startsWith('c'));
-                if (cPart) {
-                  const num = cPart.replace('c', '');
-                  return String(ch.chapter_number) === num || ch.chapter_id?.includes(cPart);
-                }
-              }
-              return false;
-            });
-            if (!matchedChapter) {
-              matchedChapter = chapters.find((ch: any) => 
-                ch.title.toLowerCase().includes(task.topic.toLowerCase()) ||
-                task.topic.toLowerCase().includes(ch.title.toLowerCase())
-              );
-            }
-            if (!matchedChapter) matchedChapter = chapters[0];
-            finalChapterId = finalChapterId || matchedChapter.chapter_id || matchedChapter.id;
-          }
-        }
-      }
-
-      if (!finalClassId || !finalChapterId) {
-        console.warn("Could not submit explanation: classroom or chapter ID unresolved.");
-        return;
-      }
-
-      const response = await api.post('/api/analytics/submit-explanation', {
-        transcript: transcriptText || "No student explanation provided.",
-        chapter_id: finalChapterId,
-        class_id: finalClassId
-      });
-
-      if (response && response.concept_score_id) {
-        setAnalyticsResult(response);
-      }
-    } catch (err) {
-      console.error("Error submitting explanation for analysis:", err);
+      speakVoiceSynthesis(errReply);
     }
   };
 
@@ -671,31 +699,10 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
     setActivePlayState('grading');
     setIsThinking(true);
 
-    let transcriptToUse = [...finalTranscript];
-    if (isRecording) {
-      setIsRecording(false);
-      if (scriptProcessorRef.current) { scriptProcessorRef.current.disconnect(); scriptProcessorRef.current = null; }
-      if (sourceRef.current) { sourceRef.current.disconnect(); sourceRef.current = null; }
-      if (mstreamRef.current) { mstreamRef.current.getTracks().forEach(track => track.stop()); mstreamRef.current = null; }
-      if (audioContextRef.current) { audioContextRef.current.close().catch(() => {}); audioContextRef.current = null; }
-      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-      setIsWebSocketActive(false);
-      if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
-
-      let finalStudentText = liveTranscript.trim();
-      if (!finalStudentText && fallbackTranscriptRef.current.trim()) {
-        finalStudentText = fallbackTranscriptRef.current.trim();
-      }
-      fallbackTranscriptRef.current = '';
-
-      if (finalStudentText) {
-        transcriptToUse.push({ role: 'student', text: finalStudentText });
-        setMessages(prev => [...prev, { role: 'student', text: finalStudentText }]);
-        setLiveTranscript('');
-      }
-    }
-
     let predOutcome = "";
+    if (activityName === 'Predict It' && predictionChoice) {
+      predOutcome = `Prediction choice: '${predictionChoice}', Actual outcome: 'Medium stone sank instantly while wooden block floated cleanly'.`;
+    }
 
     try {
       const resp = await fetch('/api/evaluate-session', {
@@ -704,7 +711,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
         body: JSON.stringify({
           task,
           activityName,
-          transcript: transcriptToUse,
+          transcript: finalTranscript,
           predictionOutcome: predOutcome || undefined
         })
       });
@@ -714,11 +721,11 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
       setIsThinking(false);
 
       if (evalData.feedback) {
-        setAiIsSpeaking(false);
+        speakVoiceSynthesis(evalData.feedback);
       }
 
       // Save Attempt to localStorage history separating each attempt
-      saveAttemptToStorage(transcriptToUse, evalData);
+      saveAttemptToStorage(finalTranscript, evalData);
     } catch (e) {
       console.error("Evaluation generation error", e);
       setIsThinking(false);
@@ -728,44 +735,22 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
         reasoningScore: 85,
         strengths: ["Great descriptions of gravity balances", "Clearly defined buoyant force upward vectors"],
         gaps: ["Can further describe Archimedes' specific relative mass density formulas"],
-        feedback: "Wow! Thank you so much for teaching me! I feel super smart now. Let's study more building blocks later!",
+        feedback: "Great job! Your explanation of the concepts was very clear. Let's tackle more challenging topics next time.",
+        predictionAccuracy: activityName === 'Predict It' ? (predictionChoice === 'sink' ? 'Correct' as const : 'Incorrect' as const) : undefined
       };
       setEvaluation(fallbackReport);
-      saveAttemptToStorage(transcriptToUse, fallbackReport);
-    }
-
-    const studentText = transcriptToUse
-      .filter(m => m.role === 'student')
-      .map(m => m.text)
-      .join(' ')
-      .trim();
-    if (studentText) {
-      const dbTask = (task as any).dbTask;
-      if (dbTask) {
-        const classId = dbTask.class_id;
-        const assignmentId = dbTask.assignment_id;
-        api.post(`/students/classes/${classId}/assignments/${assignmentId}/submit`, {
-          transcription_text: studentText,
-          language: 'english'
-        }).then(res => {
-          console.log("Interactive assignment submitted successfully:", res);
-        }).catch(err => {
-          console.error("Failed to submit interactive assignment:", err);
-        });
-      } else {
-        submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId);
-      }
+      saveAttemptToStorage(finalTranscript, fallbackReport);
     }
   };
 
   const saveAttemptToStorage = (
-    finalTranscript: { role: 'student' | 'Mootion'; text: string }[], 
+    finalTranscript: { role: 'student' | 'Mootion'; text: string }[],
     evalResult: any
   ) => {
     try {
       const historyStr = localStorage.getItem('mootion_attempt_history') || '[]';
       const history = JSON.parse(historyStr);
-      
+
       const newAttempt = {
         id: `att_${Date.now()}`,
         taskId: task.id,
@@ -778,7 +763,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
           understanding: evalResult.understandingScore || 80,
           expression: evalResult.expressionScore || evalResult.reasoningScore || 80,
           reasoning: evalResult.reasoningScore || 80,
-          accuracy: 'Not Applicable'
+          accuracy: evalResult.predictionAccuracy || 'Not Applicable'
         },
         strengths: evalResult.strengths || ["Great concept logic"],
         gaps: evalResult.gaps || ["No gaps spotted"],
@@ -797,7 +782,85 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
     }
   };
 
+  const startSimulationPlayback = () => {
+    setSimulationRunning(true);
+    setSimulationPercentage(0);
 
+    const interval = setInterval(() => {
+      setSimulationPercentage(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setSimulationRunning(false);
+          setActivePlayState('explaining');
+
+          let alertResponse = `Amazing! The simulation played. Notice that the solid stone sank entirely to the bottom and displaced water, while the wood block floats nicely at the surface! Why did this happen? Explain the force balance to me!`;
+          setMessages(p => [...p, { role: 'Mootion', text: alertResponse }]);
+          speakVoiceSynthesis(alertResponse);
+          return 100;
+        }
+        return prev + 2.5;
+      });
+    }, 80);
+  };
+
+  const renderPredictSimulationBox = () => {
+    return (
+      <div className="w-full max-w-xl bg-white rounded-3xl p-6 border-2 border-[#1800ad]/10 shadow-inner flex flex-col items-center gap-4 animate-fade-in my-4 relative">
+        <h4 className="font-bold text-center text-[#1800ad] text-base uppercase tracking-wider">
+          Double-tap to Run Buoyancy Simulation
+        </h4>
+
+        {/* SVG visual bucket / container */}
+        <div className="relative w-full h-44 bg-blue-50/50 rounded-2xl overflow-hidden border-2 border-blue-200 flex items-center justify-center">
+          {/* Water fill line */}
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-blue-300/60 transition-all duration-300"
+            style={{ height: simulationRunning ? '65%' : '50%' }}
+          >
+            {/* Animated bubbles and ripple wave lines */}
+            <div className="absolute top-0 inset-x-0 h-2 bg-blue-400/80 animate-pulse"></div>
+          </div>
+
+          {/* Sinking Stone sphere */}
+          <div
+            className="absolute bg-neutral-500 text-white text-[9px] font-black w-10 h-10 rounded-full flex items-center justify-center border border-neutral-600 transition-all duration-500 ease-out z-10"
+            style={{
+              top: simulationRunning ? `${15 + (simulationPercentage * 0.55)}px` : '15px',
+              left: '30%',
+              transform: 'translateX(-50%)'
+            }}
+          >
+            5kg Metal
+          </div>
+
+          {/* Floating Pine Wooden cube */}
+          <div
+            className="absolute bg-amber-700 text-white text-[9px] font-black w-10 h-10 flex items-center justify-center border border-amber-800 transition-all duration-500 ease-out z-10"
+            style={{
+              top: simulationRunning ? `${50 + (simulationPercentage * 0.15)}px` : '15px',
+              left: '70%',
+              transform: 'translateX(-50%)'
+            }}
+          >
+            5kg Wood
+          </div>
+
+          <span className="absolute bottom-2 font-mono text-[10px] text-[#1800ad]/40 z-10 font-bold uppercase tracking-widest">
+            {simulationRunning ? `RUNNING LIFE CYCLE [${Math.round(simulationPercentage)}%]` : "IDLE - READY"}
+          </span>
+        </div>
+
+        <button
+          onClick={startSimulationPlayback}
+          disabled={simulationRunning}
+          className="px-6 py-2 bg-[#1800ad] hover:bg-[#1800ad]/90 text-white rounded-full font-bold text-xs transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center gap-1.5 shadow"
+        >
+          <PlayCircle size={14} className="stroke-[3]" />
+          Run Life Cycle
+        </button>
+      </div>
+    );
+  };
 
   const renderSpotItContextCard = () => {
     return (
@@ -811,7 +874,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
             "An iron cargo battleship weighing 100,000 tons floats effortlessly in deep seawater, yet a minute 1-gram needle slips straight to the ocean floor."
           </h4>
           <p className="text-xs text-[#1800ad]/70 mt-1.5 font-medium">
-            Explain which properties of displaced relative mass volumes account for this. Teach Mootion!
+            Explain which properties of displaced relative mass volumes account for this. Teach the AI Tutor!
           </p>
         </div>
       </div>
@@ -830,7 +893,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
         {cards.map((c, i) => (
           <div key={i} className="flex-1 bg-white border border-[#1800ad]/10 rounded-xl p-4 flex flex-col justify-between hover:shadow transition-shadow">
             <div className="flex justify-between items-center mb-1">
-              <span className="font-extrabold text-[10px] text-[#1800ad]/60 uppercase tracking-wide font-mono">Dimension {i+1}</span>
+              <span className="font-extrabold text-[10px] text-[#1800ad]/60 uppercase tracking-wide font-mono">Dimension {i + 1}</span>
               <div className="text-[#1800ad]/80">{c.icon}</div>
             </div>
             <h5 className="font-bold text-sm text-[#1800ad]">{c.t}</h5>
@@ -844,42 +907,145 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
   if (activePlayState === 'grading' || evaluation) {
     if (isThinking) {
       return (
-        <div className="w-full bg-[#f6f4ee] rounded-[32px] py-12 px-8 flex flex-col items-center justify-center border-2 border-[#1800ad]/10 shadow-sm mx-auto max-w-xl my-8 h-fit">
-          <div className="flex flex-col items-center gap-5">
-            <div className="w-16 h-16 border-4 border-[#1800ad]/20 border-t-[#1800ad] rounded-full animate-spin"></div>
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <h2 className="text-lg font-black text-[#1800ad] animate-pulse">Analyzing Teacher-Student Transcript...</h2>
-              <p className="text-[10px] font-bold text-[#1800ad]/60 uppercase tracking-widest">Grading concepts, strengths and learning gaps</p>
+        <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[500px]">
+          <div className="flex flex-col items-center gap-5 justify-center relative z-10 text-[#f6f4ee]">
+            <div className="relative flex items-center justify-center">
+              <span className="absolute animate-ping w-16 h-16 rounded-full bg-white/20"></span>
+              <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
             </div>
+            <h2 className="text-2xl font-black tracking-wide animate-pulse">Analyzing Teacher-Student Transcript...</h2>
+            <p className="text-white/60 text-xs font-semibold uppercase tracking-widest">Grading concepts, strengths and learning gaps</p>
           </div>
         </div>
       );
     }
 
-    const shortTopic = evaluation?.gaps && evaluation.gaps.length > 0 && evaluation.gaps[0].length < 30 ? evaluation.gaps[0] : null;
-    const nudgeText = shortTopic 
-      ? `A good next step: spend a bit more time exploring ${shortTopic.toLowerCase()}.` 
-      : `Keep practicing — you're building strong understanding!`;
+    const correctPredictions = evaluation?.predictionAccuracy === 'Correct';
 
     return (
-      <div className="w-full bg-[#f6f4ee] rounded-[32px] p-8 md:p-12 flex flex-col items-center justify-center border-2 border-[#1800ad]/10 shadow-sm mx-auto max-w-xl my-8 h-fit">
-        <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-sm border border-emerald-200">
-          <CheckCircle2 size={32} className="stroke-[2.5]" />
-        </div>
-        
-        <h2 className="text-2xl font-black text-[#1800ad] mb-2 text-center">Thanks for completing this task!</h2>
-        <h3 className="text-lg font-bold text-[#1800ad]/80 mb-4 text-center">You did well!</h3>
-        
-        <p className="text-sm font-semibold text-[#1800ad]/60 mb-8 text-center max-w-md leading-relaxed">
-          {nudgeText}
-        </p>
+      <div className="flex-1 w-full bg-[#1800ad] rounded-[32px] p-6 md:p-8 flex flex-col items-center justify-center relative shadow-xl overflow-hidden min-h-[calc(100vh-80px)] md:min-h-0 md:h-full">
+        <div className="absolute -top-32 -left-32 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
+        <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
 
-        <button
-          onClick={() => navigate('/student/playground')}
-          className="px-8 py-3.5 bg-[#1800ad] text-white rounded-full font-black text-sm hover:bg-[#1800ad]/90 transition-all shadow-md active:scale-95"
-        >
-          Go to Playground
+        <button onClick={onDone} className="absolute top-6 right-6 text-white hover:opacity-75 transition-colors z-20">
+          <X size={26} className="stroke-[2.5]" />
         </button>
+
+        <header className="text-center relative z-10 w-full max-w-2xl flex flex-col items-center gap-1 mt-4">
+          <div className="p-3 bg-emerald-500/25 text-emerald-300 rounded-full mb-2 shadow-lg">
+            <Award size={32} />
+          </div>
+          <h1 className="text-3xl md:text-5xl font-val text-white tracking-widest" style={{ textShadow: '3px 3px 0 #000' }}>
+            EVALUATION COMPLETE
+          </h1>
+          <h2 className="text-sm md:text-base font-bold text-white/80">{activityName} Log • {task.topic}</h2>
+        </header>
+
+        <div className="bg-white p-6 md:p-8 rounded-[28px] shadow-2xl w-full max-w-2xl flex flex-col gap-6 mt-6 relative z-10 border border-[#1800ad]/15 max-h-[60vh] overflow-y-auto custom-scrollbar">
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-[20px] p-4 flex flex-col items-center justify-center shadow-sm">
+              <span className="font-extrabold text-[10px] text-[#1800ad]/60 uppercase tracking-widest mb-1">Conceptual Understanding</span>
+              <span className="text-3xl font-black text-[#1800ad]">{evaluation?.understandingScore}%</span>
+              <div className="w-full bg-[#1800ad]/10 h-1.5 rounded-full overflow-hidden mt-3 max-w-[120px]">
+                <div className="h-full bg-[#1800ad]" style={{ width: `${evaluation?.understandingScore}%` }}></div>
+              </div>
+            </div>
+
+            <div className="bg-[#f6f4ee] border border-[#1800ad]/10 rounded-[20px] p-4 flex flex-col items-center justify-center shadow-sm">
+              <span className="font-extrabold text-[10px] text-[#1800ad]/60 uppercase tracking-widest mb-1">
+                {activityName === 'Explain It' ? 'Verbal Expression' : 'Scientific Reasoning'}
+              </span>
+              <span className="text-3xl font-black text-[#1800ad]">
+                {evaluation?.expressionScore || evaluation?.reasoningScore || 80}%
+              </span>
+              <div className="w-full bg-[#1800ad]/10 h-1.5 rounded-full overflow-hidden mt-3 max-w-[120px]">
+                <div className="h-full bg-[#1800ad]" style={{ width: `${evaluation?.expressionScore || evaluation?.reasoningScore || 82}%` }}></div>
+              </div>
+            </div>
+          </div>
+
+          {activityName === 'Predict It' && evaluation?.predictionAccuracy && (
+            <div className={`p-4 rounded-[20px] border flex items-center justify-between shadow-sm ${correctPredictions
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold opacity-70">Outcome Prediction</span>
+                <span className="font-bold text-xs">You predicted that the sphere would {predictionChoice}!</span>
+              </div>
+              <span className={`px-4 py-1.5 text-xs font-black uppercase tracking-widest rounded-full shadow-sm text-white ${correctPredictions ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}>
+                {evaluation.predictionAccuracy} Prediction
+              </span>
+            </div>
+          )}
+
+          {evaluation?.feedback && (
+            <div className="bg-blue-50 border border-blue-100 rounded-[20px] p-4 flex items-start gap-3 text-left">
+              <span className="text-xl shrink-0">💬</span>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-black text-[#1800ad]/60 uppercase tracking-wider">AI Tutor's Audit Report</span>
+                <p className="text-xs text-[#1800ad]/80 italic font-semibold leading-relaxed mt-1">
+                  "{evaluation.feedback}"
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-4 text-left">
+            <div className="flex flex-col gap-2">
+              <h5 className="font-black text-xs text-[#1800ad] uppercase tracking-widest flex items-center gap-1.5">
+                <CheckCircle2 size={14} className="text-emerald-500" />
+                Key Conceptual Strengths
+              </h5>
+              <div className="flex flex-wrap gap-1.5">
+                {evaluation?.strengths?.map((str, idx) => (
+                  <span key={idx} className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 font-bold text-xs rounded-full">
+                    {str}
+                  </span>
+                )) || <span className="text-xs text-gray-500">No strengths logged.</span>}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-1">
+              <h5 className="font-black text-xs text-[#1800ad] uppercase tracking-widest flex items-center gap-1.5">
+                <Target size={14} className="text-amber-500" />
+                Gaps & Misconceptions Detected
+              </h5>
+              <div className="flex flex-col gap-1.5">
+                {evaluation?.gaps?.map((gap, idx) => (
+                  <div key={idx} className="bg-amber-50 text-amber-950 border border-amber-100 px-3 py-2 font-semibold text-xs rounded-xl flex items-start gap-1.5">
+                    <span className="text-xs text-amber-600 mt-0.5">•</span>
+                    <span>{gap}</span>
+                  </div>
+                )) || <p className="text-xs font-bold text-emerald-600 bg-emerald-50 p-3 rounded-xl w-full text-center">Perfect understanding! No learning gaps detected.</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#1800ad]/10">
+            <button
+              type="button"
+              onClick={() => {
+                setEvaluation(null);
+                setMessages([{ role: 'Mootion', text: `Let's practice again! Let's explain ${task.topic} once and see if we can do even better!` }]);
+                setQuestionsAnswered(0);
+                setActivePlayState(activityName === 'Predict It' ? 'prediction' : 'explaining');
+              }}
+              className="px-5 py-2.5 rounded-full font-bold border-2 border-[#1800ad] text-[#1800ad] hover:bg-[#1800ad]/5 transition-colors text-xs"
+            >
+              Try Again
+            </button>
+            <button
+              type="button"
+              onClick={onDone}
+              className="px-5 py-2.5 rounded-full font-bold bg-[#1800ad] text-white hover:bg-[#1800ad]/90 transition-colors shadow-md text-xs"
+            >
+              Completed Done
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -895,23 +1061,35 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
           {activityName.toUpperCase()}
         </h1>
         <h2 className="text-base md:text-lg font-bold text-white mt-1.5 uppercase tracking-wide opacity-90">{task.topic}</h2>
-        <div className="inline-block mt-2 px-3 py-1 bg-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-wider border border-white/15">
-          {task.subject} Syllabus Chapter Core Activity
-        </div>
       </header>
 
       <div className="flex w-full mt-4 flex-col items-center justify-center relative z-10">
-        
-        {activePlayState === 'explaining' && (
-          <div className="w-full max-w-xl bg-white/10 border border-white/15 rounded-2xl p-4 text-white text-left mb-4 animate-fade-in">
-            <span className="font-extrabold text-[10px] uppercase text-white/60 tracking-wider font-mono">Chapter Summary Context</span>
-            <p className="text-xs font-semibold leading-relaxed mt-1 text-white/95">
-              {getSyllabusSummary()}
+
+        {activePlayState === 'prediction' && (
+          <div className="flex flex-col gap-4 w-full max-w-xl items-center my-4 animate-fade-in text-center">
+            <p className="text-white font-bold text-base max-w-md">
+              Will the solid 5kg iron ball float or sink inside the bucket of fresh water? Choose to start the animation!
             </p>
+            <div className="flex gap-4 mt-2 w-full max-w-sm justify-center">
+              <button
+                type="button"
+                onClick={() => { setPredictionChoice('sink'); setActivePlayState('simulation'); }}
+                className="flex-1 py-4 bg-white hover:bg-[#f6f4ee] text-[#1800ad] hover:scale-103 font-bold rounded-2xl border-2 border-transparent transition-all shadow-md active:scale-95 text-xs uppercase font-black"
+              >
+                Prediction: SINK ⚓
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPredictionChoice('float'); setActivePlayState('simulation'); }}
+                className="flex-1 py-4 bg-white hover:bg-[#f6f4ee] text-[#1800ad] hover:scale-103 font-bold rounded-2xl border-2 border-transparent transition-all shadow-md active:scale-95 text-xs uppercase font-black"
+              >
+                Prediction: FLOAT 🪵
+              </button>
+            </div>
           </div>
         )}
 
-
+        {activePlayState === 'simulation' && renderPredictSimulationBox()}
 
         {activityName === 'Spot It' && activePlayState === 'explaining' && renderSpotItContextCard()}
 
@@ -933,8 +1111,8 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
 
         {activePlayState === 'explaining' && (
           <div className="flex flex-col items-center justify-center gap-4">
-            <div className="relative flex items-center justify-center">
-              
+            <div className="relative flex items-center justify-center animate-fade-in">
+
               {isRecording && (
                 <>
                   <div className="absolute w-36 h-36 bg-white/25 rounded-full animate-ping" style={{ animationDuration: '2.5s' }}></div>
@@ -942,7 +1120,7 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
                 </>
               )}
 
-              <button 
+              <button
                 type="button"
                 onClick={toggleRecording}
                 disabled={isThinking}
@@ -952,12 +1130,50 @@ Respond in 1-2 charming sentences as Mootion. Maintain child-like wonder. Do not
                 <Mic size={40} className="text-[#1800ad]" />
               </button>
             </div>
+
+            {/* Captions / Realtime Transcript */}
+            <div className="w-full max-w-md bg-[#f6f4ee]/15 backdrop-blur-xs rounded-2xl px-5 py-4 border-2 border-white/10 text-center min-h-[72px] flex items-center justify-center shadow-lg font-montserrat">
+              {isThinking ? (
+                <div className="flex items-center gap-2 text-white/85 font-black text-xs uppercase tracking-widest">
+                  <span className="animate-pulse">AI Tutor is thinking</span>
+                  <div className="flex gap-1">
+                    <span className="w-1 bg-[#f1f1ee] h-1.5 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
+                    <span className="w-1 bg-[#f1f1ee] h-1.5 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></span>
+                    <span className="w-1 bg-[#f1f1ee] h-1.5 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></span>
+                  </div>
+                </div>
+              ) : liveModelTranscript ? (
+                <p className="text-[#f6f4ee] font-black text-xs md:text-sm leading-relaxed max-w-sm animate-fade-in">
+                  🤖 AI Tutor: "{liveModelTranscript}"
+                </p>
+              ) : liveTranscript ? (
+                <p className="text-white/95 font-semibold text-xs md:text-sm italic leading-relaxed max-w-sm animate-pulse">
+                  🎙️ Transcribing: "{liveTranscript}"
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-[#f6f4ee]/70 tracking-widest leading-none">
+                    AI Tutor is listening
+                  </span>
+                  <span className="text-[9px] font-bold text-white/55 tracking-wider mt-1 leading-normal">
+                    Press the microphone to respond with your explanation
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Turn tracker status pill */}
+            <div className="flex items-center gap-1.5 bg-white/15 px-4 py-1.5 rounded-full border border-white/5 mt-1 font-mono">
+              <span className="text-[9px] font-black uppercase text-[#f6f4ee]/85">
+                {questionsAnswered} / {maxQuestions} explained
+              </span>
+            </div>
           </div>
         )}
 
 
 
-        <button 
+        <button
           onClick={() => triggerGradingEvaluation(messages)}
           className="mt-6 px-8 py-3 bg-[#f6f4ee] hover:bg-white text-[#1800ad] rounded-full font-black text-xs transition-all shadow-md z-10 border-2 border-[#1800ad]/30 hover:border-[#1800ad] uppercase tracking-wider h-11"
         >
@@ -1011,7 +1227,7 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
 
   useEffect(() => {
     loadHistoryLogs();
-    
+
     const handler = () => loadHistoryLogs();
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
@@ -1079,25 +1295,23 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
         </div>
 
         <div className="flex items-center bg-[#f6f4ee] p-1 rounded-full border border-[#1800ad]/10 self-start">
-          <button 
+          <button
             type="button"
             onClick={() => setIsTeacherMode(false)}
-            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${
-              !isTeacherMode 
-                ? 'bg-[#1800ad] text-white shadow-sm' 
-                : 'text-[#1800ad]/60 hover:text-[#1800ad]'
-            }`}
+            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${!isTeacherMode
+              ? 'bg-[#1800ad] text-white shadow-sm'
+              : 'text-[#1800ad]/60 hover:text-[#1800ad]'
+              }`}
           >
             Student Panel
           </button>
-          <button 
+          <button
             type="button"
             onClick={() => setIsTeacherMode(true)}
-            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1 ${
-              isTeacherMode 
-                ? 'bg-[#1800ad] text-white shadow-sm' 
-                : 'text-[#1800ad]/60 hover:text-[#1800ad]'
-            }`}
+            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1 ${isTeacherMode
+              ? 'bg-[#1800ad] text-white shadow-sm'
+              : 'text-[#1800ad]/60 hover:text-[#1800ad]'
+              }`}
           >
             Teacher Audit Mode
           </button>
@@ -1110,7 +1324,7 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
           const uScore = scoreOverrides[log.id] !== undefined ? scoreOverrides[log.id] : log.scores.understanding;
 
           return (
-            <div 
+            <div
               key={log.id}
               onClick={() => toggleExpand(log.id)}
               className="border-2 border-[#1800ad]/5 rounded-[24px] overflow-hidden bg-[#f6f4ee]/20 hover:bg-[#f6f4ee]/40 cursor-pointer transition-all shadow-sm"
@@ -1122,11 +1336,11 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
                       {log.activityName}
                     </span>
                     <span className="text-[10px] text-[#1800ad]/50 font-bold font-mono">
-                      {new Date(log.timestamp).toLocaleString(undefined, { 
-                        month: 'short', 
-                        day: 'numeric', 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
+                      {new Date(log.timestamp).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
                       })}
                     </span>
                   </div>
@@ -1149,11 +1363,19 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
                       </span>
                     </div>
 
-
+                    {log.activityName === 'Predict It' && (
+                      <div className="flex flex-col border-l border-[#1800ad]/10 pl-4">
+                        <span className="text-[9px] font-extrabold text-[#1800ad]/50 uppercase tracking-widest font-mono">Prediction</span>
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full font-mono ${log.scores.accuracy === 'Correct' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                          {log.scores.accuracy}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1 pl-4 border-l border-[#1800ad]/10">
-                    <button 
+                    <button
                       type="button"
                       onClick={(e) => deleteAttemptLog(log.id, e)}
                       className="p-1 px-2 hover:bg-red-50 text-red-600 rounded-full transition-colors"
@@ -1167,9 +1389,9 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
               </div>
 
               {isExpanded && (
-                <div 
+                <div
                   className="bg-white border-t-2 border-[#1800ad]/10 p-5 md:p-6 flex flex-col gap-5 text-left"
-                  onClick={(e) => e.stopPropagation()} 
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
@@ -1209,18 +1431,17 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
 
                   <div className="flex flex-col gap-2">
                     <span className="font-black text-[10px] text-[#1800ad]/50 uppercase tracking-widest font-mono">
-                       Conversation Transcript Transcript Records
+                      Conversation Transcript Transcript Records
                     </span>
                     <div className="bg-[#f6f4ee]/20 rounded-xl border border-[#1800ad]/10 max-h-48 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar text-xs">
                       {log.transcript?.map((tr, idx) => (
                         <div key={idx} className={`flex flex-col ${tr.role === 'student' ? 'items-end' : 'items-start'}`}>
-                          <div className={`p-3 rounded-xl max-w-[85%] font-medium leading-relaxed ${
-                            tr.role === 'student' 
-                              ? 'bg-[#1800ad] text-white rounded-tr-none font-bold' 
-                              : 'bg-white text-[#1800ad] rounded-tl-none border border-[#1800ad]/10'
-                          }`}>
+                          <div className={`p-3 rounded-xl max-w-[85%] font-medium leading-relaxed ${tr.role === 'student'
+                            ? 'bg-[#1800ad] text-white rounded-tr-none font-bold'
+                            : 'bg-white text-[#1800ad] rounded-tl-none border border-[#1800ad]/10'
+                            }`}>
                             <span className="font-extrabold text-[8.5px] uppercase tracking-wider block opacity-70 mb-0.5 font-mono">
-                              {tr.role === 'student' ? 'Student' : 'Mootion'}
+                              {tr.role === 'student' ? 'Student' : 'AI Tutor'}
                             </span>
                             {tr.text}
                           </div>
@@ -1238,10 +1459,10 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
                       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-end w-full">
                         <div className="flex-1 flex flex-col gap-1 text-left">
                           <label className="text-[10px] uppercase font-extrabold text-amber-700 font-mono">Override conceptual understanding score ({uScore}%)</label>
-                          <input 
-                            type="range" 
-                            min="20" 
-                            max="100" 
+                          <input
+                            type="range"
+                            min="20"
+                            max="100"
                             value={uScore}
                             onChange={(e) => setScoreOverrides(prev => ({ ...prev, [log.id]: parseInt(e.target.value, 10) }))}
                             className="w-full accent-amber-600"
@@ -1250,16 +1471,16 @@ export function AttemptHistoryPanel({ taskId }: { taskId: string }) {
 
                         <div className="flex-1 flex flex-col gap-1 text-left">
                           <label className="text-[10px] uppercase font-extrabold text-amber-700 font-mono">Write Custom Teacher Critique Comments</label>
-                          <input 
-                            type="text" 
-                            placeholder="Add evaluation comments..." 
+                          <input
+                            type="text"
+                            placeholder="Add evaluation comments..."
                             value={teacherComments[log.id] || ''}
                             onChange={(e) => setTeacherComments(prev => ({ ...prev, [log.id]: e.target.value }))}
                             className="bg-white border border-amber-300 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-amber-500 font-bold text-[#1800ad]"
                           />
                         </div>
 
-                        <button 
+                        <button
                           type="button"
                           onClick={() => saveTeacherOverride(log.id)}
                           className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow transition-colors flex items-center gap-1 shrink-0 h-9 font-mono"
