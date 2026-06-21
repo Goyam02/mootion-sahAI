@@ -103,6 +103,8 @@ services:
   animation-engine:
     build:
       context: ./animation-engine
+      env_file:
+        - ./animation-engine/app/.env
       dockerfile: dockerfile
     container_name: mootion-animation-engine
     restart: always
