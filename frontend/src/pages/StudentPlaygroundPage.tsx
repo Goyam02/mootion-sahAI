@@ -582,6 +582,10 @@ export function StudentPlaygroundPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
 
+  const chatOcrInputRef = useRef<HTMLInputElement>(null);
+  const chatCameraInputRef = useRef<HTMLInputElement>(null);
+  const [isChatOcrLoading, setIsChatOcrLoading] = useState(false);
+
   const syncScroll = useCallback(() => {
     if (chatInputRef.current && mirrorDivRef.current) {
       mirrorDivRef.current.scrollLeft = chatInputRef.current.scrollLeft;
@@ -2111,6 +2115,32 @@ export function StudentPlaygroundPage() {
     }
   };
 
+  const handleChatOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsChatOcrLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const result = await api.post('/ocr/extract-text', formData);
+      const extractedText = result.text || '';
+      if (extractedText) {
+        const newVal = textInput ? `${textInput}\n\n${extractedText}` : extractedText;
+        setTextInput(newVal);
+        setTimeout(() => focusAndMoveCursorToEnd(newVal), 100);
+      } else {
+        alert(result.message || 'No text could be extracted from the image.');
+      }
+    } catch (err: any) {
+      console.error('OCR extraction failed:', err);
+      alert(`Failed to extract text from image: ${err?.detail || err?.message || 'Unknown error'}`);
+    } finally {
+      setIsChatOcrLoading(false);
+      if (chatOcrInputRef.current) chatOcrInputRef.current.value = '';
+      if (chatCameraInputRef.current) chatCameraInputRef.current.value = '';
+    }
+  };
+
   const toggleDoubtVoiceRecording = async () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -3047,6 +3077,23 @@ export function StudentPlaygroundPage() {
 
                 <form onSubmit={handleSendMessage} className="flex gap-3 items-center relative">
                   
+                  {/* Chat OCR inputs */}
+                  <input
+                    type="file"
+                    ref={chatOcrInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleChatOcrUpload}
+                  />
+                  <input
+                    type="file"
+                    ref={chatCameraInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleChatOcrUpload}
+                  />
+
                   <div className="relative flex-1 flex items-center bg-[#f6f4ee] border-2 border-[#1800ad] rounded-full px-4 py-3.5 shadow-lg">
                     {/* LHS Plus '+' Button inside the input bubble */}
                     <button 
@@ -3056,6 +3103,33 @@ export function StudentPlaygroundPage() {
                       title="Summon Commands"
                     >
                       <Plus size={18} />
+                    </button>
+
+                    {/* Image/OCR upload button */}
+                    <button
+                      type="button"
+                      onClick={() => chatOcrInputRef.current?.click()}
+                      disabled={isChatOcrLoading}
+                      className={`p-1 rounded-full transition-all mr-0.5 shrink-0 ${isChatOcrLoading ? 'text-[#1800ad]/40 animate-pulse' : 'hover:bg-[#1800ad]/10 text-[#1800ad]/60 hover:text-[#1800ad]'}`}
+                      title="Upload image for OCR"
+                    >
+                      {isChatOcrLoading ? (
+                        <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 11-6.219-8.56" />
+                        </svg>
+                      ) : (
+                        <Paperclip size={18} />
+                      )}
+                    </button>
+                    {/* Camera capture button for OCR (mobile only) */}
+                    <button
+                      type="button"
+                      onClick={() => chatCameraInputRef.current?.click()}
+                      disabled={isChatOcrLoading}
+                      className="p-1 rounded-full transition-all mr-1 shrink-0 hover:bg-[#1800ad]/10 text-[#1800ad]/60 hover:text-[#1800ad] md:hidden"
+                      title="Take a photo for OCR"
+                    >
+                      <Camera size={18} />
                     </button>
                     
                     <div className="relative flex-1 min-w-0 flex items-center h-full">

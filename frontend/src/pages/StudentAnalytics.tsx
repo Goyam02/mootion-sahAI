@@ -35,6 +35,7 @@ interface ScoreAttempt {
   depth_score: number;
   overall_score: number;
   llm_feedback: string;
+  gaps?: string[] | null;
   attempt_number: number;
   created_at: string;
 }
@@ -380,6 +381,22 @@ export function StudentAnalytics() {
                                 <p className="text-xs italic bg-neutral-50 text-neutral-600 p-2.5 rounded-lg border border-neutral-100 mt-1">
                                   "{attempt.llm_feedback}"
                                 </p>
+                              )}
+                              
+                              {attempt.gaps && attempt.gaps.length > 0 && (
+                                <div className="mt-2 bg-rose-50/50 border border-rose-100 p-2.5 rounded-lg flex flex-col gap-1.5">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+                                    <AlertTriangle size={12} />
+                                    Misconceptions / Gaps
+                                  </span>
+                                  <ul className="flex flex-col gap-1 list-disc pl-4">
+                                    {attempt.gaps.map((gap, i) => (
+                                      <li key={i} className="text-xs text-rose-900 font-medium">
+                                        {gap}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
                               )}
                             </div>
                           ))}

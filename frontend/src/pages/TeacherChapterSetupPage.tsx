@@ -550,7 +550,7 @@ export function TeacherChapterSetupPage() {
                   <div className="w-16 h-16 rounded-full border-4 border-t-[#1800ad] border-r-transparent border-b-transparent border-l-transparent animate-spin duration-1000"></div>
                 </div>
                 <h2 className="text-xl md:text-2xl font-black text-[#1800ad] tracking-tight">
-                  Generating content for Static Friction & Laws...
+                  Extracting Content...
                 </h2>
                 <p className="text-xs font-bold text-[#1800ad]/60 uppercase tracking-widest mt-2 animate-pulse font-mono">
                   Synthesizing concept videos, sandboxes & misconceptions

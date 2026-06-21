@@ -219,6 +219,7 @@ def get_student_scores(
             "depth_score": s.depth_score,
             "overall_score": s.overall_score,
             "llm_feedback": s.llm_feedback,
+            "gaps": s.gaps,
             "attempt_number": s.attempt_number,
             "created_at": s.created_at
         })

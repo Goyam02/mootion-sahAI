@@ -28,35 +28,46 @@ def compute_clusters(class_id: str | UUID, chapter_id: str | UUID, db_session: S
             if student_id_str not in student_latest_score or s.attempt_number > student_latest_score[student_id_str].attempt_number:
                 student_latest_score[student_id_str] = s
 
-    # If fewer than 3 students have scores, skip
+    # If fewer than 3 students have scores, fallback to threshold-based bucketing
     if len(student_latest_score) < 3:
-        return None
+        clusters_data = {
+            "struggling": [],
+            "average": [],
+            "strong": []
+        }
+        for sid_str, s in student_latest_score.items():
+            if s.overall_score >= 7:
+                clusters_data["strong"].append(sid_str)
+            elif s.overall_score >= 4:
+                clusters_data["average"].append(sid_str)
+            else:
+                clusters_data["struggling"].append(sid_str)
+    else:
+        student_ids = list(student_latest_score.keys())
+        X = np.array([[student_latest_score[sid].overall_score] for sid in student_ids])
 
-    student_ids = list(student_latest_score.keys())
-    X = np.array([[student_latest_score[sid].overall_score] for sid in student_ids])
+        # Run KMeans with 3 clusters
+        kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(X)
+        centroids = kmeans.cluster_centers_.flatten()
 
-    # Run KMeans with 3 clusters
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(X)
-    centroids = kmeans.cluster_centers_.flatten()
+        # Map the cluster index to labels: lowest -> "struggling", middle -> "average", highest -> "strong"
+        sorted_centroid_indices = np.argsort(centroids)
+        label_mapping = {
+            sorted_centroid_indices[0]: "struggling",
+            sorted_centroid_indices[1]: "average",
+            sorted_centroid_indices[2]: "strong"
+        }
 
-    # Map the cluster index to labels: lowest -> "struggling", middle -> "average", highest -> "strong"
-    sorted_centroid_indices = np.argsort(centroids)
-    label_mapping = {
-        sorted_centroid_indices[0]: "struggling",
-        sorted_centroid_indices[1]: "average",
-        sorted_centroid_indices[2]: "strong"
-    }
-
-    clusters_data = {
-        "struggling": [],
-        "average": [],
-        "strong": []
-    }
-    for student_idx, cluster_idx in enumerate(labels):
-        sid = student_ids[student_idx]
-        lbl = label_mapping[cluster_idx]
-        clusters_data[lbl].append(sid)
+        clusters_data = {
+            "struggling": [],
+            "average": [],
+            "strong": []
+        }
+        for student_idx, cluster_idx in enumerate(labels):
+            sid = student_ids[student_idx]
+            lbl = label_mapping[cluster_idx]
+            clusters_data[lbl].append(sid)
 
     # Delete existing StudentTopicCluster rows for this class + chapter
     db_session.query(StudentTopicCluster).filter(

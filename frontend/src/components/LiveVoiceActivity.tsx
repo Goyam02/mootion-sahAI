@@ -690,7 +690,70 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       setIsThinking(false);
       const errReply = "My teddy and I are dizzy! Can you simplify that more?";
       setMessages(p => [...p, { role: 'Mootion' as const, text: errReply }]);
+<<<<<<< HEAD
       speakVoiceSynthesis(errReply);
+=======
+    }
+  };
+
+  const submitExplanationForAnalysis = async (transcriptText: string, chapterId: string | null, classId: string | null, gaps: string[] | null) => {
+    try {
+      let finalClassId = classId || resolvedClassId;
+      let finalChapterId = chapterId || resolvedChapterId;
+
+      if (!finalClassId || !finalChapterId) {
+        const classes = await api.get('/students/classes');
+        if (classes && classes.length > 0) {
+          const firstClass = classes[0];
+          finalClassId = finalClassId || firstClass.class_id || firstClass.id;
+
+          const chapters = await api.get(`/students/classes/${finalClassId}/chapters`);
+          if (chapters && chapters.length > 0) {
+            let matchedChapter = chapters.find((ch: any) => {
+              if (task.id && task.id.includes('_c')) {
+                const parts = task.id.split('_');
+                const cPart = parts.find(p => p.startsWith('c'));
+                if (cPart) {
+                  const num = cPart.replace('c', '');
+                  return String(ch.chapter_number) === num || ch.chapter_id?.includes(cPart);
+                }
+              }
+              return false;
+            });
+            if (!matchedChapter) {
+              matchedChapter = chapters.find((ch: any) => 
+                ch.title.toLowerCase().includes(task.topic.toLowerCase()) ||
+                task.topic.toLowerCase().includes(ch.title.toLowerCase())
+              );
+            }
+            if (!matchedChapter) matchedChapter = chapters[0];
+            finalChapterId = finalChapterId || matchedChapter.chapter_id || matchedChapter.id;
+          }
+        }
+      }
+
+      if (!finalClassId || !finalChapterId) {
+        console.warn("Could not submit explanation: classroom or chapter ID unresolved.");
+        return;
+      }
+
+      const payload: any = {
+        transcript: transcriptText || "No student explanation provided.",
+        chapter_id: finalChapterId,
+        class_id: finalClassId
+      };
+      if (gaps && gaps.length > 0) {
+        payload.gaps = gaps;
+      }
+
+      const response = await api.post('/api/analytics/submit-explanation', payload);
+
+      if (response && response.concept_score_id) {
+        setAnalyticsResult(response);
+      }
+    } catch (err) {
+      console.error("Error submitting explanation for analysis:", err);
+>>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
     }
   };
 
@@ -700,9 +763,13 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
     setIsThinking(true);
 
     let predOutcome = "";
+<<<<<<< HEAD
     if (activityName === 'Predict It' && predictionChoice) {
       predOutcome = `Prediction choice: '${predictionChoice}', Actual outcome: 'Medium stone sank instantly while wooden block floated cleanly'.`;
     }
+=======
+    let finalEvalData: any = null;
+>>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
 
     try {
       const resp = await fetch('/api/evaluate-session', {
@@ -717,6 +784,7 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
       });
 
       const evalData = await resp.json();
+      finalEvalData = evalData;
       setEvaluation(evalData);
       setIsThinking(false);
 
@@ -738,8 +806,36 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
         feedback: "Great job! Your explanation of the concepts was very clear. Let's tackle more challenging topics next time.",
         predictionAccuracy: activityName === 'Predict It' ? (predictionChoice === 'sink' ? 'Correct' as const : 'Incorrect' as const) : undefined
       };
+      finalEvalData = fallbackReport;
       setEvaluation(fallbackReport);
+<<<<<<< HEAD
       saveAttemptToStorage(finalTranscript, fallbackReport);
+=======
+      saveAttemptToStorage(transcriptToUse, fallbackReport);
+    }
+
+    const studentText = transcriptToUse
+      .filter(m => m.role === 'student')
+      .map(m => m.text)
+      .join(' ')
+      .trim();
+    if (studentText) {
+      const dbTask = (task as any).dbTask;
+      if (dbTask) {
+        const classId = dbTask.class_id;
+        const assignmentId = dbTask.assignment_id;
+        api.post(`/students/classes/${classId}/assignments/${assignmentId}/submit`, {
+          transcription_text: studentText,
+          language: 'english'
+        }).then(res => {
+          console.log("Interactive assignment submitted successfully:", res);
+        }).catch(err => {
+          console.error("Failed to submit interactive assignment:", err);
+        });
+      } else {
+        submitExplanationForAnalysis(studentText, resolvedChapterId, resolvedClassId, finalEvalData?.gaps || null);
+      }
+>>>>>>> d6f0006e592dd09fe48540af175dd1f3ab151f51
     }
   };
 
