@@ -40,7 +40,8 @@ import {
   BookOpen,
   Maximize2,
   Minimize2,
-  BarChart2
+  BarChart2,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -578,6 +579,9 @@ export function StudentPlaygroundPage() {
   const mirrorDivRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const voiceStartTextRef = useRef<string>('');
+  const ocrInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
 
   const syncScroll = useCallback(() => {
     if (chatInputRef.current && mirrorDivRef.current) {
@@ -2085,6 +2089,47 @@ export function StudentPlaygroundPage() {
     }
   };
 
+  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsOcrLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const result = await api.post('/ocr/extract-text', formData);
+      const extractedText = result.text || '';
+      if (extractedText) {
+        const newVal = textInput ? `${textInput} ${extractedText}` : extractedText;
+        setTextInput(newVal);
+        setTimeout(() => focusAndMoveCursorToEnd(newVal), 100);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `msg-ocr-${Date.now()}`,
+            sender: 'mootion',
+            text: result.message || 'No text could be extracted from the image.',
+            timestamp: 'Just now',
+          },
+        ]);
+      }
+    } catch (err: any) {
+      console.error('OCR extraction failed:', err);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-ocr-err-${Date.now()}`,
+          sender: 'mootion',
+          text: `Failed to extract text from image: ${err?.detail || err?.message || 'Unknown error'}`,
+          timestamp: 'Just now',
+        },
+      ]);
+    } finally {
+      setIsOcrLoading(false);
+      if (ocrInputRef.current) ocrInputRef.current.value = '';
+    }
+  };
+
   const toggleDoubtVoiceRecording = async () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -2961,33 +3006,6 @@ export function StudentPlaygroundPage() {
 
               {/* Form input matched to the custom circle style from screenshot */}
               <div className="pt-3 border-t border-[#1800ad]/20 bg-[#f6f4ee] relative">
-                <input 
-                  type="file" 
-                  id="playground-file-upload" 
-                  className="hidden" 
-                  accept="image/*,application/pdf,text/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setMessages(prev => [
-                        ...prev,
-                        {
-                          id: `msg-attach-${Date.now()}`,
-                          sender: 'student',
-                          text: `Attached Worksheet: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`,
-                          timestamp: 'Just now'
-                        },
-                        {
-                          id: `msg-mootion-reply-${Date.now()}`,
-                          sender: 'mootion',
-                          text: `💡 Perfect! I have attached and analyzed '${file.name}'. You can launch simulations or ask questions about this document!`,
-                          timestamp: 'Just now'
-                        }
-                      ]);
-                    }
-                  }}
-                />
-
                 <AnimatePresence>
                   {showCommands && (
                     <motion.div 
@@ -3009,20 +3027,6 @@ export function StudentPlaygroundPage() {
                           <span className="opacity-70 text-[10px] font-montserrat font-semibold text-[#1800ad]/70">{opt.label}</span>
                         </button>
                       ))}
-
-                      {!textInput.startsWith('/') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCommands(false);
-                            document.getElementById('playground-file-upload')?.click();
-                          }}
-                          className="px-4 py-3.5 text-left font-black text-[#1800ad] bg-[#f6f4ee] hover:bg-[#1800ad]/5 transition-all flex items-center justify-between font-montserrat border-t border-[#1800ad]/15"
-                        >
-                          <span>Upload a file</span>
-                          <span className="opacity-70 text-[10px] font-montserrat text-[#1800ad]/70" style={{fontFamily: 'Montserrat'}}>Workspace worksheets or figures</span>
-                        </button>
-                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -3060,6 +3064,21 @@ export function StudentPlaygroundPage() {
                   )}
                 </AnimatePresence>
 
+                <input
+                  type="file"
+                  ref={ocrInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleOcrUpload}
+                />
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleOcrUpload}
+                />
                 <form onSubmit={handleSendMessage} className="flex gap-3 items-center relative">
                   
                   <div className="relative flex-1 flex items-center bg-[#f6f4ee] border-2 border-[#1800ad] rounded-full px-4 py-3.5 shadow-lg">
@@ -3071,6 +3090,32 @@ export function StudentPlaygroundPage() {
                       title="Summon Commands"
                     >
                       <Plus size={18} />
+                    </button>
+                    {/* Image/OCR upload button */}
+                    <button
+                      type="button"
+                      onClick={() => ocrInputRef.current?.click()}
+                      disabled={isOcrLoading}
+                      className={`p-1 rounded-full transition-all mr-0.5 shrink-0 ${isOcrLoading ? 'text-[#1800ad]/40 animate-pulse' : 'hover:bg-[#1800ad]/10 text-[#1800ad]/60 hover:text-[#1800ad]'}`}
+                      title="Upload image for OCR"
+                    >
+                      {isOcrLoading ? (
+                        <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 11-6.219-8.56" />
+                        </svg>
+                      ) : (
+                        <Paperclip size={18} />
+                      )}
+                    </button>
+                    {/* Camera capture button for OCR (mobile only) */}
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      disabled={isOcrLoading}
+                      className="p-1 rounded-full transition-all mr-1 shrink-0 hover:bg-[#1800ad]/10 text-[#1800ad]/60 hover:text-[#1800ad] md:hidden"
+                      title="Take a photo for OCR"
+                    >
+                      <Camera size={18} />
                     </button>
                     
                     <div className="relative flex-1 min-w-0 flex items-center h-full">

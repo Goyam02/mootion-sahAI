@@ -546,6 +546,24 @@ def _run_quiz_tool(message: str, context: dict[str, Any]) -> dict[str, Any]:
 def _run_simulation_tool(db: Session, message: str, context: dict[str, Any]) -> dict[str, Any]:
     topic = _extract_command_topic("/simulation", message, context)
     instructions = context.get("assignment_instructions") or ""
+
+    from app.services.student_actions_service import _get_phet_simulation_url
+    phet_url = _get_phet_simulation_url(topic, fallback_default=False)
+    if not phet_url and instructions:
+        phet_url = _get_phet_simulation_url(instructions, fallback_default=False)
+
+    if phet_url:
+        return {
+            "asset_type": "simulation",
+            "title": f"Simulation for {topic}",
+            "external_url": phet_url,
+            "payload_json": {
+                "simulation_source": "phet",
+                "phet_url": phet_url,
+                "status": "completed",
+            },
+        }
+
     prompt = f"Teach me {topic}. {instructions}".strip()
     result = _SIMULATION_ORCHESTRATOR.pipeline.run(prompt)
     _persist_simulation_result(db, result, prompt)

@@ -58,6 +58,8 @@ class Settings:
     object_storage_public_url: str | None = os.getenv("OBJECT_STORAGE_PUBLIC_URL", os.getenv("R2_PUBLIC_URL"))
     object_storage_signed_url_expiry_minutes: int = int(os.getenv("OBJECT_STORAGE_SIGNED_URL_EXPIRY_MINUTES", "15"))
     media_job_stale_timeout_minutes: int = int(os.getenv("MEDIA_JOB_STALE_TIMEOUT_MINUTES", "120"))
+    azure_vision_endpoint: str | None = os.getenv("AZURE_VISION_ENDPOINT")
+    azure_vision_api_key: str | None = os.getenv("AZURE_VISION_API_KEY")
 
 
 settings = Settings()

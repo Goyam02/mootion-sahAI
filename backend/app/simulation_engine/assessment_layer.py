@@ -16,6 +16,8 @@ ASSESSMENT_TEMPLATES: dict[str, list[dict]] = {
         {
             "type": "prediction",
             "question": "What happens to the range when you increase the launch angle beyond 45 degrees?",
+            "options": ["Increases", "Decreases", "Doubles", "Remains unchanged"],
+            "correct_answer": 1,
             "hint": "Think about the horizontal and vertical components of velocity.",
             "difficulty": "medium",
             "learning_goal": "Understand optimal launch angle for maximum range",
@@ -46,6 +48,8 @@ ASSESSMENT_TEMPLATES: dict[str, list[dict]] = {
         {
             "type": "prediction",
             "question": "What happens to current when you increase resistance while keeping voltage constant?",
+            "options": ["Increases", "Decreases", "Doubles", "Remains unchanged"],
+            "correct_answer": 1,
             "hint": "Think about Ohm's Law: I = V/R",
             "difficulty": "easy",
             "learning_goal": "Understand inverse relationship in Ohm's Law",
@@ -69,6 +73,8 @@ ASSESSMENT_TEMPLATES: dict[str, list[dict]] = {
         {
             "type": "prediction",
             "question": "What happens to the diffusion rate when you increase temperature?",
+            "options": ["Increases", "Decreases", "Doubles", "Remains unchanged"],
+            "correct_answer": 0,
             "hint": "Particles move faster at higher temperatures.",
             "difficulty": "easy",
             "learning_goal": "Understand temperature effect on diffusion",
@@ -142,7 +148,7 @@ Available Parameters:
 
 Generate 4 assessment prompts (one of each type) that encourage active learning:
 
-1. PREDICTION: Ask what will happen when a parameter changes (must be a multiple-choice question with 4 options and specified correct answer)
+1. PREDICTION: Ask what will happen when a parameter changes (must be a multiple-choice question with exactly 4 plausible, contextual, and non-generic options, and a specified correct_answer index 0-3. Do NOT make the question open-ended or end with "Why?", and do NOT leave the options list empty).
 2. INQUIRY: Ask about investigating relationships between variables
 3. EXPERIMENTATION: Ask the student to design a test using the simulation
 4. REFLECTION: Ask to connect simulation observations to real-world phenomena
@@ -177,13 +183,21 @@ Return ONLY the JSON array. No markdown."""
             if isinstance(data, list):
                 assessments = []
                 for i, item in enumerate(data):
+                    q_type = item.get("type", "inquiry")
+                    question = item.get("question", "")
+                    options = item.get("options") or item.get("choices") or []
+                    correct_answer = item.get("correct_answer", 0)
+
+                    if q_type == "prediction" and (not isinstance(options, list) or len(options) < 2):
+                        options, correct_answer = self._generate_fallback_options_and_correct(question)
+
                     assessments.append(
                         AssessmentPrompt(
                             id=f"ap_{i+1}",
-                            type=item.get("type", "inquiry"),
-                            question=item.get("question", ""),
-                            options=item.get("options", []),
-                            correct_answer=item.get("correct_answer", 0),
+                            type=q_type,
+                            question=question,
+                            options=options,
+                            correct_answer=correct_answer,
                             hint=item.get("hint", ""),
                             difficulty=item.get("difficulty", "medium"),
                             learning_goal=item.get("learning_goal", ""),
@@ -194,6 +208,29 @@ Return ONLY the JSON array. No markdown."""
             pass
 
         return self._template_assessments(spec)
+
+    def _generate_fallback_options_and_correct(self, question: str) -> tuple[list[str], int]:
+        prompt = f"""For the following multiple-choice prediction question for a STEM simulation, generate exactly 4 plausible, contextual options/choices and identify the index of the correct option (0-indexed). Do not make the options generic (like "Increases/Decreases") if they don't apply.
+
+Question: {question}
+
+Return ONLY a valid JSON object. No other text, no markdown.
+Format:
+{{
+  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "correct_answer": 0
+}}"""
+        try:
+            response = query_llm(prompt, temperature=0.3)
+            response = self._clean_json(response)
+            data = json.loads(response)
+            opts = data.get("options") or data.get("choices")
+            correct = data.get("correct_answer", 0)
+            if isinstance(opts, list) and len(opts) >= 2:
+                return [str(o) for o in opts[:4]], int(correct)
+        except Exception:
+            pass
+        return ["Increases", "Decreases", "Doubles", "Remains unchanged"], 0
 
     def _template_assessments(
         self, spec: SimulationSpecification

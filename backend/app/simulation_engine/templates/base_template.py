@@ -857,7 +857,9 @@ def _build_assessment_html(spec: SimulationSpecification) -> str:
         return ""
     ap = spec.assessment_prompts[0]
     
-    options = getattr(ap, 'options', None) or ["Increases", "Decreases", "Doubles", "Remains unchanged"]
+    options = getattr(ap, 'options', None)
+    if not options or len(options) < 2:
+        options = ["Increases", "Decreases", "Doubles", "Remains unchanged"]
     correct_idx = getattr(ap, 'correct_answer', 0)
     
     options_html = ""

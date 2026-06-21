@@ -42,7 +42,7 @@ class SimulationPipeline:
         self.ui_quality_checker = UIQualityChecker()
         self.assessment_generator = AssessmentGenerator(use_llm=use_llm)
 
-    def run(self, prompt: str) -> PipelineResult:
+    def run(self, prompt: str, user_grade: str | None = None) -> PipelineResult:
         start_time = time.time()
         result = PipelineResult(
             simulation_id=str(uuid.uuid4()),
@@ -56,7 +56,7 @@ class SimulationPipeline:
 
             # Phase 2: Plan the simulation
             result.phase = SimulationPhase.PLANNING_SIMULATION
-            spec = self.simulation_planning.plan(intent)
+            spec = self.simulation_planning.plan(intent, user_grade=user_grade)
             result.spec = spec
 
             # Phase 3: Build the simulation HTML
@@ -111,8 +111,8 @@ class SimulationOrchestrator:
         self.pipeline = SimulationPipeline()
         self.cache: dict[str, PipelineResult] = {}
 
-    async def generate_from_prompt(self, prompt: str) -> PipelineResult:
-        result = self.pipeline.run(prompt)
+    async def generate_from_prompt(self, prompt: str, user_grade: str | None = None) -> PipelineResult:
+        result = self.pipeline.run(prompt, user_grade=user_grade)
         self.cache[result.simulation_id] = result
         return result
 

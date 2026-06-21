@@ -745,12 +745,25 @@ def _apply_generation_result(db: Session, job: ChapterAssetGenerationJob, result
         elif job.provider == "quiz_generator":
             asset.payload_json = {**asset.payload_json, "quiz": result.get("questions", [])}
         elif job.provider == "simulation":
-            simulation_id = str(result.get("simulation_id") or "").strip()
-            asset.external_url = (
-                f"{settings.backend_public_url.rstrip('/')}/simulations/{simulation_id}/html"
-                if simulation_id
-                else None
-            )
+            phet_url = result.get("phet_url")
+            if phet_url:
+                asset.external_url = phet_url
+                asset.provider = "phet"
+                asset.integration_target = "phet_embed"
+                asset.payload_json = {
+                    **asset.payload_json,
+                    "placeholder": False,
+                    "generated": False,
+                    "simulation_source": "phet",
+                    "result": {"phet_url": phet_url}
+                }
+            else:
+                simulation_id = str(result.get("simulation_id") or "").strip()
+                asset.external_url = (
+                    f"{settings.backend_public_url.rstrip('/')}/simulations/{simulation_id}/html"
+                    if simulation_id
+                    else None
+                )
         elif job.provider == "mootion_ai":
             if asset.asset_type in ("interactive_quiz", "quiz"):
                 asset.payload_json = {**asset.payload_json, "quiz": result.get("quiz") or result.get("questions", [])}
@@ -801,10 +814,22 @@ def _run_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, o
 
 
 def _run_simulation_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
-    from app.simulation_engine.pipeline import SimulationPipeline
-
     topic = payload_json.get("generation_prompt") or payload_json.get("instructions") or payload_json.get("chapter_title") or asset.title
     instructions = payload_json.get("instructions") or ""
+
+    from app.services.student_actions_service import _get_phet_simulation_url
+    phet_url = _get_phet_simulation_url(topic, fallback_default=False)
+    if not phet_url and instructions:
+        phet_url = _get_phet_simulation_url(instructions, fallback_default=False)
+
+    if phet_url:
+        return {
+            "phet_url": phet_url,
+            "status": "completed",
+        }
+
+    from app.simulation_engine.pipeline import SimulationPipeline
+
     prompt = f"Teach me {topic}. {instructions}".strip()
 
     rag_context = _get_rag_context_for_asset(asset, topic)
