@@ -68,6 +68,15 @@ def tts_generate(script, video_id: str, scene_ids: list, language: str = "englis
             continue
 
         text = script_map[scene_id]
+
+        try:
+            from utils.cost_tracker import get_tracker
+            tracker = get_tracker()
+            if tracker:
+                tracker.add_tts_chars(len(text))
+        except Exception as e:
+            print(f"[cost-tracker] Error recording TTS characters: {e}")
+
         audio_path = output_dir / f"{scene_id}.wav"
 
         audio_config = speechsdk.audio.AudioOutputConfig(

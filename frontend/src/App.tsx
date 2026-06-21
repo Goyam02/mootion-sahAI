@@ -7,7 +7,6 @@ import { StudentSignupPage } from './pages/StudentSignupPage';
 import { StudentHomePage } from './pages/StudentHomePage';
 import { StudentTasksPage } from './pages/StudentTasksPage';
 import { StudentTaskActivityPage } from './pages/StudentTaskActivityPage';
-import { StudentExplorePage } from './pages/StudentExplorePage';
 import { StudentPlaygroundPage } from './pages/StudentPlaygroundPage';
 import { StudentAnalytics } from './pages/StudentAnalytics';
 
@@ -74,8 +73,7 @@ export default function App() {
         <Route path="/student/home" element={<ProtectedRoute allowedRole="student"><StudentHomePage /></ProtectedRoute>} />
         <Route path="/student/tasks" element={<ProtectedRoute allowedRole="student"><StudentTasksPage /></ProtectedRoute>} />
         <Route path="/student/task/:taskId" element={<ProtectedRoute allowedRole="student"><StudentTaskActivityPage /></ProtectedRoute>} />
-        <Route path="/student/explore" element={<ProtectedRoute allowedRole="student"><StudentExplorePage /></ProtectedRoute>} />
-        <Route path="/student/explore/:subjectCode/:chapterId" element={<ProtectedRoute allowedRole="student"><StudentExplorePage /></ProtectedRoute>} />
+
         <Route path="/student/playground" element={<ProtectedRoute allowedRole="student"><StudentPlaygroundPage /></ProtectedRoute>} />
         <Route path="/student/analytics" element={<ProtectedRoute allowedRole="student"><StudentAnalytics /></ProtectedRoute>} />
 

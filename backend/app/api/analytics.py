@@ -30,13 +30,15 @@ class ExplanationSubmitRequest(BaseModel):
     chapter_id: str
     class_id: str
     transcript: str
+    gaps: list[str] | None = None
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "chapter_id": "8cebb50b-b149-41d1-8329-22f97208fda7",
                 "class_id": "e367f530-a63e-4caa-8942-105fad01378d",
-                "transcript": "Cell division is the process by which a parent cell divides into two or more daughter cells. It usually occurs as part of a larger cell cycle."
+                "transcript": "Cell division is the process by which a parent cell divides into two or more daughter cells. It usually occurs as part of a larger cell cycle.",
+                "gaps": ["provides an incomplete definition of cell cycle"]
             }
         }
     }
@@ -129,6 +131,7 @@ def submit_explanation(
         depth_score=float(data.get("depth_score", 0)),
         overall_score=float(data.get("overall_score", 0)),
         llm_feedback=data.get("llm_feedback", ""),
+        gaps=request.gaps if request.gaps else None,
         attempt_number=attempt_number
     )
     db.add(concept_score)
@@ -142,6 +145,7 @@ def submit_explanation(
         "depth_score": concept_score.depth_score,
         "overall_score": concept_score.overall_score,
         "llm_feedback": concept_score.llm_feedback,
+        "gaps": concept_score.gaps,
         "attempt_number": concept_score.attempt_number,
         "created_at": concept_score.created_at
     }
@@ -215,6 +219,7 @@ def get_student_scores(
             "depth_score": s.depth_score,
             "overall_score": s.overall_score,
             "llm_feedback": s.llm_feedback,
+            "gaps": s.gaps,
             "attempt_number": s.attempt_number,
             "created_at": s.created_at
         })

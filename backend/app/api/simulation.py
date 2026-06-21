@@ -166,22 +166,70 @@ async def resolve_simulation(
 ):
     topic_lower = request.topic.lower().strip()
     
-    # 1. Lookup by topic or alias
-    for sim in SIMS_DATA:
-        if sim.get("topic_key", "").lower() == topic_lower or any(a.lower() == topic_lower for a in sim.get("aliases", [])):
-            # Basic grade filtering if grade_level is provided and sim has grade_range
-            if request.grade_level and sim.get("grade_range"):
-                if request.grade_level not in sim["grade_range"]:
-                    continue
+    # 1. Lookup by topic or alias (incorporates exact matching and LLM-based semantic matching)
+    from app.services.student_actions_service import _get_phet_simulation_url
+    phet_url = _get_phet_simulation_url(request.topic, fallback_default=False)
+    if phet_url:
+        title = request.topic.title()
+        # Find matching title in sims.json
+        sims_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "sims.json")
+        is_valid_match = True
+        if os.path.exists(sims_file):
+            try:
+                with open(sims_file, "r") as f:
+                    sims_data = json.load(f)
+                for sim in sims_data:
+                    if sim["phet_url"] == phet_url:
+                        # Basic grade filtering if grade_level is provided and sim has grade_range
+                        if request.grade_level and sim.get("grade_range"):
+                            if request.grade_level not in sim["grade_range"]:
+                                is_valid_match = False
+                                continue
+                        is_valid_match = True
+                        title = sim.get("title", title)
+                        break
+            except Exception as e:
+                print("Error loading sims.json in resolve:", e)
+                
+        if is_valid_match:
             return ResolveResponse(
                 type="phet",
-                url=sim["phet_url"],
-                title=sim.get("title", request.topic.title())
+                url=phet_url,
+                title=title
             )
             
     # 2. AI generation fallback
     from app.core.config import settings
-    result = await orchestrator.generate_from_prompt(request.topic)
+    
+    # Query user's enrolled classroom grade
+    user_grade = None
+    if user:
+        if getattr(user, "role", None) == "student":
+            from app.core.models import StudentClassMembership, ClassRoom
+            classes = (
+                db.query(ClassRoom)
+                .join(StudentClassMembership, StudentClassMembership.class_id == ClassRoom.id)
+                .filter(StudentClassMembership.student_id == user.id)
+                .all()
+            )
+            if classes:
+                user_grade = classes[0].grade
+        elif getattr(user, "role", None) == "teacher":
+            from app.core.models import TeacherClassMembership, ClassRoom
+            classes = (
+                db.query(ClassRoom)
+                .join(TeacherClassMembership, TeacherClassMembership.class_id == ClassRoom.id)
+                .filter(TeacherClassMembership.teacher_id == user.id)
+                .all()
+            )
+            if classes:
+                user_grade = classes[0].grade
+
+    # Override with request.grade_level if provided
+    if request.grade_level:
+        user_grade = request.grade_level
+
+    result = await orchestrator.generate_from_prompt(request.topic, user_grade=user_grade)
     _save_result(db, result, prompt=request.topic)
     
     if result.phase.value == "failed" or result.error:

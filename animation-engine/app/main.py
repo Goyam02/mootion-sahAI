@@ -39,51 +39,73 @@ def explain(
     rag_context: str | None = None,
     language: str = "english",
 ):
+    from utils.cost_tracker import init_tracker, finalize_and_log
+
     video_id = generate_video_id()
+    tracker = init_tracker(topic=topic, video_id=video_id)
 
-    # -------- Stage 1: Scene planning --------
-    scenes = generate_scenes(topic, level, rag_context, language)
+    try:
+        # -------- Stage 1: Scene planning --------
+        tracker.start_stage("scene_planning")
+        scenes = generate_scenes(topic, level, rag_context, language)
+        tracker.end_stage("scene_planning")
 
-    # -------- Stage 2: Manim rendering --------
-    manim_data = generate_manim(scenes, rag_context, language)
-    scene_ids = manim_data["scene_ids"]   # list of (disk_index, scene_id) tuples
+        # -------- Stage 2: Manim rendering --------
+        tracker.start_stage("manim_rendering")
+        manim_data = generate_manim(scenes, rag_context, language)
+        scene_ids = manim_data["scene_ids"]   # list of (disk_index, scene_id) tuples
+        tracker.end_stage("manim_rendering")
 
-    # -------- Stage 3: Script generation --------
-    script = generate_script(
-        scenes,
-        manim_data["timestamps"],
-        persona,
-        level,
-        rag_context,
-        language,
-    )
+        # -------- Stage 3: Script generation --------
+        tracker.start_stage("script_generation")
+        script = generate_script(
+            scenes,
+            manim_data["timestamps"],
+            persona,
+            level,
+            rag_context,
+            language,
+        )
+        tracker.end_stage("script_generation")
 
-    # -------- Stage 4: TTS (ONLY surviving scenes) --------
-    tts_generate(
-        script=script,
-        video_id=video_id,
-        scene_ids=scene_ids,
-        language=language,
-    )
+        # -------- Stage 4: TTS (ONLY surviving scenes) --------
+        tracker.start_stage("tts_generation")
+        tts_generate(
+            script=script,
+            video_id=video_id,
+            scene_ids=scene_ids,
+            language=language,
+        )
+        tracker.end_stage("tts_generation")
 
-    # -------- Stage 5: Audio + Video --------
-    mux_audio(video_id, scene_ids)
-    final_video_path = stitch(video_id)
+        # -------- Stage 5: Audio + Video --------
+        tracker.start_stage("stitch_and_mux")
+        mux_audio(video_id, scene_ids)
+        final_video_path = stitch(video_id)
+        tracker.end_stage("stitch_and_mux")
+
+        sadtalker_job_id = None
+        # -------- Optional: SadTalker --------
+        if face_enabled:
+            tracker.start_stage("sadtalker")
+            final_audio_path = extract_audio_from_final(video_id)
+            sadtalker_job_id = send_to_sadtalker(final_audio_path)
+            tracker.end_stage("sadtalker")
+
+    finally:
+        cost_summary = finalize_and_log()
 
     response = {
         "status": "complete",
         "video_id": video_id,
         "video_path": str(final_video_path),
         "face_enabled": face_enabled,
+        "estimated_cost": cost_summary,
     }
 
-    # -------- Optional: SadTalker --------
-    if face_enabled:
-        final_audio_path = extract_audio_from_final(video_id)
-        job_id = send_to_sadtalker(final_audio_path)
-
+    if face_enabled and sadtalker_job_id:
         response.update({
-            "sadtalker_job_id": job_id,
+            "sadtalker_job_id": sadtalker_job_id,
             "avatar_status": "processing",
         })
 

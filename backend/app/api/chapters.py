@@ -14,8 +14,10 @@ from app.schemas.chapter import (
     ChapterResponse,
     ChapterTopicAssetGenerateRequest,
     ChapterTopicAssetGenerateResponse,
+    ChapterTopicAssetPatchRequest,
+    ChapterTopicAssetResponse,
 )
-from app.services.chapter_service import bootstrap_chapters_from_curriculum, generate_chapter_asset, generate_topic_asset, get_class_chapter, list_class_chapters
+from app.services.chapter_service import bootstrap_chapters_from_curriculum, generate_chapter_asset, generate_topic_asset, get_class_chapter, list_class_chapters, update_topic_asset
 
 
 router = APIRouter(prefix="/teachers/classes/{class_id}/chapters", tags=["chapters"])
@@ -68,3 +70,16 @@ def generate_topic_asset_route(
     db: Session = Depends(get_db),
 ):
     return generate_topic_asset(db, user, class_id, chapter_id, topic_id, asset_id, request)
+
+
+@router.patch("/{chapter_id}/topics/{topic_id}/assets/{asset_id}", response_model=ChapterTopicAssetResponse)
+def patch_topic_asset_route(
+    class_id: str,
+    chapter_id: str,
+    topic_id: str,
+    asset_id: str,
+    request: ChapterTopicAssetPatchRequest,
+    user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return update_topic_asset(db, user, class_id, chapter_id, topic_id, asset_id, request)

@@ -24,7 +24,7 @@ function cleanText(text: string): string {
 
 const geminiApiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" ? process.env.GEMINI_API_KEY : "AIzaSyDummyKeyPlaceholderToPreventADCFallback";
 
-const ai = new GoogleGenAI({ 
+const ai = new GoogleGenAI({
   apiKey: geminiApiKey,
   httpOptions: {
     headers: {
@@ -90,13 +90,32 @@ app.post("/api/chat", async (req, res) => {
           text: cleanText("नमस्ते! मैं मूटिशन हूँ, आपका विज्ञान अध्ययन भागीदार! मेरी वास्तविक समय की एआई क्षमताओं को अनलॉक करने के लिए, कृपया एआई स्टूडियो में सेटिंग्स के तहत सीक्रेट्स पैनल में एक वैध `GEMINI_API_KEY` कॉन्फ़िगर करें। इस बीच, मैं आपके लिए स्थानीय उपकरण, ड्राइंग अभ्यास और कस्टम सिमुलेशन चलाने के लिए तैयार हूँ!")
         });
       }
-      return res.json({ 
-        text: cleanText("Hello! I'm Mootion, your science study partner! To unlock my real-time AI capabilities, please configure a valid `GEMINI_API_KEY` in the Secrets panel under Settings in AI Studio. In the meantime, I'm ready to run local tools, drawing exercises, and custom simulations for you!") 
+      return res.json({
+        text: cleanText("Hello! I'm Mootion, your science study partner! To unlock my real-time AI capabilities, please configure a valid `GEMINI_API_KEY` in the Secrets panel under Settings in AI Studio. In the meantime, I'm ready to run local tools, drawing exercises, and custom simulations for you!")
       });
     }
 
+    const activity = req.body.activity || req.body.activityName;
+    const topic = req.body.topic || (context && typeof context === 'object' ? context.topic : undefined);
+    const subject = req.body.subject || (context && typeof context === 'object' ? context.subject : undefined);
+
     let systemInstruction = "You are a helpful study assistant for a student platform called Mootion. Answer questions concisely, professionally, and cheerfully. CRITICAL: Do NOT use any emojis in your response under any circumstances. Keep the response completely emoji-free.";
-    if (context) systemInstruction += `\nContext: ${context}`;
+    if (activity === "Explain It" || activity === "Spot It" || activity === "Connect It") {
+      systemInstruction = `You are an expert, empathetic, and highly engaging tutor. 
+Your goal is to help the user learn and deeply understand: "${topic || 'this topic'}" under class "${subject || 'Science'}".
+
+Follow these core behaviors:
+1. Be Conversational & Natural: Speak like a friendly human mentor. 
+2. Socratic Method: Do not just give away the final answer. Ask guiding questions to help the user arrive at the conclusion themselves. 
+3. Bite-Sized Information: Deliver information in small, digestible chunks. Check for understanding before moving on. NEVER ask multiple consecutive questions! Ask ONLY ONE question at a time.
+4. Adapt to the User: If the user is struggling, simplify the analogy. If they grasp it quickly, move to more advanced nuances. 
+5. Use Vivid Analogies: Tie complex concepts to everyday, relatable scenarios.
+
+Activity context: The user is explaining a specific scientific topic. Wait for them to explain. Follow up on their explanation by counter-questioning them asking ONE of "what", "why", or probing deeper into their logic. Ask ONE challenging but concise question at a time.
+Never break character. Never refer to yourself as an AI. You are a mentor having a fluid, real-time spoken conversation.`;
+    } else if (context) {
+      systemInstruction += `\nContext: ${typeof context === 'object' ? JSON.stringify(context) : context}`;
+    }
     if (lang === 'hi') {
       systemInstruction += "\nCRITICAL: The user has selected Hindi language preference. You MUST answer the user in Hindi (हिन्दी) only. Do NOT use English to answer, even if the user asks their question in English. Respond entirely in Hindi.";
     }
@@ -114,8 +133,8 @@ app.post("/api/chat", async (req, res) => {
         text: cleanText("मुझे कनेक्शन की थोड़ी समस्या हो रही है, लेकिन चिंता न करें! सुनिश्चित करें कि आपका GEMINI_API_KEY आपके एआई स्टूडियो के सीक्रेट्स पैनल में कॉन्फ़िगर किया गया है। इस बीच इंटरैक्टिव सिमुलेशन, ड्राइंग बोर्ड और टास्क वर्कस्पेस का उपयोग करने के लिए स्वतंत्र महसूस करें!")
       });
     }
-    res.json({ 
-      text: cleanText("I'm having a brief connection issue, but don't worry! Ensure your GEMINI_API_KEY is configured in the Secrets panel of your AI Studio. Feel free to use the interactive simulation, drawing board, and tasks workspace in the meantime!") 
+    res.json({
+      text: cleanText("I'm having a brief connection issue, but don't worry! Ensure your GEMINI_API_KEY is configured in the Secrets panel of your AI Studio. Feel free to use the interactive simulation, drawing board, and tasks workspace in the meantime!")
     });
   }
 });
@@ -255,8 +274,8 @@ app.post("/api/task-chat", async (req, res) => {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
-      return res.json({ 
-        text: cleanText("I'm here to help with your task! Please set your `GEMINI_API_KEY` in Settings > Secrets to enable tailored AI answers. Meanwhile, strive to complete the interactive worksheet, adjust the virtual parameters, or use the drawing tools to learn!") 
+      return res.json({
+        text: cleanText("I'm here to help with your task! Please set your `GEMINI_API_KEY` in Settings > Secrets to enable tailored AI answers. Meanwhile, strive to complete the interactive worksheet, adjust the virtual parameters, or use the drawing tools to learn!")
       });
     }
 
@@ -278,8 +297,8 @@ Provide helpful, encouraging, and concise answers related to their current task.
     res.json({ text: cleanText(response.text || "") });
   } catch (error) {
     console.error("Task Chat API Error:", error);
-    res.json({ 
-      text: cleanText("I'm here to support you! Review the task diagram or try different answers to see the physics simulation update live.") 
+    res.json({
+      text: cleanText("I'm here to support you! Review the task diagram or try different answers to see the physics simulation update live.")
     });
   }
 });
@@ -432,8 +451,8 @@ app.get("/api/teachers/library/assets", async (req, res) => {
 // Legacy teacher assignment endpoint (frontend compatibility)
 app.post("/api/teacher/assignments", async (req, res) => {
   const classId = req.body.class_id || req.body.classId || req.query.class_id || req.query.classId;
-  const targetPath = classId 
-    ? `/teachers/classes/${classId}/assignments` 
+  const targetPath = classId
+    ? `/teachers/classes/${classId}/assignments`
     : `/teachers/assignments`;
   await proxyToFastAPI(req, res, targetPath);
 });
@@ -441,8 +460,8 @@ app.post("/api/teacher/assignments", async (req, res) => {
 // Legacy teacher GET assignments
 app.get("/api/teacher/assignments", async (req, res) => {
   const classId = req.query.class_id || req.query.classId;
-  const targetPath = classId 
-    ? `/teachers/classes/${classId}/assignments` 
+  const targetPath = classId
+    ? `/teachers/classes/${classId}/assignments`
     : `/teachers/assignments`;
   await proxyToFastAPI(req, res, targetPath);
 });
@@ -497,8 +516,8 @@ app.get("/api/chat-with-ai/chats/:chat_id/messages", async (req, res) => {
 // Legacy student tasks endpoint
 app.get("/api/student/tasks", async (req, res) => {
   const classId = req.query.class_id || req.query.classId;
-  const targetPath = classId 
-    ? `/students/classes/${classId}/assignments` 
+  const targetPath = classId
+    ? `/students/classes/${classId}/assignments`
     : `/students/assignments`;
   await proxyToFastAPI(req, res, targetPath);
 });
@@ -535,8 +554,8 @@ async function startServer() {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
         console.warn("Live API connection ignored: missing GEMINI_API_KEY environment variable");
-        clientWs.send(JSON.stringify({ 
-          modelTranscript: "⚠️ [Mootion Alert]: To enable real-time interactive voice features, please set your GEMINI_API_KEY under Settings > Secrets in AI Studio. In the meantime, you can use the chat, the drawing board, and the simulations!" 
+        clientWs.send(JSON.stringify({
+          modelTranscript: "⚠️ [Mootion Alert]: To enable real-time interactive voice features, please set your GEMINI_API_KEY under Settings > Secrets in AI Studio. In the meantime, you can use the chat, the drawing board, and the simulations!"
         }));
         setTimeout(() => {
           if (clientWs.readyState === 1) {
@@ -570,15 +589,27 @@ Never break character. Never refer to yourself as an AI. You are a mentor having
         model: "gemini-3.1-flash-live-preview",
         callbacks: {
           onmessage: (message: LiveServerMessage) => {
-            if (clientWs.readyState !== 1 /* WebSocket.OPEN */) return;
-            
+            console.log("[server.ts] Received msg from Gemini Live API. Type:", Object.keys(message));
+            if (message.serverContent) {
+              console.log("[server.ts] -> serverContent keys:", Object.keys(message.serverContent));
+              if (message.serverContent.modelTurn) {
+                console.log("[server.ts] -> modelTurn parts length:", message.serverContent.modelTurn.parts?.length);
+              }
+            }
+
+            if (clientWs.readyState !== 1 /* WebSocket.OPEN */) {
+              console.log("[server.ts] Client WS is closed, dropping message");
+              return;
+            }
+
             const anyMsg = message as any;
             const parts = message.serverContent?.modelTurn?.parts;
-            
+
             // Handle audio output chunk
             if (parts) {
               for (const part of parts) {
                 if (part.inlineData?.data) {
+                  console.log("[server.ts] Forwarding audio chunk of length", part.inlineData.data.length);
                   clientWs.send(JSON.stringify({ audio: part.inlineData.data }));
                 }
               }
@@ -590,10 +621,10 @@ Never break character. Never refer to yourself as an AI. You are a mentor having
             }
 
             // Resilient user speech input transcription paths
-            const userText = anyMsg.inputTranscription?.transcription || 
-                             anyMsg.serverContent?.userTurn?.parts?.[0]?.text ||
-                             (anyMsg.serverContent?.userTurn?.parts && anyMsg.serverContent.userTurn.parts.map((p: any) => p.text).join("")) || 
-                             "";
+            const userText = anyMsg.inputTranscription?.transcription ||
+              anyMsg.serverContent?.userTurn?.parts?.[0]?.text ||
+              (anyMsg.serverContent?.userTurn?.parts && anyMsg.serverContent.userTurn.parts.map((p: any) => p.text).join("")) ||
+              "";
             if (userText) {
               clientWs.send(JSON.stringify({ userTranscript: userText }));
             }
@@ -607,8 +638,8 @@ Never break character. Never refer to yourself as an AI. You are a mentor having
                 }
               }
             }
-            if (anyMsg.outputTranscription?.transcription) {
-              modelText += anyMsg.outputTranscription.transcription;
+            if (anyMsg.serverContent?.outputTranscription?.transcription) {
+              modelText += anyMsg.serverContent.outputTranscription.transcription;
             }
             if (modelText) {
               clientWs.send(JSON.stringify({ modelTranscript: cleanText(modelText) }));
@@ -618,23 +649,29 @@ Never break character. Never refer to yourself as an AI. You are a mentor having
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          systemInstruction,
+          systemInstruction: { parts: [{ text: systemInstruction }] },
         }
       });
 
       clientWs.on("message", (data) => {
         try {
           const parsed = JSON.parse(data.toString());
+          console.log("[server.ts] Received msg from client WS. Has audio:", !!parsed.audio, "Has text:", !!parsed.text);
           if (parsed.audio) {
+            console.log("[server.ts] Sending audio to Gemini Live (length)", parsed.audio.length);
             session.sendRealtimeInput({
-              audio: { data: parsed.audio, mimeType: "audio/pcm;rate=16000" },
+              audio: {
+                data: parsed.audio,
+                mimeType: "audio/pcm;rate=16000"
+              }
             });
           }
           if (parsed.text) {
+            console.log("[server.ts] Sending text to Gemini Live:", parsed.text);
             session.sendRealtimeInput({
               text: parsed.text
             });
@@ -652,5 +689,42 @@ Never break character. Never refer to yourself as an AI. You are a mentor having
     }
   });
 }
+
+app.post("/api/tts", async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
+      return res.status(503).json({ error: "No API Key" });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Aoede' },
+          },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (base64Audio) {
+      res.json({ audio: base64Audio });
+    } else {
+      res.status(500).json({ error: "No audio generated" });
+    }
+  } catch (error) {
+    console.error("TTS API Error:", error);
+    res.status(500).json({ error: "Failed to generate TTS" });
+  }
+});
 
 startServer();

@@ -43,4 +43,18 @@ def call_llm(prompt: str, temperature: float = 0):
     if not content:
         raise RuntimeError("LLM returned an empty response")
 
+    # Track usage if tracker is active
+    try:
+        from utils.cost_tracker import get_tracker
+        tracker = get_tracker()
+        if tracker and response.usage:
+            model_used = response.model or deployment_name
+            tracker.add_llm_call(
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                model_name=model_used
+            )
+    except Exception as e:
+        print(f"[cost-tracker] Error recording LLM tokens: {e}")
+
     return content.strip()

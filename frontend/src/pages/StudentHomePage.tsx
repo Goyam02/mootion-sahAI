@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
   CheckSquare, 
-  Compass, 
   Gamepad2, 
   Search, 
   ArrowRight,
@@ -57,6 +56,15 @@ interface Chapter {
 
 // ─── Priority ordering ─────────────────────────────────────────────────────
 
+const formatDisplayTitle = (type: string, title: string) => {
+  if (!title) return '';
+  let t = title.charAt(0).toUpperCase() + title.slice(1);
+  if (type === 'simulation' && !t.toLowerCase().includes('predict it')) {
+    return `Predict It - ${t}`;
+  }
+  return t;
+};
+
 const ASSIGNMENT_TYPE_PRIORITY: Record<string, number> = {
   explain_ai: 0,
   predict_ai: 1,
@@ -106,6 +114,7 @@ export function StudentHomePage() {
   const [studentName, setStudentName] = useState<string>('');
 
   // ─── Calendar data ──────────────────────────────────────────────────────
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [calendarData, setCalendarData] = useState<{ date: Date | null; value: number; dayNumber: number | null }[]>([]);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
 
@@ -199,54 +208,83 @@ export function StudentHomePage() {
   }, [selectedClass]);
 
   // ─── Fetch calendar data ──────────────────────────────────────────────
-  useEffect(() => {
-    const fetchCalendar = async () => {
-      setIsLoadingCalendar(true);
-      try {
-        const res = await api.get('/students/activity/calendar');
-        const days = res.days || [];
-        // Build a map: date string -> value
-        const map: Record<string, number> = {};
-        days.forEach((d: any) => { map[d.date] = d.value; });
-
-        // Build the 42-cell array for the current month
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = today.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const startingDayOfWeek = firstDay.getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const cells: { date: Date | null; value: number; dayNumber: number | null }[] = [];
-
-        // Empty cells before first day
-        for (let i = 0; i < startingDayOfWeek; i++) {
-          cells.push({ date: null, value: -1, dayNumber: null });
-        }
-
-        // Days of the month
-        for (let i = 1; i <= daysInMonth; i++) {
-          const d = new Date(year, month, i);
-          const dateStr = d.toISOString().split('T')[0];
-          const value = map[dateStr] || 0;
-          cells.push({ date: d, value, dayNumber: i });
-        }
-
-        // Pad remaining cells to complete 7-column grid (optional)
-        while (cells.length % 7 !== 0) {
-          cells.push({ date: null, value: -1, dayNumber: null });
-        }
-
-        setCalendarData(cells);
-      } catch (err) {
-        console.error('Failed to fetch calendar data:', err);
-        // Fallback to empty calendar
-        setCalendarData([]);
-      } finally {
-        setIsLoadingCalendar(false);
+  const fetchCalendarData = useCallback(async () => {
+    setIsLoadingCalendar(true);
+    try {
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth() + 1; // 1-indexed
+      const res = await api.get(`/students/activity/calendar?year=${year}&month=${month}`);
+      const daysData: { date: string, value: number }[] = res.days || [];
+      
+      const data = [];
+      const today = new Date();
+      
+      const firstDay = new Date(year, month - 1, 1);
+      const startingDayOfWeek = firstDay.getDay(); 
+      
+      const daysInMonth = new Date(year, month, 0).getDate();
+      
+      // Pad beginning of month
+      for (let i = 0; i < startingDayOfWeek; i++) {
+        data.push({ date: null, value: -1, dayNumber: null });
       }
-    };
-    fetchCalendar();
-  }, []);
+      
+      // Build map of fetched data
+      const activityMap = new Map<string, number>();
+      daysData.forEach(d => activityMap.set(d.date, d.value));
+
+      for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(year, month - 1, i);
+        // adjust local date to ISO string (YYYY-MM-DD) for lookup
+        const isoString = d.toLocaleDateString('en-CA'); // e.g. "2026-06-21"
+        const isToday = d.toDateString() === today.toDateString();
+        
+        let rawValue = activityMap.get(isoString) || 0;
+        let mappedValue = 0;
+        if (rawValue > 0) {
+          // Normalize real data count to 1-4 scale
+          if (rawValue >= 10) mappedValue = 4;
+          else if (rawValue >= 5) mappedValue = 3;
+          else if (rawValue >= 2) mappedValue = 2;
+          else mappedValue = 1;
+        }
+
+        if (isToday) {
+          // Override: forcefully show today as active if it's 0 (Pending user confirmation)
+          mappedValue = mappedValue === 0 ? 3 : mappedValue;
+        }
+        
+        data.push({
+          date: d,
+          value: mappedValue, 
+          dayNumber: i
+        });
+      }
+
+      // Pad remaining cells to complete 7-column grid
+      while (data.length % 7 !== 0) {
+        data.push({ date: null, value: -1, dayNumber: null });
+      }
+      
+      setCalendarData(data);
+    } catch (err) {
+      console.error("Failed to fetch calendar:", err);
+    } finally {
+      setIsLoadingCalendar(false);
+    }
+  }, [calendarDate]);
+
+  useEffect(() => {
+    fetchCalendarData();
+  }, [fetchCalendarData]);
+
+  const handlePrevMonth = () => {
+    setCalendarDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCalendarDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
 
   // ── Up Next: top ready assignment by priority ──
   const readyAssignments = allAssignments.filter(a => a.status === 'ready');
@@ -312,7 +350,7 @@ export function StudentHomePage() {
       <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-[#1800ad] px-6 py-2 flex justify-between items-center z-45 rounded-full shadow-[0_10px_40px_rgba(24,0,173,0.25)] border-[2px] border-[#f6f4ee]">
         <NavItem icon={<LayoutDashboard size={22} />} active onClick={() => navigate('/student/home')} />
         <NavItem icon={<CheckSquare size={22} />} onClick={() => navigate('/student/tasks')} />
-        <NavItem icon={<Compass size={22} />} onClick={() => navigate('/student/explore')} />
+
         <NavItem icon={<Gamepad2 size={22} />} onClick={() => navigate('/student/playground')} />
         <NavItem icon={<BarChart2 size={22} />} onClick={() => navigate('/student/analytics')} />
         <div 
@@ -337,7 +375,7 @@ export function StudentHomePage() {
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} active onClick={() => navigate('/student/home')} />
           <NavItem icon={<CheckSquare size={24} />} onClick={() => navigate('/student/tasks')} />
-          <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
+
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
           <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
@@ -510,7 +548,7 @@ export function StudentHomePage() {
                         {upNext.subject}{upNextClass ? ` · Grade ${upNextClass.grade}` : ''}
                       </span>
                       <h3 className="text-xl md:text-3xl lg:text-4xl font-bold text-[#f6f4ee] leading-tight max-w-[90%]">
-                        {upNext.title}
+                        {formatDisplayTitle(upNext.assignment_type, upNext.title)}
                       </h3>
                     </div>
                   </div>
@@ -568,8 +606,8 @@ export function StudentHomePage() {
                     <p className="text-sm text-[#1800ad]/70 font-medium mt-1">This month</p>
                   </div>
                   <div className="flex gap-1 text-[#1800ad]">
-                    <button className="p-2 hover:bg-[#1800ad]/10 rounded-full transition-colors"><ChevronLeft size={20} /></button>
-                    <button className="p-2 hover:bg-[#1800ad]/10 rounded-full transition-colors"><ChevronRight size={20} /></button>
+                    <button onClick={handlePrevMonth} className="p-2 hover:bg-[#1800ad]/10 rounded-full transition-colors"><ChevronLeft size={20} /></button>
+                    <button onClick={handleNextMonth} className="p-2 hover:bg-[#1800ad]/10 rounded-full transition-colors"><ChevronRight size={20} /></button>
                   </div>
                 </div>
 
@@ -580,7 +618,7 @@ export function StudentHomePage() {
                 ) : (
                   <div>
                     <div className="flex justify-between text-[10px] md:text-xs font-bold text-[#1800ad]/60 mb-2 uppercase px-1">
-                      <span>{new Date().toLocaleString('default', { month: 'long' })}</span>
+                      <span>{calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
                     </div>
                     <div className="grid grid-cols-7 gap-1.5 md:gap-2">
                       {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
@@ -668,7 +706,7 @@ export function StudentHomePage() {
                         className="p-4 md:p-5 rounded-3xl border-2 border-[#1800ad]/20 bg-[#f6f4ee] text-[#1800ad] flex flex-col gap-2 cursor-pointer hover:border-[#1800ad] transition-colors group shadow-sm"
                       >
                         <span className="text-xs font-bold opacity-70 uppercase tracking-wider">{cls?.subject ?? 'Assignment'}</span>
-                        <span className="text-sm font-black leading-tight line-clamp-2">{a.title}</span>
+                        <span className="text-sm font-black leading-tight line-clamp-2">{formatDisplayTitle(a.assignment_type, a.title)}</span>
                         <span className="text-[10px] font-bold px-2 py-0.5 bg-[#1800ad]/10 rounded-full w-fit">
                           {ASSIGNMENT_TYPE_LABELS[a.assignment_type] ?? a.assignment_type}
                         </span>

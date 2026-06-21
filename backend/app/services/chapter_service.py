@@ -34,22 +34,24 @@ from app.schemas.chapter import (
     ChapterResponse,
     ChapterTopicAssetGenerateRequest,
     ChapterTopicAssetGenerateResponse,
+    ChapterTopicAssetPatchRequest,
     ChapterTopicAssetResponse,
     ChapterTopicResponse,
     SubtopicResponse
 )
-from app.services.assignment_service import _run_manim_generation, _run_model_finder_generation
+from app.services.assignment_service import _run_manim_generation, _run_model_finder_generation, _run_connect_it_generation
 from app.services.media_service import resolve_asset_media_url
 from app.services.media_service import store_generated_manim_video
 from app.simulation_engine.pipeline import SimulationPipeline
 from app.core.models import SimulationRecord
 
 
-DIRECT_GENERATION_ASSET_TYPES = {"concept_video", "simulation", "three_d_model"}
+DIRECT_GENERATION_ASSET_TYPES = {"concept_video", "simulation", "three_d_model", "connect_it"}
 GENERATION_ESTIMATES_SECONDS = {
     "concept_video": 180,
     "simulation": 75,
     "three_d_model": 45,
+    "connect_it": 15,
 }
 
 
@@ -414,6 +416,13 @@ def _apply_direct_generation_result(db: Session, asset: ChapterAsset, result: di
         asset.last_generated_at = generated_at
         return
 
+    if asset.asset_type == "connect_it":
+        pairs = result.get("pairs", []) if isinstance(result, dict) else []
+        asset.payload_json = {**asset.payload_json, "placeholder": False, "generated": True, "pairs": pairs, "result": result, "approval_status": "pending_review"}
+        asset.generation_status = "ready"
+        asset.last_generated_at = generated_at
+        return
+
     raise RuntimeError(f"Unsupported provider: {asset.provider}")
 
 
@@ -443,6 +452,47 @@ def generate_chapter_asset(
 
     prompt = (request.instructions or "").strip()
     generation_prompt = chapter.title
+
+    if asset.asset_type == "simulation":
+        from app.services.student_actions_service import _get_phet_simulation_url
+        phet_url = _get_phet_simulation_url(chapter.title, fallback_default=False)
+        if not phet_url and prompt:
+            phet_url = _get_phet_simulation_url(prompt, fallback_default=False)
+        
+        if phet_url:
+            asset.external_url = phet_url
+            asset.provider = "phet"
+            asset.integration_target = "phet_embed"
+            asset.payload_json = {
+                **(asset.payload_json or {}),
+                "chapter_id": str(chapter.id),
+                "chapter_title": chapter.title,
+                "asset_type": "simulation",
+                "provider": "phet",
+                "integration_target": "phet_embed",
+                "instructions": prompt,
+                "generation_prompt": generation_prompt,
+                "teacher_notes": prompt,
+                "language": request.language or "english",
+                "placeholder": False,
+                "generated": False,
+                "simulation_source": "phet",
+                "result": {"phet_url": phet_url}
+            }
+            asset.generation_status = "ready"
+            asset.last_generated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(asset)
+            return ChapterAssetGenerateResponse(
+                chapter_id=str(chapter.id),
+                asset_id=str(asset.id),
+                asset_type=asset.asset_type,
+                external_url=asset.external_url,
+                generation_status=asset.generation_status,
+                payload_json=asset.payload_json,
+                last_generated_at=asset.last_generated_at,
+            )
+
     payload_json = {
         **(asset.payload_json or {}),
         "chapter_id": str(chapter.id),
@@ -548,6 +598,51 @@ def generate_topic_asset(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Generation is already in progress for this asset.")
 
     notes = (request.instructions or "").strip()
+
+    if asset.asset_type == "simulation":
+        from app.services.student_actions_service import _get_phet_simulation_url
+        phet_url = _get_phet_simulation_url(topic.title, fallback_default=False)
+        if not phet_url and notes:
+            phet_url = _get_phet_simulation_url(notes, fallback_default=False)
+        
+        if phet_url:
+            asset.external_url = phet_url
+            asset.provider = "phet"
+            asset.integration_target = "phet_embed"
+            asset.payload_json = {
+                **(asset.payload_json or {}),
+                "chapter_id": str(chapter.id),
+                "chapter_title": chapter.title,
+                "topic_id": str(topic.id),
+                "topic_title": topic.title,
+                "source_text": topic.source_text,
+                "asset_type": "simulation",
+                "provider": "phet",
+                "integration_target": "phet_embed",
+                "instructions": notes,
+                "generation_prompt": topic.title,
+                "teacher_notes": notes,
+                "language": request.language or "english",
+                "placeholder": False,
+                "generated": False,
+                "simulation_source": "phet",
+                "result": {"phet_url": phet_url}
+            }
+            asset.generation_status = "ready"
+            asset.last_generated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(asset)
+            return ChapterTopicAssetGenerateResponse(
+                chapter_id=str(chapter.id),
+                topic_id=str(topic.id),
+                asset_id=str(asset.id),
+                asset_type=asset.asset_type,
+                external_url=asset.external_url,
+                generation_status=asset.generation_status,
+                payload_json=asset.payload_json,
+                last_generated_at=asset.last_generated_at,
+            )
+
     payload_json = {
         **(asset.payload_json or {}),
         "chapter_id": str(chapter.id),
@@ -576,6 +671,8 @@ def generate_topic_asset(
         elif asset.asset_type == "simulation":
             sim_prompt = f"Teach me {topic.title}. {notes}".strip()
             result = _generate_simulation_result(sim_prompt)
+        elif asset.asset_type == "connect_it":
+            result = _run_connect_it_generation(asset, payload_json)
         else:
             raise RuntimeError(f"Unsupported asset type: {asset.asset_type}")
 
@@ -602,6 +699,41 @@ def generate_topic_asset(
         estimated_seconds=_generation_estimate_seconds(asset.asset_type),
         asset=_topic_asset_to_direct_response(asset),
     )
+
+
+def update_topic_asset(
+    db: Session,
+    user: User,
+    class_id: str,
+    chapter_id: str,
+    topic_id: str,
+    asset_id: str,
+    request: ChapterTopicAssetPatchRequest,
+) -> ChapterTopicAssetResponse:
+    from app.schemas.chapter import ChapterTopicAssetPatchRequest
+    _ensure_teacher_has_access(db, user, class_id)
+
+    chapter = get_chapter(db, chapter_id)
+    if not chapter or str(chapter.class_id) != class_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
+
+    topic = get_topic(db, topic_id)
+    if not topic or str(topic.chapter_id) != chapter_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found")
+
+    asset = db.get(ChapterTopicAsset, asset_id)
+    if not asset or str(asset.topic_id) != topic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic asset not found")
+
+    if request.payload_json is not None:
+        asset.payload_json = request.payload_json
+    
+    if request.approval_status is not None:
+        asset.payload_json = {**asset.payload_json, "approval_status": request.approval_status}
+
+    db.commit()
+    db.refresh(asset)
+    return _topic_asset_to_response(asset)
 
 
 def _create_placeholder_asset(db: Session, chapter: Chapter, asset_config: dict) -> None:

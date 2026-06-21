@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { 
@@ -48,6 +49,7 @@ interface ClusterGroup {
 }
 
 export function TeacherAnalytics() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
   
@@ -214,7 +216,7 @@ export function TeacherAnalytics() {
           <NavItem icon={<BarChart2 size={24} />} active onClick={() => navigate(classId ? `/teacher/analytics/${classId}` : '/teacher/analytics')} />
           <NavItem icon={<MessageSquare size={24} />} onClick={() => navigate('/teacher/doubts')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
           <span className="text-[#1800ad] font-bold text-lg">T</span>
         </div>
       </aside>
@@ -491,6 +493,8 @@ export function TeacherAnalytics() {
 
         </div>
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

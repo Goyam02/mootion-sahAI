@@ -1,5 +1,5 @@
 export type TaskStatus = 'Not Started' | 'In Progress' | 'Completed';
-export type TaskType = 'Video' | 'Simulation' | 'Quiz' | 'Practice';
+export type TaskType = 'Video' | 'Simulation' | 'Quiz' | 'Practice' | 'Predict It' | 'Explain It' | 'Spot It' | 'Connect It' | 'Interactive Quiz';
 
 export interface Task {
   id: string;

@@ -533,6 +533,7 @@ class ConceptScore(Base):
     depth_score = Column(Float, nullable=True)
     overall_score = Column(Float, nullable=True)
     llm_feedback = Column(Text, nullable=True)
+    gaps = Column(JSON, nullable=True)
     attempt_number = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

@@ -176,8 +176,8 @@ export function TeacherLoginPage() {
             </div>
             <button 
               type="submit"
-              disabled={isLoading || !teacherId.trim() || !password.trim()}
-              className="w-full px-6 py-2 md:py-3 mt-2 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-[13px] sm:text-sm md:text-base font-bold transition-all duration-300 rounded-full disabled:opacity-50"
+              disabled={isLoading || !teacherId.trim() || password.length < 8}
+              className="w-full px-6 py-2 md:py-3 mt-2 bg-[#1800ad] border-2 border-[#1800ad] hover:bg-[#f6f4ee] text-[#f6f4ee] hover:text-[#1800ad] text-[13px] sm:text-sm md:text-base font-bold transition-all duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Starting..." : "Start"}
             </button>

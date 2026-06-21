@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { 
   LayoutDashboard, 
   CheckSquare, 
-  Compass, 
   Gamepad2, 
   BarChart2, 
   ArrowLeft,
@@ -36,6 +36,7 @@ interface ScoreAttempt {
   depth_score: number;
   overall_score: number;
   llm_feedback: string;
+  gaps?: string[] | null;
   attempt_number: number;
   created_at: string;
 }
@@ -48,6 +49,7 @@ interface ChapterGroup {
 }
 
 export function StudentAnalytics() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const navigate = useNavigate();
   const { studentId } = useParams<{ studentId: string }>();
   const isReadOnly = !!studentId;
@@ -201,13 +203,13 @@ export function StudentAnalytics() {
             <>
               <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
               <NavItem icon={<CheckSquare size={24} />} onClick={() => navigate('/student/tasks')} />
-              <NavItem icon={<Compass size={24} />} onClick={() => navigate('/student/explore')} />
+
               <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
               <NavItem icon={<BarChart2 size={24} />} active onClick={() => navigate('/student/analytics')} />
             </>
           )}
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full bg-[#f6f4ee]">
           <span className="text-[#1800ad] font-bold text-lg">
             {isReadOnly ? 'T' : (studentInfo?.full_name?.charAt(0).toUpperCase() || 'S')}
           </span>
@@ -382,6 +384,22 @@ export function StudentAnalytics() {
                                   "{attempt.llm_feedback}"
                                 </p>
                               )}
+                              
+                              {attempt.gaps && attempt.gaps.length > 0 && (
+                                <div className="mt-2 bg-rose-50/50 border border-rose-100 p-2.5 rounded-lg flex flex-col gap-1.5">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+                                    <AlertTriangle size={12} />
+                                    Misconceptions / Gaps
+                                  </span>
+                                  <ul className="flex flex-col gap-1 list-disc pl-4">
+                                    {attempt.gaps.map((gap, i) => (
+                                      <li key={i} className="text-xs text-rose-900 font-medium">
+                                        {gap}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -480,6 +498,8 @@ export function StudentAnalytics() {
           </div>
         )}
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

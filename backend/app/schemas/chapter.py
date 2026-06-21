@@ -63,6 +63,11 @@ class ChapterTopicAssetGenerateResponse(BaseModel):
     asset: ChapterTopicAssetResponse
 
 
+class ChapterTopicAssetPatchRequest(BaseModel):
+    payload_json: dict | None = None
+    approval_status: str | None = None
+
+
 class SubtopicResponse(BaseModel):
     subtopic_id: str
     title: str

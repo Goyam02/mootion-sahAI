@@ -567,7 +567,7 @@ export function TeacherDashboardPage() {
                 ) : (
                   classes.map((cls) => {
                     const analytics = classAnalytics[cls.class_id];
-                    const misconception = analytics?.most_common_misconception || "No misconceptions detected yet.";
+                    const misconception = analytics?.most_common_misconception;
                     const score = analytics?.average_scores 
                       ? Math.round(((analytics.average_scores.understanding + analytics.average_scores.reasoning + analytics.average_scores.expression) / 9) * 100)
                       : 100;
@@ -585,9 +585,14 @@ export function TeacherDashboardPage() {
                             </span>
                           </div>
                         </div>
-                        <p className="text-xs font-bold text-[#121212] leading-snug">
-                          {misconception}
-                        </p>
+                        {misconception && misconception !== "No struggle areas detected yet." && misconception !== "No submissions yet." ? (
+                          <>
+                            <span className="text-[9px] font-black uppercase text-amber-600/80 tracking-wider">Latest gap identified</span>
+                            <p className="text-xs font-semibold text-[#121212] leading-snug line-clamp-3">{misconception}</p>
+                          </>
+                        ) : (
+                          <p className="text-xs font-bold text-[#1800ad]/40 leading-snug italic">No struggle areas detected yet.</p>
+                        )}
                       </div>
                     );
                   })

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
@@ -84,6 +85,7 @@ const transcribeAudioWithGemini = async (blob: Blob): Promise<string> => {
 };
 
 export function TeacherDoubtsPage() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const navigate = useNavigate();
   
   // Real API doubt and class states
@@ -508,7 +510,7 @@ Do not add any prefix, introductory remarks, markdown, or formatting. Output onl
           <NavItem icon={<BarChart2 size={24} />} onClick={handleAnalyticsNav} />
           <NavItem icon={<MessageSquare size={24} />} active onClick={() => navigate('/teacher/doubts')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] hover:opacity-90 transition-all shadow-sm">
           <span className="text-[#1800ad] font-montserrat font-black text-lg">{teacherName.charAt(0)}</span>
         </div>
       </aside>
@@ -845,6 +847,8 @@ Do not add any prefix, introductory remarks, markdown, or formatting. Output onl
         </div>
       </main>
 
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

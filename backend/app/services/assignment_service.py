@@ -109,22 +109,6 @@ def _chapter_asset_to_job_response(job: ChapterAssetGenerationJob) -> Assignment
     )
 
 
-def _resolve_content_json_urls(content_json: dict) -> dict:
-    if not content_json:
-        return content_json
-    bucket = content_json.get("storage_bucket")
-    key = content_json.get("storage_key")
-    if bucket and key:
-        from app.services.media_service import build_playback_url
-        new_content = dict(content_json)
-        if "external_url" in new_content:
-            new_content["external_url"] = build_playback_url(bucket, key)
-        if "embedUrl" in new_content:
-            new_content["embedUrl"] = build_playback_url(bucket, key)
-        return new_content
-    return content_json
-
-
 def _assignment_to_response(db: Session, assignment: Assignment) -> AssignmentResponse:
     recipients = [
         AssignmentRecipientResponse(student_id=str(recipient.student_id))
@@ -138,7 +122,7 @@ def _assignment_to_response(db: Session, assignment: Assignment) -> AssignmentRe
         assignment_type=assignment.assignment_type,
         title=assignment.title,
         instructions=assignment.instructions,
-        content_json=_resolve_content_json_urls(assignment.content_json),
+        content_json=assignment.content_json,
         status=assignment.status,
         recipients=recipients,
         jobs=jobs,
@@ -253,7 +237,7 @@ def _is_content_placeholder(content_json: dict) -> bool:
     if not content_json:
         return True
     # If any of these keys exist with a non-null value, it's not a placeholder.
-    if content_json.get("external_url") or content_json.get("embedUrl") or content_json.get("quiz"):
+    if content_json.get("external_url") or content_json.get("embedUrl") or content_json.get("quiz") or content_json.get("pairs"):
         return False
     # Also check if the placeholder flag is explicitly set
     if content_json.get("placeholder") is True:
@@ -265,6 +249,7 @@ def _is_content_placeholder(content_json: dict) -> bool:
 def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_type: str, class_id: str) -> dict | None:
     """Builds content_json from the newest ready asset (chapter or topic) of the matching type.
     class_id is kept for interface consistency but not used directly (chapter_id is sufficient).
+    For connect_it, only include if approval_status == 'approved'.
     """
     expected_asset_type = ASSIGNMENT_TYPE_TO_ASSET_TYPE.get(assignment_type)
     chapter_assets = get_assets_for_chapter(db, chapter_id)
@@ -274,6 +259,11 @@ def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_ty
     for asset in chapter_assets:
         if asset.generation_status != "ready":
             continue
+        # For connect_it, require approval
+        if asset.asset_type == "connect_it":
+            payload = asset.payload_json or {}
+            if payload.get("approval_status") != "approved":
+                continue
         if expected_asset_type and asset.asset_type == expected_asset_type:
             ready_assets.append(asset)
         elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
@@ -283,6 +273,10 @@ def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_ty
         for asset in get_assets_for_topic(db, str(topic.id)):
             if asset.generation_status != "ready":
                 continue
+            if asset.asset_type == "connect_it":
+                payload = asset.payload_json or {}
+                if payload.get("approval_status") != "approved":
+                    continue
             if expected_asset_type and asset.asset_type == expected_asset_type:
                 ready_assets.append(asset)
             elif expected_asset_type in ("interactive_quiz", "quiz") and asset.asset_type in ("interactive_quiz", "quiz"):
@@ -306,56 +300,17 @@ def _build_content_json_from_chapter(db: Session, chapter_id: str, assignment_ty
     if asset.asset_type in ("quiz", "interactive_quiz"):
         content_json["quiz"] = (asset.payload_json or {}).get("quiz")
     elif asset.asset_type == "three_d_model":
-        from app.services.media_service import resolve_asset_media_url
-        content_json["embedUrl"] = resolve_asset_media_url(asset)
-        if asset.storage_bucket and asset.storage_key:
-            content_json["storage_bucket"] = asset.storage_bucket
-            content_json["storage_key"] = asset.storage_key
+        content_json["embedUrl"] = asset.external_url
     elif asset.asset_type in ("concept_video", "simulation"):
-        from app.services.media_service import resolve_asset_media_url
-        content_json["external_url"] = resolve_asset_media_url(asset)
-        if asset.storage_bucket and asset.storage_key:
-            content_json["storage_bucket"] = asset.storage_bucket
-            content_json["storage_key"] = asset.storage_key
+        content_json["external_url"] = asset.external_url
+    elif asset.asset_type == "connect_it":
+        content_json["pairs"] = (asset.payload_json or {}).get("pairs", [])
     else:
         payload = asset.payload_json or {}
         for key in ("system_prompt", "initial_question", "student_persona", "scenario"):
             if key in payload:
                 content_json[key] = payload[key]
     return content_json
-
-
-def _generate_interactive_quiz_content(
-    chapter_obj: Chapter | None,
-    topics: list,
-) -> dict:
-    """Generate quiz questions for an interactive_quiz assignment via LLM."""
-    topic_title = chapter_obj.title if chapter_obj else "General Science"
-
-    def _generate():
-        prompt = f"""
-You are a science teacher. Generate an interactive quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic_title}".
-For each question, provide 4 options and specify the index of the correct option (0-based).
-Return ONLY a valid JSON array of objects with the following keys:
-- "question" (string)
-- "options" (array of 4 strings)
-- "correctAnswer" (integer, 0 to 3)
-
-Do not include markdown tags like ```json or any other text. Output exactly the raw JSON.
-"""
-        res = query_llm(prompt)
-        text = res.get("response", "").strip()
-        data = _extract_json_helper(text)
-        if isinstance(data, list):
-            return {"questions": data}
-        if isinstance(data, dict) and "questions" in data:
-            return {"questions": data["questions"]}
-        raise GenerationParsingError("LLM response did not contain expected quiz format", raw_text=text)
-
-    try:
-        return _generation_retry(_generate)
-    except GenerationParsingError as e:
-        return {"error": f"Interactive Quiz generation failed: {str(e)}", "questions": []}
 
 
 def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
@@ -367,33 +322,28 @@ def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
     # If there are no jobs, assignment status is ready (if content is ready, or can be built)
     if not jobs:
         if assignment.assignment_type in INTERACTIVE_ASSIGNMENT_TYPES:
-            chapter_obj = get_chapter(db, str(assignment.chapter_id))
-            topics = get_topics_for_chapter(db, str(assignment.chapter_id))
-            topic_list = []
-            for t in topics:
-                snippet = (t.source_text or "")[:300] if t.source_text else ""
-                topic_list.append({
-                    "title": t.title,
-                    "source_snippet": snippet,
-                })
-
-            base_content = {
-                "placeholder": False,
-                "assignment_type": assignment.assignment_type,
-                "activity": assignment.assignment_type,
-                "chapter_id": str(assignment.chapter_id) if assignment.chapter_id else "",
-                "chapter_title": chapter_obj.title if chapter_obj else "",
-                "topics": topic_list,
-            }
-
             if assignment.assignment_type == "interactive_quiz":
-                quiz_data = _generate_interactive_quiz_content(chapter_obj, topics)
-                base_content["quiz"] = quiz_data.get("questions", [])
-                assignment.content_json = base_content
-                assignment.status = "pending_approval"
+                assignment.status = "draft"
             else:
-                assignment.content_json = base_content
                 assignment.status = "ready"
+            if _is_content_placeholder(assignment.content_json):
+                chapter_obj = get_chapter(db, str(assignment.chapter_id))
+                topics = get_topics_for_chapter(db, str(assignment.chapter_id))
+                topic_list = []
+                for t in topics:
+                    snippet = (t.source_text or "")[:300] if t.source_text else ""
+                    topic_list.append({
+                        "title": t.title,
+                        "source_snippet": snippet,
+                    })
+                assignment.content_json = {
+                    "placeholder": False,
+                    "assignment_type": assignment.assignment_type,
+                    "activity": assignment.assignment_type,
+                    "chapter_id": str(assignment.chapter_id) if assignment.chapter_id else "",
+                    "chapter_title": chapter_obj.title if chapter_obj else "",
+                    "topics": topic_list,
+                }
         elif _is_content_placeholder(assignment.content_json):
             new_content = _build_content_json_from_chapter(
                 db,
@@ -403,11 +353,17 @@ def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
             )
             if new_content:
                 assignment.content_json = new_content
-                assignment.status = "ready"
+                if assignment.assignment_type == "interactive_quiz":
+                    assignment.status = "draft"
+                else:
+                    assignment.status = "ready"
             else:
                 assignment.status = "queued"
         else:
-            assignment.status = "ready"
+            if assignment.assignment_type == "interactive_quiz":
+                assignment.status = "draft"
+            else:
+                assignment.status = "ready"
         db.commit()
         return
 
@@ -424,7 +380,10 @@ def _refresh_assignment_status(db: Session, assignment_id: str) -> None:
             )
             if new_content:
                 assignment.content_json = new_content
-        assignment.status = "ready"
+        if assignment.assignment_type == "interactive_quiz":
+            assignment.status = "draft"
+        else:
+            assignment.status = "ready"
     elif "failed" in statuses:
         assignment.status = "failed"
     elif "processing" in statuses:
@@ -459,6 +418,40 @@ def create_teacher_assignment(
         "chapter_title": chapter.title,
     }
 
+    # Synchronous Recall It (interactive_quiz) generation
+    if request.assignment_type == "interactive_quiz":
+        chapter_assets = get_assets_for_chapter(db, str(chapter.id))
+        quiz_asset = next((a for a in chapter_assets if a.asset_type == "quiz"), None)
+        
+        payload_json = {
+            "chapter_id": str(chapter.id),
+            "chapter_title": chapter.title,
+            "asset_type": "interactive_quiz",
+        }
+        
+        result = _run_interactive_quiz_generation(quiz_asset, payload_json)
+        
+        if "error" in result or "questions" not in result:
+            error_msg = result.get("error") or "Failed to generate quiz questions."
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Recall It generation failed: {error_msg}"
+            )
+            
+        content_json["quiz"] = result["questions"]
+        content_json["placeholder"] = False
+        
+        # Save back to the chapter quiz asset template for reuse
+        if quiz_asset:
+            quiz_asset.generation_status = "ready"
+            quiz_asset.last_generated_at = datetime.now(timezone.utc)
+            quiz_asset.payload_json = {
+                **(quiz_asset.payload_json or {}),
+                "placeholder": False,
+                "generated": True,
+                "quiz": result["questions"],
+            }
+
     assignment = create_assignment(
         db,
         Assignment(
@@ -469,7 +462,7 @@ def create_teacher_assignment(
             title=request.title,
             instructions=request.instructions,
             content_json=content_json,
-            status="queued",
+            status="draft" if request.assignment_type == "interactive_quiz" else "queued",
         ),
     )
 
@@ -483,24 +476,26 @@ def create_teacher_assignment(
                 ),
             )
 
-    _create_generation_jobs(db, assignment, chapter)
-    # Refresh status will set content if jobs are skipped (fast path)
-    _refresh_assignment_status(db, str(assignment.id))
+    if request.assignment_type != "interactive_quiz":
+        _create_generation_jobs(db, assignment, chapter)
+        # Refresh status will set content if jobs are skipped (fast path)
+        _refresh_assignment_status(db, str(assignment.id))
     db.refresh(assignment)
     return _assignment_to_response(db, assignment)
 
 
-def approve_teacher_assignment(db: Session, user: User, class_id: str, assignment_id: str) -> AssignmentResponse:
+def delete_teacher_assignment(db: Session, user: User, class_id: str, assignment_id: str) -> dict:
     _ensure_teacher_has_access(db, user, class_id)
     assignment = get_assignment(db, assignment_id)
     if not assignment or str(assignment.class_id) != class_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    if assignment.status != "pending_approval":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assignment is not pending approval")
-    assignment.status = "ready"
+    
+    # Delete recipients and jobs
+    db.query(AssignmentRecipient).filter(AssignmentRecipient.assignment_id == assignment.id).delete()
+    db.query(ChapterAssetGenerationJob).filter(ChapterAssetGenerationJob.assignment_id == assignment.id).delete()
+    db.delete(assignment)
     db.commit()
-    db.refresh(assignment)
-    return _assignment_to_response(db, assignment)
+    return {"deleted": True, "assignment_id": assignment_id}
 
 
 def list_teacher_assignments(db: Session, user: User, class_id: str) -> list[AssignmentListItem]:
@@ -551,6 +546,16 @@ def get_teacher_assignment(db: Session, user: User, class_id: str, assignment_id
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
     return _assignment_to_response(db, assignment)
 
+def approve_teacher_assignment(db: Session, user: User, class_id: str, assignment_id: str) -> AssignmentResponse:
+    _ensure_teacher_has_access(db, user, class_id)
+    assignment = get_assignment(db, assignment_id)
+    if not assignment or str(assignment.class_id) != class_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    
+    # Mark approved assignment as ready
+    assignment.status = "ready"
+    db.commit()
+    return _assignment_to_response(db, assignment)
 
 def _student_assignment_to_response(db: Session, assignment: Assignment) -> StudentAssignmentResponse:
     jobs = [_chapter_asset_to_job_response(job) for job in get_assignment_jobs(db, str(assignment.id))]
@@ -561,7 +566,7 @@ def _student_assignment_to_response(db: Session, assignment: Assignment) -> Stud
         assignment_type=assignment.assignment_type,
         title=assignment.title,
         instructions=assignment.instructions,
-        content_json=_resolve_content_json_urls(assignment.content_json),
+        content_json=assignment.content_json,
         status=assignment.status,
         jobs=jobs,
     )
@@ -573,10 +578,10 @@ def list_student_assignments(db: Session, user: User, class_id: str) -> list[Stu
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
-    # Direct DB filtering by class_id, exclude pending_approval (not yet approved by teacher)
+    # Direct DB filtering by class_id and status != 'draft' (hide draft quizzes from students)
     assignments = db.query(Assignment).filter(
         Assignment.class_id == class_id,
-        Assignment.status != "pending_approval",
+        Assignment.status != "draft"
     ).order_by(Assignment.created_at.desc()).all()
     if not assignments:
         return []
@@ -611,9 +616,7 @@ def get_student_assignment(db: Session, user: User, class_id: str, assignment_id
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     assignment = get_assignment(db, assignment_id)
-    if not assignment or str(assignment.class_id) != class_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    if assignment.status == "pending_approval":
+    if not assignment or str(assignment.class_id) != class_id or assignment.status == "draft":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
 
     return _student_assignment_to_response(db, assignment)
@@ -682,6 +685,40 @@ def _run_model_finder_generation(asset: ChapterAsset, payload_json: dict) -> dic
     return find_model(str(query))
 
 
+def _run_connect_it_generation(asset, payload_json: dict) -> dict[str, object]:
+    """Generate 8 matching pairs for Connect It activity."""
+    topic = payload_json.get("chapter_title") or payload_json.get("generation_prompt") or asset.title
+    language = payload_json.get("language", "english")
+    
+    prompt = f"""
+    You are an expert educational content creator. Generate 8 pairs of related items for a "Connect It" matching activity on the topic: "{topic}".
+    Each pair should consist of a left item and a right item that are meaningfully related (e.g., term-definition, cause-effect, scenario-concept, etc.).
+    The pairs should be appropriate for school students (grades 6-12) and cover key concepts of the topic.
+    
+    Return ONLY a valid JSON object with a "pairs" key containing an array of 8 objects, each with "left" and "right" strings.
+    Example format:
+    {{
+      "pairs": [
+        {{"left": "Photosynthesis", "right": "Process of converting light energy to chemical energy"}},
+        ...
+      ]
+    }}
+    Do not include markdown or any extra text. Output exactly the raw JSON.
+    The language should be {language}.
+    """
+    
+    try:
+        res = query_llm(prompt)
+        text = res.get("response", "").strip()
+        data = _extract_json_helper(text)
+        if isinstance(data, dict) and "pairs" in data:
+            return {"pairs": data["pairs"][:8]}  # Ensure at most 8 pairs
+        else:
+            return {"error": "Failed to generate valid pairs"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def _apply_generation_result(db: Session, job: ChapterAssetGenerationJob, result: dict[str, object], status: str) -> None:
     asset = db.get(ChapterAsset, job.chapter_asset_id)
     if not asset:
@@ -708,12 +745,25 @@ def _apply_generation_result(db: Session, job: ChapterAssetGenerationJob, result
         elif job.provider == "quiz_generator":
             asset.payload_json = {**asset.payload_json, "quiz": result.get("questions", [])}
         elif job.provider == "simulation":
-            simulation_id = str(result.get("simulation_id") or "").strip()
-            asset.external_url = (
-                f"{settings.backend_public_url.rstrip('/')}/simulations/{simulation_id}/html"
-                if simulation_id
-                else None
-            )
+            phet_url = result.get("phet_url")
+            if phet_url:
+                asset.external_url = phet_url
+                asset.provider = "phet"
+                asset.integration_target = "phet_embed"
+                asset.payload_json = {
+                    **asset.payload_json,
+                    "placeholder": False,
+                    "generated": False,
+                    "simulation_source": "phet",
+                    "result": {"phet_url": phet_url}
+                }
+            else:
+                simulation_id = str(result.get("simulation_id") or "").strip()
+                asset.external_url = (
+                    f"{settings.backend_public_url.rstrip('/')}/simulations/{simulation_id}/html"
+                    if simulation_id
+                    else None
+                )
         elif job.provider == "mootion_ai":
             if asset.asset_type in ("interactive_quiz", "quiz"):
                 asset.payload_json = {**asset.payload_json, "quiz": result.get("quiz") or result.get("questions", [])}
@@ -738,7 +788,7 @@ def _run_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, o
     rag_context = _get_rag_context_for_asset(asset, topic)
     def _generate():
         prompt = f"""
-        You are a science teacher. Generate a quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic}".
+        You are a science teacher. Generate a quiz containing exactly 10 multiple-choice questions for school students on the topic: "{topic}".
         For each question, provide 4 options and specify the index of the correct option (0-based).
         Return ONLY a valid JSON array of objects with the following keys:
         - "question" (string)
@@ -764,10 +814,22 @@ def _run_quiz_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, o
 
 
 def _run_simulation_generation(asset: ChapterAsset, payload_json: dict) -> dict[str, object]:
-    from app.simulation_engine.pipeline import SimulationPipeline
-
     topic = payload_json.get("generation_prompt") or payload_json.get("instructions") or payload_json.get("chapter_title") or asset.title
     instructions = payload_json.get("instructions") or ""
+
+    from app.services.student_actions_service import _get_phet_simulation_url
+    phet_url = _get_phet_simulation_url(topic, fallback_default=False)
+    if not phet_url and instructions:
+        phet_url = _get_phet_simulation_url(instructions, fallback_default=False)
+
+    if phet_url:
+        return {
+            "phet_url": phet_url,
+            "status": "completed",
+        }
+
+    from app.simulation_engine.pipeline import SimulationPipeline
+
     prompt = f"Teach me {topic}. {instructions}".strip()
 
     rag_context = _get_rag_context_for_asset(asset, topic)
@@ -917,7 +979,7 @@ def _run_interactive_quiz_generation(asset: ChapterAsset, payload_json: dict) ->
     topic = payload_json.get("chapter_title") or asset.title
     def _generate():
         prompt = f"""
-        You are a science teacher. Generate an interactive quiz containing exactly 3 multiple-choice questions for school students on the topic: "{topic}".
+        You are a science teacher. Generate an interactive quiz containing exactly 10 multiple-choice questions for school students on the topic: "{topic}".
         For each question, provide 4 options and specify the index of the correct option (0-based).
         Return ONLY a valid JSON array of objects (or object containing the questions array) with the following keys:
         - "question" (string)

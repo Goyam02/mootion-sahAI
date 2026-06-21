@@ -336,6 +336,12 @@ def find_model(query: str) -> dict[str, object]:
             return {"message": "No suitable model found."}
 
         best_model, best_score = ranked
+        if best_score < 80:
+            return {
+                "message": "No suitable model found.",
+                "error": f"No relevant model found (max score {best_score} is below threshold 80)."
+            }
+
         return {
             "name": best_model.get("name"),
             "uid": best_model.get("uid"),

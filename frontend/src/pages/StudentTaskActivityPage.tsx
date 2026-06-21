@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { LogoutModal } from '../components/LogoutModal';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -13,10 +14,11 @@ import { TASKS, Task } from '../data/tasks';
 import { NavItem } from '../components/NavItem';
 import { api } from '../lib/api';
 import { ChatbotFab } from '../components/ChatbotFab';
-import { LayoutDashboard, CheckSquare, Compass, Gamepad2, BarChart2, Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Gamepad2, BarChart2 } from 'lucide-react';
 
 // Import modular Teach AI activities and progress panels
 import { LiveVoiceActivity, AttemptHistoryPanel } from '../components/LiveVoiceActivity';
+import ConnectItActivity from '../components/ConnectItActivity';
 
 // --- Content Components ---
 
@@ -27,29 +29,6 @@ function QuizContent({ task }: { task: Task }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(10);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<any>(null);
-  const submitAttemptedRef = useRef(false);
-
-  useEffect(() => {
-    if (!isSubmitted || submitting || submitAttemptedRef.current) return;
-    const dbTask = (task as any).dbTask;
-    if (!dbTask) return;
-    submitAttemptedRef.current = true;
-    let score = 0;
-    questions.forEach(q => { if (answers[q.id] === q.options[q.correctAnswer]) score++; });
-    setSubmitting(true);
-    api.post(`/students/classes/${dbTask.class_id}/assignments/${dbTask.assignment_id}/submit-quiz`, {
-      score,
-      total_questions: questions.length
-    }).then(res => {
-      setSubmitResult(res);
-    }).catch(err => {
-      console.error("Failed to submit quiz score:", err);
-    }).finally(() => {
-      setSubmitting(false);
-    });
-  }, [isSubmitted, questions, answers, task]);
 
   useEffect(() => {
     // If it's a real backend task and we have quiz questions, use them!
@@ -57,13 +36,7 @@ function QuizContent({ task }: { task: Task }) {
       const mainJob = (task as any).dbTask.jobs?.find((j: any) => j.asset_type === 'quiz' || j.asset_type === 'interactive_quiz');
       const questionsData = mainJob?.result_json?.questions || mainJob?.result_json?.quiz || (task as any).dbTask.content_json?.quiz;
       if (questionsData && Array.isArray(questionsData)) {
-        const normalized = questionsData.map((q: any, i: number) => ({
-          id: q.id ?? `q_${i}`,
-          questionText: q.questionText ?? q.question ?? '',
-          options: q.options ?? [],
-          correctAnswer: q.correctAnswer,
-        }));
-        setQuestions(normalized);
+        setQuestions(questionsData);
         setLoading(false);
         return;
       }
@@ -123,10 +96,11 @@ function QuizContent({ task }: { task: Task }) {
 
   if (isSubmitted) {
     let score = 0;
-    questions.forEach(question => {
-      if (answers[question.id] === question.options[question.correctAnswer]) score++;
+    questions.forEach((question, idx) => {
+      const selectedOptString = answers[idx];
+      const correctOptString = question.options[question.correctAnswer];
+      if (selectedOptString === correctOptString) score++;
     });
-    const dbTask = (task as any).dbTask;
 
     return (
        <div className="flex flex-col items-center flex-1 mt-6 max-w-3xl mx-auto w-full">
@@ -137,18 +111,8 @@ function QuizContent({ task }: { task: Task }) {
             </div>
             <p className="font-bold text-[#1800ad]/70 mb-8">You answered {score} out of {questions.length} correctly.</p>
             
-            {dbTask && submitting && (
-              <p className="text-sm text-[#1800ad]/50 mb-4 animate-pulse">Submitting score...</p>
-            )}
-            {dbTask && submitResult && (
-              <p className="text-sm text-green-600 font-semibold mb-4">✓ Score saved to your analytics</p>
-            )}
-            {dbTask && !submitting && !submitResult && (
-              <p className="text-sm text-amber-600 font-semibold mb-4">⚠ Score could not be saved</p>
-            )}
-            
             <div className="flex gap-4 w-full">
-              <button onClick={() => { setIsSubmitted(false); setSubmitResult(null); submitAttemptedRef.current = false; setAnswers({}); setCurrentIdx(0); setTimeLeft(10); }} className="flex-1 py-4 bg-[#1800ad]/10 text-[#1800ad] rounded-full font-bold hover:bg-[#1800ad]/20 transition-colors">
+              <button onClick={() => { setIsSubmitted(false); setAnswers({}); setCurrentIdx(0); setTimeLeft(10); }} className="flex-1 py-4 bg-[#1800ad]/10 text-[#1800ad] rounded-full font-bold hover:bg-[#1800ad]/20 transition-colors">
                 Try Again
               </button>
             </div>
@@ -168,19 +132,19 @@ function QuizContent({ task }: { task: Task }) {
             {timeLeft}
           </div>
           <span className="font-bold text-[#1800ad]/50 text-sm mb-4 block uppercase tracking-wider">Question {currentIdx + 1} of {questions.length}</span>
-          <h3 className="text-2xl font-black text-[#1800ad] mb-8 pr-16">{q.questionText}</h3>
+          <h3 className="text-2xl font-black text-[#1800ad] mb-8 pr-16">{q.questionText ?? q.question ?? q.prompt ?? q.text ?? ''}</h3>
 
           <div className="flex flex-col gap-4">
              {q.options?.map((opt: string) => (
                 <button
                   key={opt} 
-                  onClick={() => setAnswers({...answers, [q.id]: opt})}
-                  className={`text-left flex items-center gap-4 p-5 rounded-2xl border-2 transition-all w-full ${answers[q.id] === opt ? 'border-[#1800ad] bg-[#1800ad]/5 shadow-[0_0_0_2px_rgba(24,0,173,0.1)]' : 'border-[#1800ad]/10 hover:border-[#1800ad]/30 hover:bg-[#f6f4ee]'}`}
+                  onClick={() => setAnswers({...answers, [currentIdx]: opt})}
+                  className={`text-left flex items-center gap-4 p-5 rounded-2xl border-2 transition-all w-full ${answers[currentIdx] === opt ? 'border-[#1800ad] bg-[#1800ad]/5 shadow-[0_0_0_2px_rgba(24,0,173,0.1)]' : 'border-[#1800ad]/10 hover:border-[#1800ad]/30 hover:bg-[#f6f4ee]'}`}
                 >
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${answers[q.id] === opt ? 'border-[#1800ad]' : 'border-[#1800ad]/30'}`}>
-                    {answers[q.id] === opt && <div className="w-3 h-3 bg-[#1800ad] rounded-full" />}
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${answers[currentIdx] === opt ? 'border-[#1800ad]' : 'border-[#1800ad]/30'}`}>
+                    {answers[currentIdx] === opt && <div className="w-3 h-3 bg-[#1800ad] rounded-full" />}
                   </div>
-                  <span className={`font-bold text-lg ${answers[q.id] === opt ? 'text-[#1800ad]' : 'text-[#1800ad]/80'}`}>{opt}</span>
+                  <span className={`font-bold text-lg ${answers[currentIdx] === opt ? 'text-[#1800ad]' : 'text-[#1800ad]/80'}`}>{opt}</span>
                 </button>
              ))}
           </div>
@@ -190,7 +154,7 @@ function QuizContent({ task }: { task: Task }) {
           {currentIdx === questions.length - 1 ? (
              <button 
                 onClick={() => setIsSubmitted(true)}
-                disabled={!answers[q.id]}
+                disabled={!answers[currentIdx]}
                 className="px-8 py-4 bg-[#1800ad] text-white rounded-full font-bold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
              >
                 Submit Answers
@@ -198,201 +162,13 @@ function QuizContent({ task }: { task: Task }) {
           ) : (
              <button 
                 onClick={() => { setCurrentIdx(prev => prev + 1); setTimeLeft(10); }}
-                disabled={!answers[q.id]}
+                disabled={!answers[currentIdx]}
                 className="px-8 py-4 bg-[#1800ad] text-white rounded-full font-bold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50 disabled:hover:translate-y-0"
              >
                 Next <ChevronRight size={20} />
              </button>
           )}
        </div>
-    </div>
-  );
-}
-
-function CustomVideoPlayer({ src, poster, isFullscreen, setIsFullscreen }: { src: string, poster?: string, isFullscreen: boolean, setIsFullscreen: (val: boolean) => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) videoRef.current.pause();
-      else videoRef.current.play();
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) setDuration(videoRef.current.duration);
-  };
-
-  const skip = (amount: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = Math.min(Math.max(videoRef.current.currentTime + amount, 0), duration);
-    }
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = Number(e.target.value);
-    if (videoRef.current) videoRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = Number(e.target.value);
-    setVolume(newVol);
-    if (videoRef.current) {
-      videoRef.current.volume = newVol;
-      videoRef.current.muted = newVol === 0;
-    }
-    setIsMuted(newVol === 0);
-  };
-
-  const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-      if (isMuted && volume === 0) {
-        setVolume(1);
-        videoRef.current.volume = 1;
-      }
-    }
-  };
-
-  const formatTime = (time: number) => {
-    if (isNaN(time)) return "0:00";
-    const mins = Math.floor(time / 60);
-    const secs = Math.floor(time % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  const handleMouseMove = () => {
-    setShowControls(true);
-    if (hideControlsTimeoutRef.current) clearTimeout(hideControlsTimeoutRef.current);
-    hideControlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) setShowControls(false);
-    }, 3000);
-  };
-
-  const handleMouseLeave = () => {
-    if (isPlaying) setShowControls(false);
-  };
-
-  return (
-    <div 
-      className="relative w-full h-full bg-black flex items-center justify-center group font-montserrat"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={togglePlay}
-    >
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        src={src}
-        poster={poster}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onClick={(e) => { e.stopPropagation(); togglePlay(); }}
-        playsInline
-      />
-      
-      {/* Controls Overlay */}
-      <div 
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 md:px-6 md:pb-6 md:pt-16 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'} z-20`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Scrubber */}
-        <div className="flex items-center gap-3 mb-3 md:mb-4">
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={currentTime}
-            onChange={handleSeek}
-            className="w-full h-1.5 md:h-2 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#1800ad] hover:accent-[#361de4] transition-all"
-            style={{ 
-              background: `linear-gradient(to right, #1800ad ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.3) ${duration ? (currentTime / duration) * 100 : 0}%)` 
-            }}
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 md:gap-6">
-            {/* Play/Pause */}
-            <button onClick={togglePlay} className="text-white hover:text-[#361de4] transition-colors p-1" title={isPlaying ? "Pause" : "Play"}>
-              {isPlaying ? <Pause size={24} className="fill-current" /> : <Play size={24} className="fill-current" />}
-            </button>
-            
-            {/* Skip Back */}
-            <button onClick={() => skip(-15)} className="text-white hover:text-[#361de4] transition-colors relative group/skip p-1" title="Skip backward 15s">
-              <RotateCcw size={20} />
-              <span className="absolute text-[8px] font-bold top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[1px]">15</span>
-            </button>
-            
-            {/* Skip Forward */}
-            <button onClick={() => skip(15)} className="text-white hover:text-[#361de4] transition-colors relative group/skip p-1" title="Skip forward 15s">
-              <RotateCw size={20} />
-              <span className="absolute text-[8px] font-bold top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[1px]">15</span>
-            </button>
-            
-            {/* Volume */}
-            <div className="flex items-center gap-2 group/vol">
-              <button onClick={toggleMute} className="text-white hover:text-[#361de4] transition-colors p-1" title="Mute/Unmute">
-                {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="w-0 md:w-16 h-1.5 opacity-0 md:group-hover/vol:w-20 md:group-hover/vol:opacity-100 bg-white/30 rounded-full appearance-none cursor-pointer accent-white transition-all duration-300"
-                style={{ 
-                  background: `linear-gradient(to right, white ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.3) ${(isMuted ? 0 : volume) * 100}%)` 
-                }}
-              />
-            </div>
-            
-            {/* Time */}
-            <div className="text-white text-xs md:text-sm font-mono tracking-wider font-semibold opacity-90 hidden sm:block">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="text-white text-xs md:text-sm font-mono tracking-wider font-semibold opacity-90 sm:hidden">
-              {formatTime(currentTime)}
-            </div>
-            {/* Fullscreen Toggle */}
-            <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-white hover:text-[#361de4] transition-colors p-1" title="Toggle Fullscreen">
-              {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Big Play Button Overlay (when paused) */}
-      {!isPlaying && (
-        <button 
-          onClick={togglePlay}
-          className="absolute inset-0 m-auto w-16 h-16 md:w-20 md:h-20 bg-[#1800ad]/80 hover:bg-[#1800ad] text-white rounded-full flex items-center justify-center transition-transform hover:scale-110 shadow-2xl backdrop-blur-sm z-10"
-        >
-          <Play size={32} className="fill-current ml-2" />
-        </button>
-      )}
     </div>
   );
 }
@@ -432,12 +208,12 @@ function VideoSimulationContent({ task }: { task: Task }) {
 
   const renderContent = (fullscreenMode = false) => {
     // Simulation / 3D Model rendering
-    if (task.type === 'Simulation' || task.typeLabel === '3D Model') {
+    if (task.type === 'Simulation' || task.type === 'Predict It' || task.typeLabel === '3D Model') {
       return (
         <div className={`w-full bg-white flex items-center justify-center relative flex-col shrink-0 ${
           fullscreenMode 
             ? 'h-full' 
-            : 'border-2 border-[#1800ad] overflow-hidden h-[580px] md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
+            : 'border-2 border-[#1800ad] overflow-hidden aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
         }`}>
           {!fullscreenMode && (
             <div className="absolute inset-x-0 top-0 h-10 bg-[#1800ad] flex items-center justify-between px-4 z-10">
@@ -484,12 +260,13 @@ function VideoSimulationContent({ task }: { task: Task }) {
           ? 'h-full flex items-center justify-center' 
           : 'aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
       }`}>
-        <CustomVideoPlayer 
-          src={videoSrc} 
+
+        <video 
+          className="w-full h-full object-contain md:object-cover" 
+          controls 
+          src={videoSrc}
           poster={!dbTask ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg" : undefined}
-          isFullscreen={fullscreenMode}
-          setIsFullscreen={setIsFullscreen}
-        />
+        ></video>
       </div>
     );
   };
@@ -525,39 +302,19 @@ function VideoSimulationContent({ task }: { task: Task }) {
 // --- Main Page ---
 
 export function StudentTaskActivityPage() {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const { taskId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromHome = searchParams.get('fromHome') === 'true';
   const classId = searchParams.get('class_id');
   
-  // Determine if we accessed from Explore or Tasks
-  const isFromExplore = !fromHome && !!(taskId && taskId.startsWith('exp_'));
   let backUrl = fromHome ? '/student/home' : '/student/tasks';
-  if (isFromExplore) {
-    const parts = taskId.split('_');
-    if (parts.length >= 3) {
-      const subjectCode = parts[1];
-      const chapterId = parts[2];
-      backUrl = `/student/explore/${subjectCode}/${chapterId}`;
-    }
-  }
 
   const [dbTask, setDbTask] = useState<any | null>(null);
-  const [simulationUrl, setSimulationUrl] = useState<string | null>(null);
   const [loadingDbTask, setLoadingDbTask] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [resolvedSubject, setResolvedSubject] = useState('Science');
-  const [studentName, setStudentName] = useState<string>('');
-
-  useEffect(() => {
-    api.get('/students/me').then((me: any) => {
-      if (me?.full_name) {
-        const firstName = me.full_name.split(' ')[0];
-        setStudentName(firstName);
-      }
-    }).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!classId) return;
@@ -576,8 +333,8 @@ export function StudentTaskActivityPage() {
   }, [classId]);
 
   useEffect(() => {
-    // If it's a static task ID (like p1, c1, m1) or exp_, we don't fetch
-    if (!taskId || taskId.startsWith('exp_') || ['p1', 'p2', 'c1', 'c2', 'c3', 'm1', 'm2', 'm3', 'b1', 'b2', 'b3'].includes(taskId)) {
+    // If it's a static task ID (like p1, c1, m1), we don't fetch
+    if (!taskId || ['p1', 'p2', 'c1', 'c2', 'c3', 'm1', 'm2', 'm3', 'b1', 'b2', 'b3'].includes(taskId)) {
       return;
     }
     
@@ -601,32 +358,6 @@ export function StudentTaskActivityPage() {
     };
     fetchAssignment();
   }, [taskId, classId]);
-
-  useEffect(() => {
-    const finalClassId = classId || dbTask?.class_id;
-    const finalChapterId = dbTask?.chapter_id;
-    if (!finalClassId || !finalChapterId) return;
-
-    const fetchChapterDetails = async () => {
-      try {
-        const chapterData = await api.get(`/students/classes/${finalClassId}/chapters/${finalChapterId}`);
-        if (chapterData) {
-          const allAssets = [
-            ...(chapterData.assets || []),
-            ...(chapterData.topics?.flatMap((t: any) => t.assets || []) || [])
-          ];
-          const readySim = allAssets.find((a: any) => a.asset_type === 'simulation' && a.generation_status === 'ready');
-          if (readySim && readySim.external_url) {
-            setSimulationUrl(readySim.external_url);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load chapter assets for simulation:", err);
-      }
-    };
-
-    fetchChapterDetails();
-  }, [classId, dbTask]);
   
   // Resolve task or dynamic task from explore chapters or backend
   let task: any = null;
@@ -637,22 +368,16 @@ export function StudentTaskActivityPage() {
     if (dbTask.assignment_type === 'quiz') {
       taskType = 'Quiz';
       typeLabel = 'Attempt Quiz';
-    } else if (dbTask.assignment_type === 'simulation') {
-      taskType = 'Simulation';
-      typeLabel = 'Simulation';
+    } else if (['predict_ai', 'PREDICT_IT', 'predict_it', 'simulation'].includes(dbTask.assignment_type)) {
+      taskType = 'Predict It';
+      typeLabel = 'Predict It';
     } else if (dbTask.assignment_type === 'model') {
       taskType = 'Simulation';
       typeLabel = '3D Model';
     } else if (['explain_ai', 'EXPLAIN_IT', 'explain_it'].includes(dbTask.assignment_type)) {
       taskType = 'Explain It';
       typeLabel = 'Explain It';
-    } else if (['predict_ai', 'PREDICT_IT', 'predict_it'].includes(dbTask.assignment_type)) {
-      taskType = 'Predict It';
-      typeLabel = 'Predict It';
-    } else if (['spot_it', 'SPOT_IT'].includes(dbTask.assignment_type)) {
-      taskType = 'Spot It';
-      typeLabel = 'Spot It';
-    } else if (dbTask.assignment_type === 'connect_it') {
+    } else if (['spot_it', 'SPOT_IT', 'connect_it'].includes(dbTask.assignment_type)) {
       taskType = 'Connect It';
       typeLabel = 'Connect It';
     } else if (['interactive_quiz', 'INTERACTIVE_QUIZ'].includes(dbTask.assignment_type)) {
@@ -670,61 +395,17 @@ export function StudentTaskActivityPage() {
       status: dbTask.status === 'ready' ? 'Not Started' : 'In Progress',
       dbTask: dbTask
     };
-  } else if (!taskId?.startsWith('exp_')) {
-    task = TASKS.find(t => t.id === taskId);
   } else {
-    const parts = taskId.split('_'); // exp, phy, c3, t1, Video/Simulation/Quiz
-    const subjectCode = parts[1];
-    const chapterId = parts[2];
-    const topicId = parts[3];
-    const itemType = parts[4];
-
-    let subjectStr = 'Physics';
-    if (subjectCode === 'chm') subjectStr = 'Chemistry';
-    else if (subjectCode === 'mat') subjectStr = 'Mathematics';
-    else if (subjectCode === 'bio') subjectStr = 'Biology';
-
-    let topicName = 'Explore Lesson';
-    if (subjectCode === 'phy' && chapterId === 'c3') {
-      if (topicId === 't1') topicName = 'Introduction to Buoyancy';
-      else if (topicId === 't2') topicName = 'Archimedes\' Principle';
-      else if (topicId === 't3') topicName = 'Floating and Sinking';
-    } else {
-      const typeStr = itemType || 'Video';
-      topicName = `${subjectStr} Ch${chapterId.replace('c', '')} Topic ${topicId.toUpperCase().replace('T', '')}`;
-    }
-
-    const typeLabel = itemType === 'Video' ? 'Watch Video' : itemType === 'Quiz' ? 'Attempt Quiz' : 'Simulation';
-
-    task = {
-      id: taskId,
-      type: itemType as any || 'Video',
-      typeLabel: typeLabel,
-      topic: topicName,
-      subject: subjectStr,
-      deadline: 'Explore Activity',
-      status: 'In Progress'
-    };
+    task = TASKS.find(t => t.id === taskId);
   }
 
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
 
-  const isSimulationTask = !!(task && (
-    task.type === 'Simulation' || 
-    task.type === 'Predict It' ||
-    task.typeLabel === 'Simulation' || 
-    task.typeLabel === '3D Model' || 
-    task.typeLabel === 'Predict It' ||
-    (dbTask && ['simulation', 'model', 'predict_ai', 'predict_it', 'PREDICT_IT'].includes(dbTask.assignment_type))
-  ));
-
   useEffect(() => {
-    if (task && ['Explain It', 'Predict It', 'Spot It', 'Connect It', 'Interactive Quiz'].includes(task.type)) {
-      if (task.type === 'Interactive Quiz' || task.type === 'Predict It') {
-        setActiveActivity(null);
-      } else {
-        setActiveActivity(task.type);
-      }
+    if (task && ['Explain It', 'Connect It'].includes(task.type)) {
+      setActiveActivity(task.type);
+    } else {
+      setActiveActivity(null);
     }
   }, [task?.type]);
 
@@ -761,18 +442,17 @@ export function StudentTaskActivityPage() {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[80px] lg:w-[100px] flex-col items-center justify-between py-8 fixed top-0 bottom-0 left-0 h-full shrink-0 bg-[#1800ad] text-[#f6f4ee] z-30">
         {/* Logo */}
-        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/student/home')}>
-          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1 notranslate">M</span>
+        <div className="flex items-center justify-center shrink-0 mt-4 cursor-pointer" onClick={() => navigate('/')}>
+          <span className="text-[#f6f4ee] font-val text-[42px] leading-none tracking-widest mt-1 mr-1">M</span>
         </div>
         <nav className="flex flex-col gap-6 w-full items-center my-auto">
           <NavItem icon={<LayoutDashboard size={24} />} onClick={() => navigate('/student/home')} />
-          <NavItem icon={<CheckSquare size={24} />} active={!isFromExplore} onClick={() => navigate('/student/tasks')} />
-          <NavItem icon={<Compass size={24} />} active={isFromExplore} onClick={() => navigate('/student/explore')} />
+          <NavItem icon={<CheckSquare size={24} />} active onClick={() => navigate('/student/tasks')} />
           <NavItem icon={<Gamepad2 size={24} />} onClick={() => navigate('/student/playground')} />
           <NavItem icon={<BarChart2 size={24} />} onClick={() => navigate('/student/analytics')} />
         </nav>
-        <div onClick={() => api.logout()} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
-           <span className="text-[#1800ad] font-bold text-lg">{studentName ? studentName[0].toUpperCase() : 'S'}</span>
+        <div onClick={() => setIsLogoutModalOpen(true)} className="shrink-0 cursor-pointer flex items-center justify-center group w-12 h-12 rounded-full border-2 border-[#1800ad] bg-[#f6f4ee] relative">
+           <span className="text-[#1800ad] font-bold text-lg">P</span>
         </div>
       </aside>
 
@@ -795,17 +475,12 @@ export function StudentTaskActivityPage() {
              <AnimatePresence mode="wait">
                {activeActivity === 'Explain It' && (
                  <motion.div key="ExplainIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
-                   <LiveVoiceActivity task={task} activityName="Explain It" instructions="Teach the concept and answer questions." onDone={() => setActiveActivity(null)} />
-                 </motion.div>
-               )}
-               {activeActivity === 'Spot It' && (
-                 <motion.div key="SpotIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
-                   <LiveVoiceActivity task={task} activityName="Spot It" instructions="Identify the concept in a real-world scenario." onDone={() => setActiveActivity(null)} />
+                   <LiveVoiceActivity task={task} activityName="Explain It" instructions="Teach the concept and answer questions." onDone={() => navigate('/student/home')} />
                  </motion.div>
                )}
                {activeActivity === 'Connect It' && (
                  <motion.div key="ConnectIt" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-20}} className="h-full">
-                   <LiveVoiceActivity task={task} activityName="Connect It" instructions="Explain the relationship between concepts." onDone={() => setActiveActivity(null)} />
+                   <ConnectItActivity task={task} onDone={() => setActiveActivity(null)} />
                  </motion.div>
                )}
               {!activeActivity && (
@@ -819,20 +494,12 @@ export function StudentTaskActivityPage() {
                      <div className="lg:hidden w-full mt-6 pb-12">
                         <div className="bg-[#1800ad] rounded-[22px] p-4 shadow-lg relative overflow-hidden">
                           <h3 className="font-bold text-md text-white mb-2 pb-1 border-b border-white/10 tracking-wide">Activity</h3>
-                          <div className={`grid ${isSimulationTask ? 'grid-cols-3 gap-1.5' : 'grid-cols-2 gap-2.5'} relative z-10 w-full`}>
+                          <div className="grid grid-cols-2 gap-2.5 relative z-10 w-full">
                              <button onClick={() => setActiveActivity('Explain It')} className="bg-[#f6f4ee] rounded-[16px] h-14 flex flex-col items-center justify-center shadow-md hover:scale-102 transition-transform">
-                                <span className="font-bold text-xs sm:text-sm text-[#1800ad] text-center leading-tight">Explain It</span>
-                             </button>
-                             {!isSimulationTask && (
-                               <button onClick={() => setActiveActivity('Predict It')} className="bg-[#f6f4ee] rounded-[16px] h-14 flex flex-col items-center justify-center shadow-md hover:scale-102 transition-transform">
-                                  <span className="font-bold text-xs sm:text-sm text-[#1800ad] text-center leading-tight">Predict It</span>
-                               </button>
-                             )}
-                             <button onClick={() => setActiveActivity('Spot It')} className="bg-[#f6f4ee] rounded-[16px] h-14 flex flex-col items-center justify-center shadow-md hover:scale-102 transition-transform">
-                                <span className="font-bold text-xs sm:text-sm text-[#1800ad] text-center leading-tight">Spot It</span>
+                                <span className="font-bold text-sm text-[#1800ad] text-center leading-tight">Explain It</span>
                              </button>
                              <button onClick={() => setActiveActivity('Connect It')} className="bg-[#f6f4ee] rounded-[16px] h-14 flex flex-col items-center justify-center shadow-md hover:scale-102 transition-transform">
-                                <span className="font-bold text-xs sm:text-sm text-[#1800ad] text-center leading-tight">Connect It</span>
+                                <span className="font-bold text-sm text-[#1800ad] text-center leading-tight">Connect It</span>
                              </button>
                           </div>
                         </div>
@@ -852,41 +519,27 @@ export function StudentTaskActivityPage() {
                 </button>
               </div>
               
-              <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => setActiveActivity('Explain It')} 
-                  className="h-16 bg-[#f6f4ee] rounded-[20px] p-3 flex justify-center items-center group hover:scale-[1.03] transition-all shadow-md relative w-full"
+                  className="h-24 bg-[#f6f4ee] rounded-[20px] p-3 flex flex-col justify-center items-center group hover:scale-[1.03] transition-all shadow-md relative"
                 >
-                  <span className="font-bold text-center text-[#1800ad] text-sm leading-tight">Explain It</span>
-                </button>
-
-                {!isSimulationTask && (
-                  <button 
-                    onClick={() => setActiveActivity('Predict It')} 
-                    className="h-16 bg-[#f6f4ee] rounded-[20px] p-3 flex justify-center items-center group hover:scale-[1.03] transition-all shadow-md relative w-full"
-                  >
-                    <span className="font-bold text-center text-[#1800ad] text-sm leading-tight">Predict It</span>
-                  </button>
-                )}
-
-                <button 
-                  onClick={() => setActiveActivity('Spot It')} 
-                  className="h-16 bg-[#f6f4ee] rounded-[20px] p-3 flex justify-center items-center group hover:scale-[1.03] transition-all shadow-md relative w-full"
-                >
-                  <span className="font-bold text-center text-[#1800ad] text-sm leading-tight">Spot It</span>
+                  <span className="font-bold text-center text-[#1800ad] text-sm leading-tight">Explain<br/>It</span>
                 </button>
 
                 <button 
                   onClick={() => setActiveActivity('Connect It')} 
-                  className="h-16 bg-[#f6f4ee] rounded-[20px] p-3 flex justify-center items-center group hover:scale-[1.03] transition-all shadow-md relative w-full"
+                  className="h-24 bg-[#f6f4ee] rounded-[20px] p-3 flex flex-col justify-center items-center group hover:scale-[1.03] transition-all shadow-md relative"
                 >
-                  <span className="font-bold text-center text-[#1800ad] text-sm leading-tight">Connect It</span>
+                  <span className="font-bold text-center text-[#1800ad] text-sm leading-tight">Connect<br/>It</span>
                 </button>
               </div>
             </div>
           )}
         </div>
       </main>
+      {/* MODAL: Logout Confirmation */}
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} />
     </div>
   );
 }

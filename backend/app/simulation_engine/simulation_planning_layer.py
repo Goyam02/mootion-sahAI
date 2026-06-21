@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+import re
 
 from app.simulation_engine.prompt_understanding_layer import query_llm
 from app.simulation_engine.schemas import (
@@ -90,26 +91,34 @@ class SimulationPlanningLayer:
     def __init__(self, use_llm: bool = True):
         self.use_llm = use_llm
 
-    def plan(self, intent: SimulationIntent) -> SimulationSpecification:
+    def plan(self, intent: SimulationIntent, user_grade: str | None = None) -> SimulationSpecification:
         if self.use_llm:
             try:
-                return self._llm_generate_spec(intent)
+                return self._llm_generate_spec(intent, user_grade=user_grade)
             except Exception as e:
                 pass
 
         return self._rule_based_spec(intent)
 
-    def _get_rag_context(self, intent: SimulationIntent) -> str:
+    def _get_rag_context(self, intent: SimulationIntent, user_grade: str | None = None) -> str:
         try:
             from app.services.rag_service import retrieve_context
             
             # Map grade_level string to standard NCERT Class numbers
-            if intent.grade_level == "middle_school":
-                grades = ["Class 8", "Class 7", "Class 6"]
-            elif intent.grade_level == "advanced":
-                grades = ["Class 12", "Class 11"]
-            else:  # default to high_school
-                grades = ["Class 10", "Class 9"]
+            if user_grade:
+                match = re.search(r"\d+", str(user_grade))
+                if match:
+                    grade_num = match.group(0)
+                    grades = [f"Class {grade_num}"]
+                else:
+                    grades = [user_grade]
+            else:
+                if intent.grade_level == "middle_school":
+                    grades = ["Class 8", "Class 7", "Class 6"]
+                elif intent.grade_level == "advanced":
+                    grades = ["Class 12", "Class 11"]
+                else:  # default to high_school
+                    grades = ["Class 10", "Class 9"]
 
             context_parts = []
             for g in grades:
@@ -119,7 +128,7 @@ class SimulationPlanningLayer:
                     if len(context_parts) >= 2:
                         break
 
-            if not context_parts:
+            if not context_parts and not user_grade:
                 for g in ["Class 10", "Class 12", "Class 9", "Class 11"]:
                     ctx = retrieve_context(query=intent.topic, grade=g, subject=intent.subject.value, limit=2)
                     if ctx:
@@ -131,7 +140,7 @@ class SimulationPlanningLayer:
             print(f"[SimulationPlanningLayer] RAG retrieval bypassed due to error: {e}")
             return ""
 
-    def _llm_generate_spec(self, intent: SimulationIntent) -> SimulationSpecification:
+    def _llm_generate_spec(self, intent: SimulationIntent, user_grade: str | None = None) -> SimulationSpecification:
         subject_hint = SUBJECT_PROMPTS.get(intent.subject.value, "")
         type_hint = SIMULATION_TYPE_HINTS.get(
             intent.simulation_type.value, ""
@@ -139,7 +148,7 @@ class SimulationPlanningLayer:
         concepts_str = ", ".join(intent.concepts)
 
         # Retrieve curriculum context from RAG service
-        rag_context = self._get_rag_context(intent)
+        rag_context = self._get_rag_context(intent, user_grade=user_grade)
         rag_instructions = ""
         if rag_context:
             rag_instructions = f"\n━━ RELEVANT NCERT CURRICULUM CONTEXT ━━\nUse the following textbook content to ensure correct equations, parameters, definitions, and learning objectives:\n{rag_context}\n"
