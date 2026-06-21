@@ -443,6 +443,47 @@ def generate_chapter_asset(
 
     prompt = (request.instructions or "").strip()
     generation_prompt = chapter.title
+
+    if asset.asset_type == "simulation":
+        from app.services.student_actions_service import _get_phet_simulation_url
+        phet_url = _get_phet_simulation_url(chapter.title, fallback_default=False)
+        if not phet_url and prompt:
+            phet_url = _get_phet_simulation_url(prompt, fallback_default=False)
+        
+        if phet_url:
+            asset.external_url = phet_url
+            asset.provider = "phet"
+            asset.integration_target = "phet_embed"
+            asset.payload_json = {
+                **(asset.payload_json or {}),
+                "chapter_id": str(chapter.id),
+                "chapter_title": chapter.title,
+                "asset_type": "simulation",
+                "provider": "phet",
+                "integration_target": "phet_embed",
+                "instructions": prompt,
+                "generation_prompt": generation_prompt,
+                "teacher_notes": prompt,
+                "language": request.language or "english",
+                "placeholder": False,
+                "generated": False,
+                "simulation_source": "phet",
+                "result": {"phet_url": phet_url}
+            }
+            asset.generation_status = "ready"
+            asset.last_generated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(asset)
+            return ChapterAssetGenerateResponse(
+                chapter_id=str(chapter.id),
+                asset_id=str(asset.id),
+                asset_type=asset.asset_type,
+                external_url=asset.external_url,
+                generation_status=asset.generation_status,
+                payload_json=asset.payload_json,
+                last_generated_at=asset.last_generated_at,
+            )
+
     payload_json = {
         **(asset.payload_json or {}),
         "chapter_id": str(chapter.id),
@@ -548,6 +589,51 @@ def generate_topic_asset(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Generation is already in progress for this asset.")
 
     notes = (request.instructions or "").strip()
+
+    if asset.asset_type == "simulation":
+        from app.services.student_actions_service import _get_phet_simulation_url
+        phet_url = _get_phet_simulation_url(topic.title, fallback_default=False)
+        if not phet_url and notes:
+            phet_url = _get_phet_simulation_url(notes, fallback_default=False)
+        
+        if phet_url:
+            asset.external_url = phet_url
+            asset.provider = "phet"
+            asset.integration_target = "phet_embed"
+            asset.payload_json = {
+                **(asset.payload_json or {}),
+                "chapter_id": str(chapter.id),
+                "chapter_title": chapter.title,
+                "topic_id": str(topic.id),
+                "topic_title": topic.title,
+                "source_text": topic.source_text,
+                "asset_type": "simulation",
+                "provider": "phet",
+                "integration_target": "phet_embed",
+                "instructions": notes,
+                "generation_prompt": topic.title,
+                "teacher_notes": notes,
+                "language": request.language or "english",
+                "placeholder": False,
+                "generated": False,
+                "simulation_source": "phet",
+                "result": {"phet_url": phet_url}
+            }
+            asset.generation_status = "ready"
+            asset.last_generated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(asset)
+            return ChapterTopicAssetGenerateResponse(
+                chapter_id=str(chapter.id),
+                topic_id=str(topic.id),
+                asset_id=str(asset.id),
+                asset_type=asset.asset_type,
+                external_url=asset.external_url,
+                generation_status=asset.generation_status,
+                payload_json=asset.payload_json,
+                last_generated_at=asset.last_generated_at,
+            )
+
     payload_json = {
         **(asset.payload_json or {}),
         "chapter_id": str(chapter.id),

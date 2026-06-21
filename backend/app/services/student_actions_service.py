@@ -529,7 +529,67 @@ def resolve_teacher_doubt(db: Session, teacher: User, doubt_id: str) -> StudentD
 
 # --- CUSTOM PLAYGROUND GENERATOR ---
 
-def _get_phet_simulation_url(topic: str) -> str:
+def _get_phet_simulation_url(topic: str, fallback_default: bool = True) -> str | None:
+    import json
+    import os
+    
+    sims_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "sims.json")
+    sims_data = []
+    if os.path.exists(sims_file):
+        try:
+            with open(sims_file, "r") as f:
+                sims_data = json.load(f)
+        except Exception as e:
+            print("Error loading sims.json:", e)
+
+    if sims_data:
+        t_lower = topic.lower().strip()
+        
+        # 1. Exact match on topic_key or aliases
+        for sim in sims_data:
+            if t_lower == sim.get("topic_key", "").lower().strip():
+                return sim["phet_url"]
+            if t_lower in [a.lower().strip() for a in sim.get("aliases", [])]:
+                return sim["phet_url"]
+
+        # 2. LLM semantic match (fuzzy/similarity check)
+        try:
+            topics_list = []
+            for sim in sims_data:
+                topics_list.append({
+                    "topic_key": sim["topic_key"],
+                    "aliases": sim.get("aliases", []),
+                    "title": sim.get("title", "")
+                })
+            
+            prompt = (
+                "You are an expert educational content mapper.\n"
+                "Given a student's topic query, your task is to map it to the most relevant simulation topic from the provided list, or output \"None\" if there is no reasonable match.\n\n"
+                f"List of topics:\n{json.dumps(topics_list, indent=2)}\n\n"
+                f"Query: {topic}\n\n"
+                "Instructions:\n"
+                "1. Compare the query to the available topics and their aliases.\n"
+                "2. Determine if the query is semantically similar or refers to the same concept as one of the topics.\n"
+                "3. If there is a clear, relevant match that makes sense, output ONLY the exact topic_key of that match.\n"
+                "4. If there is absolutely no relevant match, output \"None\".\n"
+                "5. Do not include any explanation, intro, markdown formatting, or extra text. Output only the topic_key or \"None\"."
+            )
+            
+            res = query_llm(prompt)
+            matched_key = res.get("response", "").strip()
+            matched_key = matched_key.replace("`", "").strip()
+            
+            if matched_key and matched_key.lower() != "none":
+                for sim in sims_data:
+                    if matched_key.lower() == sim.get("topic_key", "").lower().strip():
+                        return sim["phet_url"]
+        except Exception as llm_err:
+            print("Error mapping simulation topic via LLM:", llm_err)
+
+    if not fallback_default:
+        return None
+
+    # Fallback to keywords if file lookup and LLM mapping have no match
     t_lower = topic.lower()
     if "gravity" in t_lower or "orbit" in t_lower or "mass" in t_lower:
         return "https://phet.colorado.edu/sims/html/gravity-and-orbits/latest/gravity-and-orbits_all.html"
@@ -539,6 +599,7 @@ def _get_phet_simulation_url(topic: str) -> str:
         return "https://phet.colorado.edu/sims/html/wave-interference/latest/wave-interference_all.html"
     elif "force" in t_lower or "motion" in t_lower or "friction" in t_lower or "push" in t_lower:
         return "https://phet.colorado.edu/sims/html/forces-and-motion-basics/latest/forces-and-motion-basics_all.html"
+    
     return "https://phet.colorado.edu/sims/html/ohms-law/latest/ohms-law_all.html"
 
 
