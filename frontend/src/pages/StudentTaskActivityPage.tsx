@@ -195,9 +195,9 @@ function VideoSimulationContent({ task }: { task: Task }) {
     const getBackendBaseUrl = () => {
       if (typeof window !== 'undefined') {
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        return isLocalhost ? 'http://localhost:8000' : window.location.origin;
+        return isLocalhost ? 'https://conservative-hispanic-sector-elder.trycloudflare.com    ' : window.location.origin;
       }
-      return 'http://localhost:8000';
+      return 'https://conservative-hispanic-sector-elder.trycloudflare.com    ';
     };
     mediaUrl = `${getBackendBaseUrl()}/media/assets/${assetId}`;
   }

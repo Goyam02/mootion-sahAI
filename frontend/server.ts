@@ -372,7 +372,7 @@ Make sure that you strictly output the JSON structure without any formatting pre
   }
 });
 
-const BACKEND_URL = process.env.BACKEND_API_URL || "http://localhost:8000";
+const BACKEND_URL = process.env.BACKEND_API_URL || "https://conservative-hispanic-sector-elder.trycloudflare.com";
 
 async function proxyToFastAPI(req: express.Request, res: express.Response, targetPath: string) {
   try {
