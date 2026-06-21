@@ -74,7 +74,7 @@ export function StudentExplorePage() {
         setIsLoadingChapters(true);
         const chapterResults = await Promise.allSettled(
           classData.map(cls =>
-            api.get(`/teachers/classes/${cls.class_id}/chapters`).then((chs: Chapter[]) => ({
+            api.get(`/students/classes/${cls.class_id}/chapters`).then((chs: Chapter[]) => ({
               class_id: cls.class_id,
               chapters: chs,
             }))

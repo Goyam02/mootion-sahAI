@@ -911,11 +911,13 @@ def get_student_analytics_drill(
 def get_student_activity_calendar(db: Session, user: User, year: int, month: int) -> list[dict]:
     """
     Returns a list of {date: YYYY-MM-DD, value: count} for the given month.
-    Counts StudentAttempt submissions as activity.
+    Counts StudentAttempt submissions, doubts, and AI chats as activity.
+    Timezone shifted to Asia/Kolkata (IST) for student accuracy.
     """
     from sqlalchemy import func, cast, Date
-    from app.core.models import StudentAttempt
+    from app.core.models import StudentAttempt, StudentDoubt, StudentAiChatThread, StudentAiChatMessage
     from datetime import datetime
+    from collections import defaultdict
 
     start_date = datetime(year, month, 1)
     if month == 12:
@@ -923,9 +925,20 @@ def get_student_activity_calendar(db: Session, user: User, year: int, month: int
     else:
         end_date = datetime(year, month + 1, 1)
 
-    results = (
+    dialect = db.bind.dialect.name
+    
+    def get_local_date_expr(col):
+        if dialect == "postgresql":
+            return cast(func.timezone('Asia/Kolkata', col), Date)
+        else:
+            return cast(func.datetime(col, '+330 minutes'), Date)
+
+    activity_counts = defaultdict(int)
+
+    # 1. Student attempts (assigned tasks)
+    attempts = (
         db.query(
-            cast(StudentAttempt.created_at, Date).label('date'),
+            get_local_date_expr(StudentAttempt.created_at).label('date'),
             func.count(StudentAttempt.id).label('count')
         )
         .filter(
@@ -936,5 +949,43 @@ def get_student_activity_calendar(db: Session, user: User, year: int, month: int
         .group_by('date')
         .all()
     )
+    for r in attempts:
+        activity_counts[r.date.isoformat()] += r.count
 
-    return [{"date": r.date.isoformat(), "value": r.count} for r in results]
+    # 2. Student doubts
+    doubts = (
+        db.query(
+            get_local_date_expr(StudentDoubt.created_at).label('date'),
+            func.count(StudentDoubt.id).label('count')
+        )
+        .filter(
+            StudentDoubt.student_id == user.id,
+            StudentDoubt.created_at >= start_date,
+            StudentDoubt.created_at < end_date
+        )
+        .group_by('date')
+        .all()
+    )
+    for r in doubts:
+        activity_counts[r.date.isoformat()] += r.count
+
+    # 3. Student AI chat messages (sent by user)
+    chat_messages = (
+        db.query(
+            get_local_date_expr(StudentAiChatMessage.created_at).label('date'),
+            func.count(StudentAiChatMessage.id).label('count')
+        )
+        .join(StudentAiChatThread, StudentAiChatMessage.chat_id == StudentAiChatThread.id)
+        .filter(
+            StudentAiChatThread.student_id == user.id,
+            StudentAiChatMessage.role == "user",
+            StudentAiChatMessage.created_at >= start_date,
+            StudentAiChatMessage.created_at < end_date
+        )
+        .group_by('date')
+        .all()
+    )
+    for r in chat_messages:
+        activity_counts[r.date.isoformat()] += r.count
+
+    return [{"date": d, "value": val} for d, val in sorted(activity_counts.items())]

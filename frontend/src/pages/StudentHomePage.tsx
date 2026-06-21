@@ -186,7 +186,7 @@ export function StudentHomePage() {
     const fetchChapters = async () => {
       setIsLoadingChapters(true);
       try {
-        const data: Chapter[] = await api.get(`/teachers/classes/${selectedClass.class_id}/chapters`);
+        const data: Chapter[] = await api.get(`/students/classes/${selectedClass.class_id}/chapters`);
         const sorted = [...data].sort((a, b) => a.sequence_number - b.sequence_number);
         setClassChapters(sorted);
       } catch {
