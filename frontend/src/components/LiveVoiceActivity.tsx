@@ -123,6 +123,7 @@ export function LiveVoiceActivity({
   const [messages, setMessages] = useState<{ role: 'student' | 'Mootion', text: string }[]>([]);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [textFallbackInput, setTextFallbackInput] = useState('');
+  const [useTextMode, setUseTextMode] = useState(false);
 
   // Counter of adaptive follow-up questions
   const [questionsAnswered, setQuestionsAnswered] = useState(0);
@@ -1388,25 +1389,67 @@ Respond in 1-2 conversational sentences. Ask EXACTLY ONE question. Never refer t
 
         {activePlayState === 'explaining' && (
           <div className="flex flex-col items-center justify-center gap-4">
-            <div className="relative flex items-center justify-center">
-              
-              {isRecording && (
-                <>
-                  <div className="absolute w-36 h-36 bg-white/25 rounded-full animate-ping" style={{ animationDuration: '2.5s' }}></div>
-                  <div className="absolute w-28 h-28 bg-white/15 rounded-full animate-pulse" style={{ animationDuration: '1.2s' }}></div>
-                </>
-              )}
+            {useTextMode ? (
+              <div className="flex flex-col items-center gap-3 w-full max-w-lg">
+                <textarea
+                  value={textFallbackInput}
+                  onChange={(e) => setTextFallbackInput(e.target.value)}
+                  placeholder="Type your explanation here..."
+                  rows={5}
+                  className="w-full bg-white text-[#1800ad] placeholder-[#1800ad]/40 border-2 border-[#1800ad]/20 rounded-2xl p-4 text-sm font-semibold focus:outline-none focus:border-[#1800ad] resize-none"
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setUseTextMode(false); setTextFallbackInput(''); }}
+                    className="px-4 py-2 border-2 border-white/30 text-white rounded-full text-xs font-black uppercase tracking-wider hover:bg-white/10 transition-colors"
+                  >
+                    Use Mic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!textFallbackInput.trim()) return;
+                      setMessages(prev => [...prev, { role: 'student', text: textFallbackInput.trim() }]);
+                      setTextFallbackInput('');
+                      setUseTextMode(false);
+                    }}
+                    disabled={!textFallbackInput.trim()}
+                    className="px-6 py-2 bg-white text-[#1800ad] rounded-full text-xs font-black uppercase tracking-wider hover:bg-[#f6f4ee] transition-colors disabled:opacity-50"
+                  >
+                    Submit Explanation
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative flex items-center justify-center">
+                  {isRecording && (
+                    <>
+                      <div className="absolute w-36 h-36 bg-white/25 rounded-full animate-ping" style={{ animationDuration: '2.5s' }}></div>
+                      <div className="absolute w-28 h-28 bg-white/15 rounded-full animate-pulse" style={{ animationDuration: '1.2s' }}></div>
+                    </>
+                  )}
 
-              <button 
-                type="button"
-                onClick={toggleRecording}
-                disabled={isThinking}
-                className={`w-24 h-24 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl duration-300 relative z-10 bg-white text-[#1800ad] disabled:opacity-50 ${isRecording ? 'animate-pulse' : ''}`}
-                title={isRecording ? "Stop and Submit Voice" : "Start Speaking"}
-              >
-                <Mic size={40} className="text-[#1800ad]" />
-              </button>
-            </div>
+                  <button 
+                    type="button"
+                    onClick={toggleRecording}
+                    disabled={isThinking}
+                    className={`w-24 h-24 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl duration-300 relative z-10 bg-white text-[#1800ad] disabled:opacity-50 ${isRecording ? 'animate-pulse' : ''}`}
+                    title={isRecording ? "Stop and Submit Voice" : "Start Speaking"}
+                  >
+                    <Mic size={40} className="text-[#1800ad]" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUseTextMode(true)}
+                  className="text-white/60 hover:text-white text-[11px] font-semibold underline underline-offset-2 transition-colors"
+                >
+                  or type your answer
+                </button>
+              </div>
+            )}
           </div>
         )}
 
