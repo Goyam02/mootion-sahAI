@@ -557,8 +557,11 @@ CANVAS_BOILERPLATE = """
       
       canvas.width = logicalWidth * dpr;
       canvas.height = logicalHeight * dpr;
-      canvas.style.width = logicalWidth + 'px';
-      canvas.style.height = logicalHeight + 'px';
+      
+      // Allow CSS to handle responsiveness, enforcing max-width logical constraint
+      canvas.style.width = '100%';
+      canvas.style.maxWidth = logicalWidth + 'px';
+      canvas.style.height = 'auto';
       
       Object.defineProperty(canvas, 'width', {
         configurable: true,
@@ -985,8 +988,15 @@ PARAMETERS available to read/write via state:
 4. Direct Canvas Drag Interactions (CRITICAL FOR HIGH ENGAGEMENT):
    - You MUST implement direct mouse/touch interaction in `canvasInteractions(canvas, state, bus)`!
    - Define draggable handles (e.g., handles, dots, vectors, or particles) directly on the canvas.
-   - On mousedown/touchstart, compute coordinates using getBoundingClientRect() and calculate distance using `Math.hypot(clickX - handleX, clickY - handleY)`.
-   - If distance < 20, set dragging state. On mousemove/touchmove, update the corresponding parameter in the `state` via `state.set('param_id', newValue)`.
+   - On mousedown/touchstart and touchmove/mousemove, touch/mouse event coordinates must be scaled properly to support both mobile and desktop screen sizes:
+     ```javascript
+     const rect = canvas.getBoundingClientRect();
+     const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+     const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+     const x = (clientX - rect.left) * (canvas.width / rect.width);
+     const y = (clientY - rect.top) * (canvas.height / rect.height);
+     ```
+     Use these logical coordinates `x` and `y` for hit testing and dragging calculations. This is critical to ensure interactive elements are accurate and responsive when the canvas scales down on smaller screens.
    - Update `canvas.style.cursor` to `'grab'` on hover and `'grabbing'` on drag to give strong visual affordance.
 5. High-fidelity Fluid Animations:
    - Add animations like trailing paths (remember past positions in a trail array), smooth particle flows (e.g. current drift, magnetic field lines, moving atoms), wave ripples, or glowing pulse dots traveling along path lines to make the canvas feel alive.

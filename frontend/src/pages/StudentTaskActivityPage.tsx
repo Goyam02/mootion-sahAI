@@ -437,7 +437,7 @@ function VideoSimulationContent({ task }: { task: Task }) {
         <div className={`w-full bg-white flex items-center justify-center relative flex-col shrink-0 ${
           fullscreenMode 
             ? 'h-full' 
-            : 'border-2 border-[#1800ad] overflow-hidden aspect-video md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
+            : 'border-2 border-[#1800ad] overflow-hidden h-[580px] md:aspect-auto md:flex-1 md:h-full md:min-h-[580px] md:rounded-[32px] rounded-2xl'
         }`}>
           {!fullscreenMode && (
             <div className="absolute inset-x-0 top-0 h-10 bg-[#1800ad] flex items-center justify-between px-4 z-10">
