@@ -1,15 +1,13 @@
-# Use official lightweight Python image
 FROM python:3.11-slim
 
-# Set environment variables (good defaults)
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    DEBCONF_NONINTERACTIVE_SEEN=true
 
-# Set working directory inside container
 WORKDIR /app
 
-# Install system dependencies (optional, extend if needed)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     pkg-config \
     libcairo2-dev \
@@ -24,23 +22,15 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-
-
-# Copy dependency file first (for caching)
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache/pip
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy project files
 COPY . .
 
-# Create non-root user (security best practice)
 RUN useradd -m appuser
 USER appuser
 
-# Expose port (optional, just documentation)
-# EXPOSE 8000
 ENV PYTHONPATH=/app/app
-# Default command (change based on your app)
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

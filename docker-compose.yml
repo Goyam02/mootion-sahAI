@@ -31,6 +31,11 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # ==========================================
   # Core FastAPI Backend
@@ -56,9 +61,15 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - backend_media:/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   # ==========================================
   # Media Background Worker
@@ -82,7 +93,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - backend_media:/app/media
 
@@ -116,7 +127,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   # ==========================================
   # Nginx Reverse Proxy / Gateway
@@ -133,6 +145,26 @@ services:
       - frontend
       - backend
       - animation-engine
+
+  # ==========================================
+  # One-time Setup: Migrations + Seed Data
+  # ==========================================
+  setup:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mootion-setup
+    restart: "no"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://neondb_owner:password123@db:5432/neondb
+      - REDIS_URL=redis://redis:6379/0
+    command: >
+      sh -c "python migration.py && python seed_ncert.py"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
