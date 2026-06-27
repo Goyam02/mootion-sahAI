@@ -1118,20 +1118,6 @@ Fiscally invisible for district-level deployment. No per-school configuration re
 
 ---
 
-## 👥 Team
-
-| Name | Role | Contribution |
-|---|---|---|
-| **Rachit Goyal** | Systems Architect | Backend orchestration, scalable pipeline frameworks |
-| **Poorvika Grover** | Design & UX Lead | End-to-end visual identity, user journey |
-| **Goyam Jain** | Lead ML Engineer | LLM scoring, KMeans pipeline, AI model optimization |
-| **Sartaj Kaur** | Product Lead & Strategy | Vision, roadmap, user validation, documentation |
-| **Divyansh Chawla** | Lead Backend Engineer | FastAPI endpoints, WebSocket architecture |
-
-<br/>
-
----
-
 <p align="center">
   <b>"Mootion turns student interactions into actionable understanding signals for teachers."</b>
   <br/><br/>
