@@ -1,7 +1,7 @@
 const BASE_URL = (typeof window !== 'undefined' && (window as any).NEXT_PUBLIC_API_URL) || 
                  (import.meta as any).env?.VITE_NEXT_PUBLIC_API_URL || 
                  (import.meta as any).env?.NEXT_PUBLIC_API_URL || 
-                 "https://conservative-hispanic-sector-elder.trycloudflare.com";
+                 "http://127.0.0.1:8000";
 
 export class ApiError extends Error {
   status: number;
